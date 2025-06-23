@@ -180,9 +180,9 @@ uint16_t previousMaxChargeTime = 0xFFFF;
 // --- 充電參數 ---
 float measuredVoltage = 0.0;
 float measuredCurrent = 0.0;
-const unsigned int chargerMaxOutputVoltage_0_1V = 1000;
-const unsigned int chargerMaxOutputCurrent_0_1A = 80;
-const byte chargerRatedPower_50W = 16;
+const unsigned int chargerMaxOutputVoltage_0_1V = 1200; // 最大輸出電壓(V)/0.1 
+const unsigned int chargerMaxOutputCurrent_0_1A = 100; // 最大輸出電流(A)/0.1 
+const byte chargerRatedPower_50W = 24; // 最大輸出功率(W)/50
 const unsigned int chargerManufacturerCode = 0x0000;
 
 bool vehicleReadyForCharge = false;
