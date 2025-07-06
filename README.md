@@ -23,7 +23,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *   **標準相容**: 遵循TES-0D-02-01標準的CAN Bus通訊協議。
 *   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
 *   **通訊抗干擾**: 包含了針對底層通訊不穩定的軟體補償策略（數據擾動）。
-*   **狀態顯示**: 透過LED燈指示待機、充電中、錯誤等狀態。
+*   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
 *   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
 
 ## 硬體需求 (Hardware Requirements)
@@ -31,13 +31,14 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *   **主控制器**: ESP32 Development Board
 *   **CAN通訊**: MCP2515 CAN Bus Module
 *   **電源量測**: 使用Modbus通訊的模組(with 5V TTL UART Interface)
-*   **高壓控制**: 暫無(可選) 
+*   **高壓繼電器**: 暫無(可選) 
 *   **使用者介面**:
+    *   OLED模組(可選)   
     *   LED指示燈 x 3
     *   按鈕 x 3 (Start, Stop, Emergency Stop)
 *   **其他**:
     *   5V TTL to 3.3V Logic Level Converter (or voltage divider resistors)
-    *   穩定的12V/5V電源供應
+    *   穩定的12V(非隔離型可)、5V(隔離型)電源供應
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
@@ -53,6 +54,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 4.  **編譯與上傳**: 將程式碼上傳到您的ESP32開發板。
 5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
 
+*  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
 ## 授權 (License)
 
 本專案採用 **[創用CC 姓名標示-非商業性-相同方式分享 4.0 國際 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權條款。
