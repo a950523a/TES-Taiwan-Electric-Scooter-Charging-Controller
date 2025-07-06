@@ -55,26 +55,6 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 4.  **編譯與上傳**: 將程式碼上傳到您的ESP32開發板。
 5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
 
-**重要：修改ModbusMaster函式庫**
-
-   為了保證充電過程的即時響應，本專案要求Modbus通訊的超時時間不大於200毫秒。您需要手動修改您電腦上的 ModbusMaster 函式庫。
-
-   找到函式庫文件：在Arduino IDE中，點擊 檔案 -> 偏好設定，找到您的「專案資料夾位置」。進入該資料夾下的 libraries/ModbusMaster/src。
-
-   編輯 ModbusMaster.h：用文字編輯器打開 ModbusMaster.h 文件。
-
-   修改超時時間：找到下面這一行（大約在第252行）：
-
-   static const uint16_t ku16MBResponseTimeout = 2000;
-
-   將 2000 修改為 200：
-
-   static const uint16_t ku16MBResponseTimeout = 200;
-
-   保存文件並重新啟動Arduino IDE。
-
-   如果您不執行此修改，在遇到通訊不穩定時，充電過程可能會因為BMS通訊超時而意外中斷。
-
 *  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
 ## 授權 (License)
 
