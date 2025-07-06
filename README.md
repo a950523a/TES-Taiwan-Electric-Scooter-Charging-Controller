@@ -46,6 +46,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 *   **mcp_can**: https://github.com/coryjfowler/MCP_CAN_lib
 *   **ModbusMaster**: https://github.com/4-20ma/ModbusMaster
+*   **U8g2**: https://github.com/olikraus/u8g2 
 ## 安裝與使用 (Installation & Usage)
 
 1.  **硬體連接**: 根據電路圖（如果有的話）或程式碼中的引腳定義連接所有硬體。
