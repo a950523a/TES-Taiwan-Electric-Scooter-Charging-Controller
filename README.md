@@ -38,7 +38,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
     *   按鈕 x 3 (Start, Stop, Emergency Stop)
 *   **其他**:
     *   5V TTL to 3.3V Logic Level Converter (or voltage divider resistors)
-    *   穩定的12V(非隔離型可)、5V(隔離型)電源供應
+    *   穩定的DC-DC12V(非隔離型可)、5V(隔離型)降壓模組(建議耐壓120V以上，視電源而定)
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
