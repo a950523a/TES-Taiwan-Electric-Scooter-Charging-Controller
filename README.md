@@ -28,8 +28,8 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 ## 硬體需求 (Hardware Requirements)
 
-*   **主控制器**: ESP32 Development Board
-*   **CAN通訊**: MCP2515 CAN Bus Module
+*   **主控制器**: ESP32 開發板
+*   **CAN通訊**: MCP2515+TJA1050 模組
 *   **電源量測**: 使用Modbus通訊的模組(with 5V TTL UART Interface)
 *   **高壓繼電器**: 暫無(可選) 
 *   **使用者介面**:
@@ -37,7 +37,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
     *   LED指示燈 x 3
     *   按鈕 x 3 (Start, Stop, Emergency Stop)
 *   **其他**:
-    *   5V TTL to 3.3V Logic Level Converter (or voltage divider resistors)
+    *   5V TTL to 3.3V 邏輯電平轉換器 (或分壓電阻)
     *   穩定的DC-DC12V(非隔離型可)、5V(隔離型)降壓模組(建議耐壓120V以上，視電源而定)
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
