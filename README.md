@@ -58,6 +58,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
 
 *  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
+*  設定選單在有安裝OLED模組時才會啟用
 *  **CAN Bus模組要確認無短路才接上，否則會燒BMS!!!**
 ## 授權 (License)
 
