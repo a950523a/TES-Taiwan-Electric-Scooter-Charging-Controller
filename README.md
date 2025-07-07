@@ -38,8 +38,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
     *   按鈕 x 3 (Start, Stop, Emergency Stop)
 *   **其他**:
     *   5V TTL to 3.3V 邏輯電平轉換器 (或分壓電阻)
-    *   穩定的DC-DC12V(非隔離型可)、5V(隔離型)降壓模組(建議耐壓120V以上，視電源而定)
-
+    *   穩定的DC-DC12V(非隔離型可、建議耐壓120V以上，視電源而定)、5V(隔離型)降壓模組
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
 本專案基於Arduino框架開發。請在Arduino IDE的函式庫管理員中安裝以下函式庫：
