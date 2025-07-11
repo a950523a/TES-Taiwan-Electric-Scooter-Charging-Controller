@@ -22,7 +22,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 *   **標準相容**: 遵循TES-0D-02-01標準的CAN Bus通訊協議。
 *   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
-*   **可調輸出**: 可調最大電壓、電流、SOC(可選)。
+*   **可調輸出(可選)**: 可調最大電壓、電流、SOC。
 *   **通訊抗干擾**: 包含了針對底層通訊不穩定的軟體補償策略（數據擾動）。
 *   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
 *   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
@@ -38,7 +38,8 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
     *   LED指示燈 x 3
     *   按鈕 x 4 (Start, Stop, Emergency Stop, Setting(可選))
 *   **其他**:
-    *   5V TTL to 3.3V 邏輯電平轉換器 (或分壓電阻)
+    *   5V TTL to 3.3V 邏輯電平轉換器 (或分壓電阻(1KΩ,2KΩ))
+    *   CP讀取分壓電阻150Ω,50或51Ω，合計200Ω(TES標準規定)
     *   穩定的DC-DC降壓模組:
         *   12V 3A以上(非隔離型可、建議耐壓120V以上，視電源而定)
         *   5V 0.5A以上(隔離型)
