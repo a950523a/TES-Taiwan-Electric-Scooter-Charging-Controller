@@ -58,7 +58,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 1.  **硬體連接**: 根據電路圖（如果有的話）或程式碼中的引腳定義連接所有硬體。
    
-    *詳細的硬體接線方法，請參考專案中的 **[接線指南 (Wiring Guide)](Wiring Guide.md)** 文件。
+    *詳細的硬體接線方法，請參考專案中的 **[接線指南 (Wiring Guide)](Wiring_Guide.md)** 文件。
     
 2.  **函式庫安裝**: 確保已安裝所有必要的函式庫。
 3.  **程式碼配置**: 在程式碼頂部根據您的硬體配置修改引腳定義和充電樁物理極限參數。
