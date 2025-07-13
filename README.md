@@ -31,7 +31,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 ## 硬體需求 (Hardware Requirements)
 
-詳細的硬體材料，請參考專案中的 **[物料清單 (Bill of materials)](BOM.md)** 文件。
+*詳細的硬體材料，請參考專案中的 **[物料清單 (Bill of materials)](BOM.md)** 文件。
 
 *   **主控制器**: ESP32 開發板
 *   **CAN通訊**: MCP2515+TJA1050 模組
