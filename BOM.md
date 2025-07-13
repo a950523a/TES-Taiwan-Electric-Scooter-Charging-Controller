@@ -10,9 +10,9 @@
 | 1 | ESP32 開發板 | `ESP32開發版` | [點擊這裡](https://e.tb.cn/h.hiRBgOphii6aqCW?tk=dw2z4YwBA1k) |
 | 1 | CAN Bus 模組 | `MCP2515模塊` | [點擊這裡](https://e.tb.cn/h.hiQmzbQqu1oH8JV?tk=z7kX4YDbctz) |
 | 1 | **主降壓電源 (12V)** | `耐高壓12V降壓模塊` | [點擊這裡](https://e.tb.cn/h.hikC8w5RuqK0mvh?tk=xkQA4YDcYHa) |
-| | *(註：此模組用於從主電源降壓至12V，**建議耐壓120V**。您也可以使用獨立的12V電源供電。)* | | |
+| | *(註：此模組用於從主電源降壓至12V，**建議耐壓120V**。您也可以使用獨立的12V電源供電。供電能力3A以上。)* | | |
 | 1 | **隔離電源 (5V)** | `隔離型5V降壓模塊` | [點擊這裡](https://e.tb.cn/h.hiP0i4nqXiX4U1B?tk=NPg84YDVGRk) |
-| | *(註：**強烈建議使用隔離型電源**為ESP32等控制電路供電，以避免雜訊干擾。**提供的連結商品尚未測試過**，**明緯(Mean Well)** 等知名品牌是更可靠的選擇。)* | | |
+| | *(註：**強烈建議使用隔離型電源**為ESP32等控制電路供電，以避免雜訊干擾。**提供的連結商品尚未測試過**，**明緯(Mean Well)** 等知名品牌是更可靠的選擇。供電能力0.5A以上)* | | |
 | 1 | 5V繼電器 | `5V繼電器模塊` | [點擊這裡](https://e.tb.cn/h.hiQtbJft1vH2RAP?tk=Pgtz4YDUVTH) |
 | 1 | Modbus 電壓表 | `Modbus TTL 電壓表` | [點擊這裡](https://e.tb.cn/h.hi8TrepPK8OLpep?tk=3v2l4YD77uj) |
 | | *(註：提供的商品尚未測試，我測試過帶電流表的版本(<https://e.tb.cn/h.hixudo19rj7WMA5?tk=GIty4YD7G75>)，但未使用其電流功能)。*| | |
