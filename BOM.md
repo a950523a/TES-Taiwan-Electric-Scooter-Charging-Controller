@@ -15,8 +15,8 @@
 | | *(註：**強烈建議使用隔離型電源**為ESP32等控制電路供電，以避免雜訊干擾。**提供的連結商品尚未測試過** **明緯(Mean Well)** 等知名品牌是更可靠的選擇。)* | | |
 | 1 | 5V繼電器 | `5V繼電器模塊` | [點擊這裡](https://e.tb.cn/h.hiQtbJft1vH2RAP?tk=Pgtz4YDUVTH) |
 | 1 | Modbus 電壓表 | `Modbus TTL 電壓表` | [點擊這裡](https://e.tb.cn/h.hi8TrepPK8OLpep?tk=3v2l4YD77uj) |
-| | *(註：提供的商品尚未測試，我測試過帶電流表的版本(https://e.tb.cn/h.hixudo19rj7WMA5?tk=GIty4YD7G75)，但未使用其電流功能。| | |
-| | 若您選用不同模組，可能需要修改Modbus程式碼。若選用RS485接口的模組，則需額外增加RS485轉TTL的電平轉換器。)* | | |
+| | *(註：提供的商品尚未測試，我測試過帶電流表的版本(<https://e.tb.cn/h.hixudo19rj7WMA5?tk=GIty4YD7G75>)，但未使用其電流功能)。*| | |
+| | *(若您選用不同模組，可能需要修改Modbus程式碼。若選用RS485接口的模組，則需額外增加RS485轉TTL的電平轉換器。)* | | |
 | 1 | OLED 顯示屏 | `0.96寸 OLED IIC` `SSD1306` | [點擊這裡](https://e.tb.cn/h.hiQxBdKZhg7zoPj?tk=GMqx4YDidKZ) |
 
 ### 被動元件
