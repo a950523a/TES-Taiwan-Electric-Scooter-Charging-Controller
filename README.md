@@ -5,6 +5,7 @@
 A DIY, open-source DC charger controller project for electric scooters, compatible with the TES-0D-02-01 industry standard, built upon the ESP32 platform.
 
 一個基於ESP32開發的DIY開源電動機車直流充電樁控制器，相容TES-0D-02-01產業標準。
+
 **禁止商業使用**
 
 ---
