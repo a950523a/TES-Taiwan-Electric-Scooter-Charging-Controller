@@ -68,6 +68,8 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
 *  設定選單在有安裝OLED模組時才會啟用
 *  **CAN Bus模組要確認無短路才接上，否則會燒BMS!!!**
+**操作模式**
+在待機時，按下Setting按鈕一至兩秒鐘進入設定選單，此時按鈕轉變為短按觸發，Start 和 Stop 按鈕轉變為 上一項/增加 和 下一項/減少，Setting 按鈕轉變為 確認。
 ## 授權 (License)
 
 本專案採用 **[創用CC 姓名標示-非商業性-相同方式分享 4.0 國際 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權條款。
