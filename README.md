@@ -33,20 +33,6 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 詳細的硬體材料，請參考Release中的 **BOM.md** 文件。
 
-*   **主控制器**: ESP32 開發板
-*   **CAN通訊**: MCP2515+TJA1050 模組
-*   **電源量測**: 使用Modbus通訊的模組(with 5V TTL UART Interface)
-*   **高壓繼電器**: 暫無(可選) 
-*   **使用者介面**:
-    *   OLED模組(可選)   
-    *   LED指示燈 x 3
-    *   按鈕 x 4 (Start, Stop, Emergency Stop, Setting(可選))
-*   **其他**:
-    *   5V TTL to 3.3V 邏輯電平轉換器 (或分壓電阻(1KΩ,2KΩ))
-    *   CP讀取分壓電阻150Ω,50或51Ω，合計200Ω(TES標準規定)
-    *   穩定的DC-DC降壓模組:
-        *   12V 3A以上(非隔離型可、建議耐壓120V以上，視電源而定)
-        *   5V 0.5A以上(隔離型)
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
 本專案基於Arduino框架開發。請在Arduino IDE的函式庫管理員中安裝以下函式庫：
