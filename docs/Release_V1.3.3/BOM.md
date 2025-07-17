@@ -14,7 +14,7 @@
 | 1 | **降壓電源 (5V)** | `5V降壓模塊` | [點擊這裡](https://e.tb.cn/h.hjf1qiHCpCsEg6O?tk=AByS4XKlhL9) |
 | | *(註：也可使用隔離型降壓模塊，可以讓電路運作更穩定)* | | |
 | 1 | 5V繼電器 | `5V繼電器模塊` | [點擊這裡](https://e.tb.cn/h.hiQtbJft1vH2RAP?tk=Pgtz4YDUVTH) |
-| 1 | ADS1115 | `ADS1115模塊` | [點擊這裡](https://e.tb.cn/h.hj46n5YqDCprkm7?tk=1IKN4XKpAXf tG-#22>lD ) |
+| 1 | ADS1115 | `ADS1115模塊` | [點擊這裡](https://e.tb.cn/h.hj46n5YqDCprkm7?tk=1IKN4XKpAXf) |
 | 1 | OLED 顯示屏 | `0.96寸 OLED IIC` `SSD1306` | [點擊這裡](https://e.tb.cn/h.hiQxBdKZhg7zoPj?tk=GMqx4YDidKZ) |
 
 ### 被動元件
