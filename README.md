@@ -30,16 +30,13 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 ## 硬體需求 (Hardware Requirements)
 
-詳細的硬體材料，請參考Release中的 **BOM.md** 文件。
+詳細的硬體材料，請參照Release中的 **BOM.md** 文件。
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
 本專案基於Arduino框架開發。請在Arduino IDE的函式庫管理員中安裝以下函式庫：
 
-*   **mcp_can**: https://github.com/coryjfowler/MCP_CAN_lib
-*   **Adafruit_BusIO**: https://github.com/adafruit/Adafruit_BusIO
-*   **Adafruit_ADS1X15**: https://github.com/adafruit/Adafruit_ADS1X15
-*   **U8g2**: https://github.com/olikraus/u8g2
+**請參照Release**
   
 ## 安裝與使用 (Installation & Usage)
 
