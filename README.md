@@ -25,7 +25,6 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *   **標準相容**: 遵循TES-0D-02-01標準的CAN Bus通訊協議。
 *   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
 *   **可調輸出(可選)**: 可調最大電壓、電流、SOC。
-*   **通訊抗干擾**: 包含了針對底層通訊不穩定的軟體補償策略（數據擾動）。
 *   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
 *   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
 
@@ -40,7 +39,8 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *   **mcp_can**: https://github.com/coryjfowler/MCP_CAN_lib
 *   **Adafruit_BusIO**: https://github.com/adafruit/Adafruit_BusIO
 *   **Adafruit_ADS1X15**: https://github.com/adafruit/Adafruit_ADS1X15
-*   **U8g2**: https://github.com/olikraus/u8g2 
+*   **U8g2**: https://github.com/olikraus/u8g2
+  
 ## 安裝與使用 (Installation & Usage)
 
 1.  **硬體連接**: 根據電路圖（如果有的話）或程式碼中的引腳定義連接所有硬體。
