@@ -1,0 +1,29 @@
+# PlatformIO Core files
+.pio/
+.vscode/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Log files
+*.log
+*.log.*
+
+# Build artifacts
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.eep
+*.map
+*.lss
+*.sym
+
+# Other
+.ionide/
+.idea/
+.cproject
+.project
