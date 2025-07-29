@@ -133,15 +133,15 @@ void ui_handle_input() {
             break;
 
         case UI_STATE_MENU_SET_VOLTAGE:
-            if (upTrigger) tempSetting_Voltage += 10; // 1V
-            if (downTrigger) tempSetting_Voltage -= 10;
+            if (upTrigger) tempSetting_Voltage += 1; // 0.1V
+            if (downTrigger) tempSetting_Voltage -= 1;
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Voltage = constrain(tempSetting_Voltage, HARDWARE_MIN_VOLTAGE_0_1V, HARDWARE_MAX_VOLTAGE_0_1V);
             break;
 
         case UI_STATE_MENU_SET_CURRENT:
-            if (upTrigger) tempSetting_Current += 10; // 1A
-            if (downTrigger) tempSetting_Current -= 10;
+            if (upTrigger) tempSetting_Current += 1; // 0.1A
+            if (downTrigger) tempSetting_Current -= 1;
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Current = constrain(tempSetting_Current, HARDWARE_MIN_CURRENT_0_1A, HARDWARE_MAX_CURRENT_0_1A);
             break;
