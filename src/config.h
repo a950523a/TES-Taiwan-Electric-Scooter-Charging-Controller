@@ -37,7 +37,7 @@
 
 // --- 分壓電阻定義 ---
 const float VOLTAGE_DIVIDER_120V_R1 = 348.0; // 標稱348kΩ 需自行校準
-const float VOLTAGE_DIVIDER_120V_R2 = 11.731;  // 標稱12kΩ 需自行校準
+const float VOLTAGE_DIVIDER_120V_R2 = 12;  // 標稱12kΩ 需自行校準
 const float VOLTAGE_DIVIDER_120V_RATIO = VOLTAGE_DIVIDER_120V_R2 / (VOLTAGE_DIVIDER_120V_R1 + VOLTAGE_DIVIDER_120V_R2);
 
 const float VOLTAGE_DIVIDER_CP_R1 = 150.0; // Ω
