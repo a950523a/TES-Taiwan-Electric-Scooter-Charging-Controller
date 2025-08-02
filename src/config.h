@@ -88,6 +88,10 @@ const unsigned int chargerManufacturerCode = 0x0000;
 #define BUILD_MODE_CHARGING_STATION
 // #define BUILD_MODE_PORTABLE_CHARGER (規劃中)
 
+// --- ?????? ---
+const int LUX_BEACON_TIME_UNIT_MS = 150;
+//#define DEVELOPER_MODE
+
 
 // =================================================================
 // =                END OF USER CONFIGURATION SECTION              =

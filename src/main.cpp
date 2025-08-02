@@ -51,6 +51,7 @@
 #include "UI/UI.h"
 #include "ChargerLogic/ChargerLogic.h"
 #include "CAN_Protocol/CAN_Protocol.h"
+#include "LuxBeacon/LuxBeacon.h"
 
 void setup() {
     Serial.begin(115200);
@@ -63,6 +64,8 @@ void setup() {
     
     logic_init();        // 初始化核心邏輯層
     ui_init();           // 初始化UI層
+
+    beacon_init();
 
     Serial.println(F("System Initialized."));
 }
@@ -83,4 +86,7 @@ void loop() {
 
     // 4. 更新顯示螢幕
     ui_update_display();
+
+    beacon_handle_tasks();
+
 }
