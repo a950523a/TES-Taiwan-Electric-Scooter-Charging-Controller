@@ -2,6 +2,8 @@
 #include "Config.h"
 #include <mcp_can.h>
 #include <Adafruit_ADS1X15.h>
+#include "LuxBeacon/LuxBeacon.h"
+#include <Preferences.h> 
 
 static MCP_CAN CAN(SPI_CS_PIN);
 static Adafruit_ADS1115 ads;
@@ -95,6 +97,13 @@ void hal_control_coupler_lock(bool lock) {
 
 void hal_update_leds(LedState state) {
     digitalWrite(LED_STANDBY_PIN, HIGH); // 橘燈始終常亮
+    Preferences prefs;
+    prefs.begin("charger_config", true); 
+    bool beaconUnlocked = prefs.getBool("beacon_unlocked", false);
+    prefs.end();
+    #ifdef DEVELOPER_MODE
+        beaconUnlocked = true;
+    #endif
 
     switch(state) {
         case LED_STATE_STANDBY:
@@ -102,7 +111,11 @@ void hal_update_leds(LedState state) {
             digitalWrite(LED_ERROR_PIN, LOW);
             break;
         case LED_STATE_CHARGING:
-            digitalWrite(LED_CHARGING_PIN, (millis() / 500) % 2); // 閃爍
+            if (beaconUnlocked) {
+                digitalWrite(LED_CHARGING_PIN, beacon_get_led_state());
+            } else {
+                digitalWrite(LED_CHARGING_PIN, (millis() / 500) % 2);
+            }
             digitalWrite(LED_ERROR_PIN, LOW);
             break;
         case LED_STATE_COMPLETE:
@@ -155,3 +168,4 @@ bool hal_is_can_interrupt_pending() {
     }
     return false;
 }
+

@@ -34,4 +34,5 @@ void hal_can_send(unsigned long id, byte* data, byte len);
 bool hal_can_receive(unsigned long* id, byte* len, byte* buf);
 bool hal_is_can_interrupt_pending();
 
+
 #endif // HAL_H
