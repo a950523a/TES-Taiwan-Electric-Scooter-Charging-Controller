@@ -61,7 +61,7 @@ const float VOLTAGE_DIVIDER_CP_RATIO = VOLTAGE_DIVIDER_CP_R2 / (VOLTAGE_DIVIDER_
 // --- 計時器與超時控制 ---
 const unsigned long PERIODIC_SEND_INTERVAL = 100;  // ms
 const unsigned long CP_READ_INTERVAL = 50;         // ms
-const unsigned long DISPLAY_UPDATE_INTERVAL_MS = 500; // ms
+const unsigned long DISPLAY_UPDATE_INTERVAL_MS = 250; // ms
 const unsigned long LONG_PRESS_DURATION_MS = 1000; // ms
 const unsigned long SAVED_SCREEN_DURATION_MS = 2000; // ms
 

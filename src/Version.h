@@ -3,6 +3,6 @@
 #ifndef VERSION_H
 #define VERSION_H
 
-#define FIRMWARE_VERSION "v2.0.0-Beta"
+#define FIRMWARE_VERSION "v2.0.0-Beta_1"
 
 #endif // VERSION_H
