@@ -88,11 +88,38 @@ void ui_handle_input() {
                 tempSetting_SOC = logic_get_target_soc_setting();
                 currentUIState = UI_STATE_MENU_MAIN;
                 mainMenuSelection = 0;
+            } else {
+                if (settingButtonPressedTime > 0 && !isSettingButtonLongPress) {
+                    Serial.println(F("UI: Short press detected. Cycling Target SOC."));
+                    
+                    // --- 循環切換SOC的邏輯 ---
+                    int current_soc = logic_get_target_soc_setting();
+                    int next_soc;
+
+                    if (current_soc < 90) {
+                        next_soc = 90;
+                    } else if (current_soc < 100) {
+                        next_soc = 100;
+                    } else {
+                        next_soc = 80; // 從100%循環回80%
+                    }
+                    
+                    // 呼叫核心邏輯層的API來更新和保存這個新設定
+                    // 我們需要傳入當前的電壓和電流設定，只修改SOC
+                    unsigned int current_v = logic_get_max_voltage_setting();
+                    unsigned int current_a = logic_get_max_current_setting();
+                    logic_save_config(current_v, current_a, next_soc);
+                }
+                
+                // 無論是短按還是長按結束，都重置計時器
+                settingButtonPressedTime = 0;
+                isSettingButtonLongPress = false;
             }
-        } else {
-            settingButtonPressedTime = 0;
-            isSettingButtonLongPress = false;
-        }
+            } else if (currentUIState == UI_STATE_NORMAL) {
+                // 如果不在IDLE狀態，也要確保長按計時器被重置
+                settingButtonPressedTime = 0;
+                isSettingButtonLongPress = false;
+            }
     }
 
     // 短按操作的單次觸發機制
@@ -238,17 +265,34 @@ void ui_update_display() {
                 } else if (logic_is_charge_complete()) {
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     strWidth = u8g2.getStrWidth("Charge Complete");
-                    u8g2.drawStr((128 - strWidth) / 2, 30, "Charge Complete");
+                    u8g2.drawStr((128 - strWidth) / 2, 25, "Charge Complete");
+
+                    // 增加目標SOC顯示
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    strWidth = u8g2.getStrWidth("Ready");
-                    u8g2.drawStr((128 - strWidth) / 2, 50, "Ready");
+                    sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                    strWidth = u8g2.getStrWidth(buffer);
+                    u8g2.drawStr((128 - strWidth) / 2, 45, buffer);
+
+                    // 增加提示
+                    u8g2.setFont(u8g2_font_6x10_tr);
+                    strWidth = u8g2.getStrWidth("Ready for Next Charge");
+                    u8g2.drawStr((128 - strWidth) / 2, 62, "Ready for Next Charge");
                 } else {
+                     // 第一行：Ready to Charge
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     strWidth = u8g2.getStrWidth("Ready to Charge");
-                    u8g2.drawStr((128 - strWidth) / 2, 30, "Ready to Charge");
+                    u8g2.drawStr((128 - strWidth) / 2, 25, "Ready to Charge"); // Y座標上移
+
+                    // 第二行：顯示當前目標SOC
                     u8g2.setFont(u8g2_font_ncenB08_tr);
+                    sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                    strWidth = u8g2.getStrWidth(buffer);
+                    u8g2.drawStr((128 - strWidth) / 2, 45, buffer); // 在中間顯示
+
+                    // 第三行：提示操作
+                    u8g2.setFont(u8g2_font_6x10_tr); // 使用更小的字體
                     strWidth = u8g2.getStrWidth("Connect Scooter");
-                    u8g2.drawStr((128 - strWidth) / 2, 50, "Connect Scooter");
+                    u8g2.drawStr((128 - strWidth) / 2, 62, "Connect Scooter");
                 }
                 break;
             case STATE_CHG_INITIAL_PARAM_EXCHANGE:
