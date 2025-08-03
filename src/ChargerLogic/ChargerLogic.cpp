@@ -187,6 +187,10 @@ void logic_run_statemachine() {
 
     case STATE_CHG_DC_CURRENT_OUTPUT:
       chargerStatus508.statusFlags |= 0x02;
+      if (!(vehicleStatus500.statusFlags & 0x02) && (!hal_get_charge_relay_state())){
+        hal_control_charge_relay(true);
+        break;
+      }
       ch_sub_04_dc_current_output_control();
       ch_sub_06_monitoring_process();
       break;
@@ -197,12 +201,14 @@ void logic_run_statemachine() {
       ch_sub_04_dc_current_output_control();
       if (measuredCurrent < 1.0) {
         hal_control_charge_relay(false);
-        if ((vehicleStatus500.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
-          hal_control_coupler_lock(false);
-          chargerStatus508.statusFlags &= ~0x04;
-          Serial.println(F("Logic: Coupler unlocked. -> FINALIZATION."));
-          currentChargerState = STATE_CHG_FINALIZATION;
-          currentStateStartTime = millis();
+        if (!hal_get_charge_relay_state()){
+          if ((vehicleStatus500.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
+            hal_control_coupler_lock(false);
+            chargerStatus508.statusFlags &= ~0x04;
+            Serial.println(F("Logic: Coupler unlocked. -> FINALIZATION."));
+            currentChargerState = STATE_CHG_FINALIZATION;
+            currentStateStartTime = millis();
+          }
         }
       } else if (millis() - currentStateStartTime > 5000) {
         Serial.println(F("Logic: Failed to ramp down current. Fault."));
@@ -360,7 +366,6 @@ static bool ch_sub_01_battery_compatibility_check() {
 static bool ch_sub_03_coupler_lock_and_insulation_diagnosis() {
     hal_control_coupler_lock(true);
     insulationTestOK = true; 
-    hal_control_charge_relay(true);
     return true;
 }
 

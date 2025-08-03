@@ -23,6 +23,8 @@ void hal_control_charge_relay(bool on);
 void hal_control_coupler_lock(bool lock);
 void hal_control_vp_relay(bool on);
 
+bool hal_get_charge_relay_state();
+
 // 輸入讀取
 bool hal_get_button_state(ButtonType button);
 float hal_read_voltage_sensor();

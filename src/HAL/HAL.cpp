@@ -9,6 +9,8 @@ static MCP_CAN CAN(SPI_CS_PIN);
 static Adafruit_ADS1115 ads;
 static volatile bool canInterruptTriggered = false;
 
+static bool charge_relay_state = false;
+
 static void IRAM_ATTR onCANInterrupt() {
     canInterruptTriggered = true;
 }
@@ -32,6 +34,10 @@ void hal_init_pins() {
     pinMode(LED_ERROR_PIN, OUTPUT);
 
     attachInterrupt(digitalPinToInterrupt(MCP2515_INT_PIN), onCANInterrupt, FALLING);
+
+    pinMode(CHARGER_RELAY_SIM_LED_PIN, OUTPUT);
+    digitalWrite(CHARGER_RELAY_SIM_LED_PIN, LOW);
+
 }
 
 void hal_init_can() {
@@ -89,6 +95,8 @@ void hal_control_vp_relay(bool on) {
 
 void hal_control_charge_relay(bool on) {
     digitalWrite(CHARGE_RELAY_PIN, on ? HIGH : LOW);
+    digitalWrite(CHARGER_RELAY_SIM_LED_PIN, on ? HIGH : LOW);
+    charge_relay_state = on;
 }
 
 void hal_control_coupler_lock(bool lock) {
@@ -169,3 +177,6 @@ bool hal_is_can_interrupt_pending() {
     return false;
 }
 
+bool hal_get_charge_relay_state() {
+    return charge_relay_state;
+}
