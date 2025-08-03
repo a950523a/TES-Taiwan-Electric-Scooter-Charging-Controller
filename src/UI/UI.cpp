@@ -77,49 +77,48 @@ void ui_handle_input() {
     // 長按進入菜單的邏輯
     if (currentUIState == UI_STATE_NORMAL && logic_get_charger_state() == STATE_CHG_IDLE) {
         if (settingIsPressed) {
+            // 如果這是第一次檢測到按下，則記錄起始時間
             if (settingButtonPressedTime == 0) {
                 settingButtonPressedTime = millis();
-            } else if (!isSettingButtonLongPress && (millis() - settingButtonPressedTime > LONG_PRESS_DURATION_MS)) {
-                isSettingButtonLongPress = true;
-                Serial.println(F("UI: Long press detected. Entering settings menu."));
-                // 從Logic層獲取當前設定作為臨時值
-                tempSetting_Voltage = logic_get_max_voltage_setting();
-                tempSetting_Current = logic_get_max_current_setting();
-                tempSetting_SOC = logic_get_target_soc_setting();
-                currentUIState = UI_STATE_MENU_MAIN;
-                mainMenuSelection = 0;
-            } else {
-                if (settingButtonPressedTime > 0 && !isSettingButtonLongPress) {
-                    Serial.println(F("UI: Short press detected. Cycling Target SOC."));
+            } 
+            // 如果按鍵持續被按住，且長按事件尚未觸發
+            else if (!isSettingButtonLongPress) {
+                // 檢查是否達到了長按的持續時間
+                if (millis() - settingButtonPressedTime > LONG_PRESS_DURATION_MS) {
+                    isSettingButtonLongPress = true; // 標記長按已觸發，防止重複進入
+                    Serial.println(F("UI: Long press detected. Entering settings menu."));
                     
-                    // --- 循環切換SOC的邏輯 ---
-                    int current_soc = logic_get_target_soc_setting();
-                    int next_soc;
-
-                    if (current_soc < 90) {
-                        next_soc = 90;
-                    } else if (current_soc < 100) {
-                        next_soc = 100;
-                    } else {
-                        next_soc = 80; // 從100%循環回80%
-                    }
-                    
-                    // 呼叫核心邏輯層的API來更新和保存這個新設定
-                    // 我們需要傳入當前的電壓和電流設定，只修改SOC
-                    unsigned int current_v = logic_get_max_voltage_setting();
-                    unsigned int current_a = logic_get_max_current_setting();
-                    logic_save_config(current_v, current_a, next_soc);
+                    // 執行長按動作：進入設定菜單
+                    tempSetting_Voltage = logic_get_max_voltage_setting();
+                    tempSetting_Current = logic_get_max_current_setting();
+                    tempSetting_SOC = logic_get_target_soc_setting();
+                    currentUIState = UI_STATE_MENU_MAIN;
+                    mainMenuSelection = 0;
                 }
+            }
+        } 
+         // --- 情況B：按鍵剛剛被釋放 ---
+        else if (settingButtonPressedTime > 0 && !isSettingButtonLongPress){ // settingIsPressed is false
+            // 只有在計時器啟動過 (表示之前有按下) 且長按未觸發的情況下，才判定為一次短按
+            Serial.println(F("UI: Short press detected. Cycling Target SOC."));
                 
-                // 無論是短按還是長按結束，都重置計時器
-                settingButtonPressedTime = 0;
-                isSettingButtonLongPress = false;
-            }
-            } else if (currentUIState == UI_STATE_NORMAL) {
-                // 如果不在IDLE狀態，也要確保長按計時器被重置
-                settingButtonPressedTime = 0;
-                isSettingButtonLongPress = false;
-            }
+            // 執行短按動作：循環切換SOC
+            int current_soc = logic_get_target_soc_setting();
+            int next_soc = (current_soc < 90) ? 90 : (current_soc < 100) ? 100 : 80;
+                
+            unsigned int current_v = logic_get_max_voltage_setting();
+            unsigned int current_a = logic_get_max_current_setting();
+            logic_save_config(current_v, current_a, next_soc);
+            
+            // 無論是短按釋放，還是長按後釋放，都需要重置所有狀態
+            settingButtonPressedTime = 0;
+            isSettingButtonLongPress = false;
+        } else {
+        // 如果不在可觸發的狀態，確保所有計時器和旗標都被重置
+            settingButtonPressedTime = 0;
+            isSettingButtonLongPress = false;
+        }
+     
     }
 
     // 短按操作的單次觸發機制
