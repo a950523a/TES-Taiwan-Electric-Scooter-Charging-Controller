@@ -11,18 +11,15 @@
 // 請根據您的實際接線修改以下GPIO編號
 
 // 按鈕 (Buttons)
-#define START_BUTTON_PIN      32
-#define STOP_BUTTON_PIN       33
-#define EMERGENCY_BUTTON_PIN  25
-#define SETTING_BUTTON_PIN    4
+#define START_BUTTON_PIN      25
+#define STOP_BUTTON_PIN       32
+#define EMERGENCY_BUTTON_PIN  4
+#define SETTING_BUTTON_PIN    33
 
 // LED 指示燈
 #define LED_STANDBY_PIN       14  // 橘燈
 #define LED_CHARGING_PIN      12  // 綠燈
 #define LED_ERROR_PIN         13  // 紅燈
-#ifdef DEVELOPER_MODE
-    #define CHARGER_RELAY_SIM_LED_PIN   2
-#endif
 
 // 繼電器與輸出 (Relays & Outputs)
 #define CHARGE_RELAY_PIN      26  // 主充電繼電器
@@ -95,6 +92,9 @@ const unsigned int chargerManufacturerCode = 0x0000;
 const int LUX_BEACON_TIME_UNIT_MS = 150;
 //#define DEVELOPER_MODE
 
+#ifdef DEVELOPER_MODE
+    #define CHARGER_RELAY_SIM_LED_PIN   2
+#endif
 
 // =================================================================
 // =                END OF USER CONFIGURATION SECTION              =
