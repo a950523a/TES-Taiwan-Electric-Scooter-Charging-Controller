@@ -48,6 +48,15 @@ static void ch_sub_06_monitoring_process();
 static void ch_sub_10_protection_and_end_flow(bool isFault);
 static void ch_sub_12_emergency_stop_procedure();
 
+enum PreChargeStep {
+    STEP_INIT,
+    STEP_CHARGER_READY_ANNOUNCED,
+    STEP_VEHICLE_CONTACTOR_WAIT,
+    STEP_RELAY_CLOSE_DELAY, // 新增延遲步驟
+    STEP_COMPLETE
+};
+static PreChargeStep preChargeStep = STEP_INIT;
+
 // =================================================================
 // =                      公開API函數實現                          =
 // =================================================================
@@ -127,6 +136,7 @@ void logic_run_statemachine() {
       insulationTestOK = false;
       vehicleReadyForCharge = false;
       isChargingTimerRunning = false;
+      preChargeStep = STEP_INIT;
       
       if (hal_get_button_state(BUTTON_START)) {
         faultLatch = false;
@@ -161,61 +171,114 @@ void logic_run_statemachine() {
       }
       break;
 
-    case STATE_CHG_PRE_CHARGE_OPERATIONS:
-      if (currentCPState == CP_STATE_ON && (vehicleStatus500.statusFlags & 0x01)) {
-        if (ch_sub_03_coupler_lock_and_insulation_diagnosis()) {
-          Serial.println(F("Logic: CH_SUB_03 OK. -> DC_CURRENT_OUTPUT."));
-          chargerStatus508.statusFlags &= ~0x01;
-          chargerStatus508.statusFlags |= 0x04;
-          currentChargerState = STATE_CHG_DC_CURRENT_OUTPUT;
-          currentStateStartTime = millis();
-          isChargingTimerRunning = true;
-          elapsedChargingSeconds = 0;
-          currentTotalTimeSeconds = 0;
-          lastChargeTimeTick = millis();
-        } else if (millis() - currentStateStartTime > 20000) {
-          Serial.println(F("Logic: Timeout/Error in PRE_CHARGE_OPERATIONS (20s)."));
-          chargerStatus508.faultFlags |= 0x01;
-          ch_sub_10_protection_and_end_flow(true);
+    case STATE_CHG_PRE_CHARGE_OPERATIONS: { // 使用大括號創建局部作用域
+        static unsigned long relay_close_delay_start_time = 0;
+
+        if (!(currentCPState == CP_STATE_ON && (vehicleStatus500.statusFlags & 0x01))) {
+            if (millis() - currentStateStartTime > 20000) {
+                Serial.println(F("Logic: Timeout in PRE_CHARGE (CP or CAN permission not ready)."));
+                ch_sub_10_protection_and_end_flow(true);
+            }
+            break;
         }
-      } else if (millis() - currentStateStartTime > 20000) {
-        Serial.println(F("Logic: Timeout in PRE_CHARGE_OPERATIONS (20s). CP or CAN permission not ready."));
-        chargerStatus508.faultFlags |= 0x01;
-        ch_sub_10_protection_and_end_flow(true);
-      }
-      break;
+
+        switch (preChargeStep) {
+            case STEP_INIT:
+                if (ch_sub_03_coupler_lock_and_insulation_diagnosis()) {
+                    Serial.println(F("Logic: Pre-charge checks OK. Announcing ready state..."));
+                    chargerStatus508.statusFlags &= ~0x01;
+                    chargerStatus508.statusFlags |= 0x04;
+                    can_protocol_send_charger_status(chargerStatus508);
+                    preChargeStep = STEP_VEHICLE_CONTACTOR_WAIT;
+                    currentStateStartTime = millis();
+                }
+                break;
+
+            case STEP_VEHICLE_CONTACTOR_WAIT:
+                if (!(vehicleStatus500.statusFlags & 0x02)) {
+                    if (relay_close_delay_start_time == 0) {
+                        Serial.println(F("Logic: Vehicle contactor closed. Starting delay..."));
+                        relay_close_delay_start_time = millis();
+                    }
+                    if (millis() - relay_close_delay_start_time >= 250) {
+                        preChargeStep = STEP_RELAY_CLOSE_DELAY;
+                    }
+                } else if (millis() - currentStateStartTime > 10000) {
+                    Serial.println(F("Logic: Timeout waiting for vehicle contactor to close."));
+                    ch_sub_10_protection_and_end_flow(true);
+                }
+                break;
+
+            case STEP_RELAY_CLOSE_DELAY:
+                Serial.println(F("Logic: Delay finished. Closing charger relay..."));
+                hal_control_charge_relay(true);
+                if (hal_get_charge_relay_state()) {
+                    chargerStatus508.statusFlags |= 0x02;
+                    can_protocol_send_charger_status(chargerStatus508);
+                    preChargeStep = STEP_COMPLETE;
+                } else {
+                    Serial.println(F("Logic FATAL: Failed to close charger relay!"));
+                    ch_sub_10_protection_and_end_flow(true);
+                }
+                break;
+
+            case STEP_COMPLETE:
+                Serial.println(F("Logic: Pre-charge complete. -> DC_CURRENT_OUTPUT."));
+                relay_close_delay_start_time = 0;
+                currentChargerState = STATE_CHG_DC_CURRENT_OUTPUT;
+                isChargingTimerRunning = true;
+                elapsedChargingSeconds = 0;
+                currentTotalTimeSeconds = 0;
+                lastChargeTimeTick = millis();
+                currentStateStartTime = millis();
+                break;
+        }
+        break;
+    }
+
 
     case STATE_CHG_DC_CURRENT_OUTPUT:
-      chargerStatus508.statusFlags |= 0x02;
-      if (!(vehicleStatus500.statusFlags & 0x02) && (!hal_get_charge_relay_state())){
-        hal_control_charge_relay(true);
-        break;
-      }
       ch_sub_04_dc_current_output_control();
       ch_sub_06_monitoring_process();
       break;
 
-    case STATE_CHG_ENDING_CHARGE_PROCESS:
-      chargerStatus508.statusFlags |= 0x01;
-      chargerStatus508.statusFlags &= ~0x02;
-      ch_sub_04_dc_current_output_control();
-      if (measuredCurrent < 1.0) {
-        hal_control_charge_relay(false);
-        if (!hal_get_charge_relay_state()){
-          if ((vehicleStatus500.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
-            hal_control_coupler_lock(false);
-            chargerStatus508.statusFlags &= ~0x04;
-            Serial.println(F("Logic: Coupler unlocked. -> FINALIZATION."));
-            currentChargerState = STATE_CHG_FINALIZATION;
-            currentStateStartTime = millis();
-          }
-        }
-      } else if (millis() - currentStateStartTime > 5000) {
-        Serial.println(F("Logic: Failed to ramp down current. Fault."));
-        chargerStatus508.faultFlags |= 0x02;
-        ch_sub_10_protection_and_end_flow(true);
+    case STATE_CHG_ENDING_CHARGE_PROCESS: {
+      static unsigned long relay_open_delay_start_time = 0;
+
+      // 步驟1: 降流並斷開樁端繼電器
+      ch_sub_04_dc_current_output_control(); // 確保電流命令為0
+      if (hal_get_charge_relay_state()) {
+          hal_control_charge_relay(false);
+          Serial.println(F("Logic: Charger relay opened."));
       }
-      break;
+
+      // 步驟2: 繼電器斷開後，啟動延遲
+      if (!hal_get_charge_relay_state() && relay_open_delay_start_time == 0 && measuredCurrent < 1.0) {
+          Serial.println(F("Logic: Starting delay before final checks..."));
+          relay_open_delay_start_time = millis();
+      }
+
+      // 步驟3: 延遲結束後，等待車輛最終狀態
+      if (relay_open_delay_start_time > 0 && (millis() - relay_open_delay_start_time >= 250)) {
+          chargerStatus508.statusFlags |= 0x01;
+          chargerStatus508.statusFlags &= ~0x02;
+          if ((vehicleStatus500.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
+              hal_control_coupler_lock(false);
+              chargerStatus508.statusFlags &= ~0x04;
+              Serial.println(F("Logic: Coupler unlocked. -> FINALIZATION."));
+              currentChargerState = STATE_CHG_FINALIZATION;
+              relay_open_delay_start_time = 0; // 重置
+          } else if (millis() - currentStateStartTime > 10000) { // 總超時
+              Serial.println(F("Logic: Timeout waiting for vehicle to disconnect. Forcing unlock."));
+              hal_control_coupler_lock(false);
+              chargerStatus508.statusFlags &= ~0x04;
+              currentChargerState = STATE_CHG_FINALIZATION;
+              relay_open_delay_start_time = 0; // 重置
+          }
+      }
+       break;
+    }
+
 
     case STATE_CHG_FAULT_HANDLING:
       hal_control_charge_relay(false);

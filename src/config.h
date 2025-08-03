@@ -20,6 +20,9 @@
 #define LED_STANDBY_PIN       14  // 橘燈
 #define LED_CHARGING_PIN      12  // 綠燈
 #define LED_ERROR_PIN         13  // 紅燈
+#ifdef DEVELOPER_MODE
+    #define CHARGER_RELAY_SIM_LED_PIN   2
+#endif
 
 // 繼電器與輸出 (Relays & Outputs)
 #define CHARGE_RELAY_PIN      26  // 主充電繼電器
