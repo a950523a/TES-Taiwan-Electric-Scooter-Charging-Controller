@@ -20,6 +20,10 @@ static unsigned int tempSetting_Current;
 static int tempSetting_SOC;
 static unsigned long settingButtonPressedTime = 0;
 static bool isSettingButtonLongPress = false;
+static unsigned long keyRepeatStartTime = 0; 
+static unsigned long nextRepeatTime = 0;     
+const unsigned long KEY_REPEAT_INITIAL_DELAY_MS = 400; 
+const unsigned long KEY_REPEAT_INTERVAL_MS = 80;       
 
 static byte findOledDevice() {
     byte common_addresses[] = {0x3C, 0x3D};
@@ -70,65 +74,42 @@ void ui_handle_input() {
     if (!isOledConnected) return;
 
     bool settingIsPressed = hal_get_button_state(BUTTON_SETTING);
-    // 注意：根據您的接線，上下按鈕可能需要對調
-    bool upIsPressed = hal_get_button_state(BUTTON_START); // Start is Up
-    bool downIsPressed = hal_get_button_state(BUTTON_STOP); // Stop is Down
+    bool upIsPressed = hal_get_button_state(BUTTON_START);
+    bool downIsPressed = hal_get_button_state(BUTTON_STOP);
 
-    // 長按進入菜單的邏輯
     if (currentUIState == UI_STATE_NORMAL && logic_get_charger_state() == STATE_CHG_IDLE) {
         if (settingIsPressed) {
-            // 如果這是第一次檢測到按下，則記錄起始時間
             if (settingButtonPressedTime == 0) {
                 settingButtonPressedTime = millis();
-            } 
-            // 如果按鍵持續被按住，且長按事件尚未觸發
-            else if (!isSettingButtonLongPress) {
-                // 檢查是否達到了長按的持續時間
-                if (millis() - settingButtonPressedTime > LONG_PRESS_DURATION_MS) {
-                    isSettingButtonLongPress = true; // 標記長按已觸發，防止重複進入
-                    Serial.println(F("UI: Long press detected. Entering settings menu."));
-                    
-                    // 執行長按動作：進入設定菜單
-                    tempSetting_Voltage = logic_get_max_voltage_setting();
-                    tempSetting_Current = logic_get_max_current_setting();
-                    tempSetting_SOC = logic_get_target_soc_setting();
-                    currentUIState = UI_STATE_MENU_MAIN;
-                    mainMenuSelection = 0;
-                }
+            } else if (!isSettingButtonLongPress && (millis() - settingButtonPressedTime > LONG_PRESS_DURATION_MS)) {
+                isSettingButtonLongPress = true;
+                Serial.println(F("UI: Long press detected. Entering settings menu."));
+                tempSetting_Voltage = logic_get_max_voltage_setting();
+                tempSetting_Current = logic_get_max_current_setting();
+                tempSetting_SOC = logic_get_target_soc_setting();
+                currentUIState = UI_STATE_MENU_MAIN;
+                mainMenuSelection = 0;
             }
-        } 
-         // --- 情況B：按鍵剛剛被釋放 ---
-        else if (settingButtonPressedTime > 0 && !isSettingButtonLongPress){ // settingIsPressed is false
-            // 只有在計時器啟動過 (表示之前有按下) 且長按未觸發的情況下，才判定為一次短按
-            Serial.println(F("UI: Short press detected. Cycling Target SOC."));
-                
-            // 執行短按動作：循環切換SOC
-            int current_soc = logic_get_target_soc_setting();
-            int next_soc = (current_soc < 90) ? 90 : (current_soc < 100) ? 100 : 80;
-                
-            unsigned int current_v = logic_get_max_voltage_setting();
-            unsigned int current_a = logic_get_max_current_setting();
-            logic_save_config(current_v, current_a, next_soc);
-            
-            // 無論是短按釋放，還是長按後釋放，都需要重置所有狀態
-            settingButtonPressedTime = 0;
-            isSettingButtonLongPress = false;
         } else {
-        // 如果不在可觸發的狀態，確保所有計時器和旗標都被重置
+            if (settingButtonPressedTime > 0 && !isSettingButtonLongPress) {
+                Serial.println(F("UI: Short press detected. Cycling Target SOC."));
+                int current_soc = logic_get_target_soc_setting();
+                int next_soc = (current_soc < 90) ? 90 : (current_soc < 100) ? 100 : 80;
+                unsigned int current_v = logic_get_max_voltage_setting();
+                unsigned int current_a = logic_get_max_current_setting();
+                logic_save_config(current_v, current_a, next_soc);
+            }
             settingButtonPressedTime = 0;
             isSettingButtonLongPress = false;
         }
-     
+    } else {
+        settingButtonPressedTime = 0;
+        isSettingButtonLongPress = false;
     }
 
-    // 短按操作的單次觸發機制
-    static bool settingKeyWasPressed = false, upKeyWasPressed = false, downKeyWasPressed = false;
+    static bool settingKeyWasPressed = false;
     bool settingTrigger = settingIsPressed && !settingKeyWasPressed;
-    bool upTrigger = upIsPressed && !upKeyWasPressed;
-    bool downTrigger = downIsPressed && !downKeyWasPressed;
     settingKeyWasPressed = settingIsPressed;
-    upKeyWasPressed = upIsPressed;
-    downKeyWasPressed = downIsPressed;
 
     if (currentUIState == UI_STATE_MENU_SAVED) {
         if (millis() - savedScreenStartTime > SAVED_SCREEN_DURATION_MS) {
@@ -137,15 +118,43 @@ void ui_handle_input() {
         return;
     }
 
-    if (currentUIState == UI_STATE_NORMAL || (!settingTrigger && !upTrigger && !downTrigger)) {
+    if (currentUIState == UI_STATE_NORMAL) {
         return;
     }
 
-    // 菜單操作邏輯
+    
+    bool upAction_single = false; // 短按單次觸發
+    bool downAction_single = false;
+    bool upAction_repeat = false; // 長按重複觸發
+    bool downAction_repeat = false;
+    unsigned long now = millis();
+
+    if (upIsPressed) {
+        if (keyRepeatStartTime == 0) { // 第一次按下
+            keyRepeatStartTime = now;
+            nextRepeatTime = now + KEY_REPEAT_INITIAL_DELAY_MS;
+            upAction_single = true; // 立即觸發一次短按動作
+        } else if (now >= nextRepeatTime) { // 達到重複觸發的時間點
+            nextRepeatTime = now + KEY_REPEAT_INTERVAL_MS;
+            upAction_repeat = true; // 觸發重複動作
+        }
+    } else if (downIsPressed) {
+        if (keyRepeatStartTime == 0) {
+            keyRepeatStartTime = now;
+            nextRepeatTime = now + KEY_REPEAT_INITIAL_DELAY_MS;
+            downAction_single = true;
+        } else if (now >= nextRepeatTime) {
+            nextRepeatTime = now + KEY_REPEAT_INTERVAL_MS;
+            downAction_repeat = true;
+        }
+    } else {
+        keyRepeatStartTime = 0; // 兩個按鈕都鬆開了，重置計時器
+    }
+
     switch (currentUIState) {
         case UI_STATE_MENU_MAIN:
-            if (upTrigger) mainMenuSelection = (mainMenuSelection == 0) ? 3 : mainMenuSelection - 1;
-            if (downTrigger) mainMenuSelection = (mainMenuSelection + 1) % 4;
+            if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 3 : mainMenuSelection - 1;
+            if (downAction_single) mainMenuSelection = (mainMenuSelection + 1) % 4;
             if (settingTrigger) {
                 if (mainMenuSelection == 0) currentUIState = UI_STATE_MENU_SET_VOLTAGE;
                 else if (mainMenuSelection == 1) currentUIState = UI_STATE_MENU_SET_CURRENT;
@@ -159,22 +168,26 @@ void ui_handle_input() {
             break;
 
         case UI_STATE_MENU_SET_VOLTAGE:
-            if (upTrigger) tempSetting_Voltage += 1; // 0.1V
-            if (downTrigger) tempSetting_Voltage -= 1;
+            if (upAction_single) tempSetting_Voltage += 1;   // 短按 +0.1V
+            if (downAction_single) tempSetting_Voltage -= 1; // 短按 -0.1V
+            if (upAction_repeat) tempSetting_Voltage += 10;  // 長按 +1.0V
+            if (downAction_repeat) tempSetting_Voltage -= 10; // 長按 -1.0V
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Voltage = constrain(tempSetting_Voltage, HARDWARE_MIN_VOLTAGE_0_1V, HARDWARE_MAX_VOLTAGE_0_1V);
             break;
 
         case UI_STATE_MENU_SET_CURRENT:
-            if (upTrigger) tempSetting_Current += 1; // 0.1A
-            if (downTrigger) tempSetting_Current -= 1;
+            if (upAction_single) tempSetting_Current += 1;   // 短按 +0.1A
+            if (downAction_single) tempSetting_Current -= 1; // 短按 -0.1A
+            if (upAction_repeat) tempSetting_Current += 10;  // 長按 +1.0A
+            if (downAction_repeat) tempSetting_Current -= 10; // 長按 -1.0A
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Current = constrain(tempSetting_Current, HARDWARE_MIN_CURRENT_0_1A, HARDWARE_MAX_CURRENT_0_1A);
             break;
 
         case UI_STATE_MENU_SET_SOC:
-            if (upTrigger) tempSetting_SOC += 1;
-            if (downTrigger) tempSetting_SOC -= 1;
+            if (upAction_single || upAction_repeat) tempSetting_SOC += 1;
+            if (downAction_single || downAction_repeat) tempSetting_SOC -= 1;
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_SOC = constrain(tempSetting_SOC, HARDWARE_MIN_SOC, HARDWARE_MAX_SOC);
             break;
