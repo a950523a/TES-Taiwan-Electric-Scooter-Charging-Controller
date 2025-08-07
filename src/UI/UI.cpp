@@ -23,7 +23,8 @@ static bool isSettingButtonLongPress = false;
 static unsigned long keyRepeatStartTime = 0; 
 static unsigned long nextRepeatTime = 0;     
 const unsigned long KEY_REPEAT_INITIAL_DELAY_MS = 400; 
-const unsigned long KEY_REPEAT_INTERVAL_MS = 80;       
+const unsigned long KEY_REPEAT_INTERVAL_MS = 80;  
+static bool force_display_update = false;     
 
 static byte findOledDevice() {
     byte common_addresses[] = {0x3C, 0x3D};
@@ -151,6 +152,11 @@ void ui_handle_input() {
         keyRepeatStartTime = 0; // 兩個按鈕都鬆開了，重置計時器
     }
 
+    bool action_triggered = settingTrigger || upAction_single || downAction_single || upAction_repeat || downAction_repeat;
+    if (currentUIState != UI_STATE_NORMAL && action_triggered) {
+        force_display_update = true;
+    }
+
     switch (currentUIState) {
         case UI_STATE_MENU_MAIN:
             if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 3 : mainMenuSelection - 1;
@@ -197,157 +203,159 @@ void ui_handle_input() {
 
 void ui_update_display() {
     if (!isOledConnected) return;
-    if (millis() - lastDisplayUpdateTime < DISPLAY_UPDATE_INTERVAL_MS) return;
-    lastDisplayUpdateTime = millis();
+    if ((millis() - lastDisplayUpdateTime >= DISPLAY_UPDATE_INTERVAL_MS) || force_display_update) {
+        lastDisplayUpdateTime = millis();
+        force_display_update = false;
 
-    u8g2.clearBuffer();
-    char buffer[32];
-    uint16_t strWidth;
+        u8g2.clearBuffer();
+        char buffer[32];
+        uint16_t strWidth;
 
-    if (currentUIState != UI_STATE_NORMAL) {
-        // --- 繪製菜單界面 ---
-        switch (currentUIState) {
-            case UI_STATE_MENU_MAIN:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                u8g2.drawStr(0, 12, "Settings");
-                u8g2.drawHLine(0, 14, 128);
-                u8g2.setFont(u8g2_font_ncenB08_tr);
-                for (int i = 0; i < 4; i++) {
-                    if (i == mainMenuSelection) u8g2.drawStr(5, 28 + i * 12, ">");
-                    u8g2.drawStr(15, 28 + i * 12, mainMenuItems[i]);
-                }
-                break;
+        if (currentUIState != UI_STATE_NORMAL) {
+            // --- 繪製菜單界面 ---
+            switch (currentUIState) {
+                case UI_STATE_MENU_MAIN:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "Settings");
+                    u8g2.drawHLine(0, 14, 128);
+                    u8g2.setFont(u8g2_font_ncenB08_tr);
+                    for (int i = 0; i < 4; i++) {
+                        if (i == mainMenuSelection) u8g2.drawStr(5, 28 + i * 12, ">");
+                        u8g2.drawStr(15, 28 + i * 12, mainMenuItems[i]);
+                    }
+                    break;
+                
+                case UI_STATE_MENU_SAVED:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    strWidth = u8g2.getStrWidth("Settings Saved!");
+                    u8g2.drawStr((128 - strWidth) / 2, 12, "Settings Saved!");
+                    u8g2.drawHLine(0, 14, 128);
+                    u8g2.setFont(u8g2_font_7x13_tr);
+                    sprintf(buffer, "Max V: %.1f V", logic_get_max_voltage_setting() / 10.0);
+                    u8g2.drawStr(5, 30, buffer);
+                    sprintf(buffer, "Max A: %.1f A", logic_get_max_current_setting() / 10.0);
+                    u8g2.drawStr(5, 45, buffer);
+                    sprintf(buffer, "SOC  : %d %%", logic_get_target_soc_setting());
+                    u8g2.drawStr(5, 60, buffer);
+                    break;
+
+                case UI_STATE_MENU_SET_VOLTAGE:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "Set Max Voltage");
+                    u8g2.drawHLine(0, 14, 128);
+                    u8g2.setFont(u8g2_font_7x13B_tr);
+                    sprintf(buffer, "%.1f V", tempSetting_Voltage / 10.0);
+                    u8g2.drawStr(20, 40, buffer);
+                    break;
+
+                case UI_STATE_MENU_SET_CURRENT:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "Set Max Current");
+                    u8g2.drawHLine(0, 14, 128);
+                    u8g2.setFont(u8g2_font_7x13B_tr);
+                    sprintf(buffer, "%.1f A", tempSetting_Current / 10.0);
+                    u8g2.drawStr(20, 40, buffer);
+                    break;
+
+                case UI_STATE_MENU_SET_SOC:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "Set Target SOC");
+                    u8g2.drawHLine(0, 14, 128);
+                    u8g2.setFont(u8g2_font_7x13B_tr);
+                    sprintf(buffer, "%d %%", tempSetting_SOC);
+                    u8g2.drawStr(30, 40, buffer);
+                    break;
+                default: break;
+            }
+        } else {
+            // --- 繪製正常的充電狀態界面 ---
+            // 從 Logic 層獲取所有需要的數據
+            ChargerState charger_state = logic_get_charger_state();
             
-            case UI_STATE_MENU_SAVED:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                strWidth = u8g2.getStrWidth("Settings Saved!");
-                u8g2.drawStr((128 - strWidth) / 2, 12, "Settings Saved!");
-                u8g2.drawHLine(0, 14, 128);
-                u8g2.setFont(u8g2_font_7x13_tr);
-                sprintf(buffer, "Max V: %.1f V", logic_get_max_voltage_setting() / 10.0);
-                u8g2.drawStr(5, 30, buffer);
-                sprintf(buffer, "Max A: %.1f A", logic_get_max_current_setting() / 10.0);
-                u8g2.drawStr(5, 45, buffer);
-                sprintf(buffer, "SOC  : %d %%", logic_get_target_soc_setting());
-                u8g2.drawStr(5, 60, buffer);
-                break;
+            switch (charger_state) {
+                case STATE_CHG_IDLE:
+                    if (logic_is_fault_latched()) {
+                        u8g2.setFont(u8g2_font_ncenB12_tr);
+                        strWidth = u8g2.getStrWidth("ERROR!");
+                        u8g2.drawStr((128 - strWidth) / 2, 30, "ERROR!");
+                        u8g2.setFont(u8g2_font_ncenB08_tr);
+                        strWidth = u8g2.getStrWidth("Press START to reset");
+                        u8g2.drawStr((128 - strWidth) / 2, 50, "Press START to reset");
+                    } else if (logic_is_charge_complete()) {
+                        u8g2.setFont(u8g2_font_ncenB10_tr);
+                        strWidth = u8g2.getStrWidth("Charge Complete");
+                        u8g2.drawStr((128 - strWidth) / 2, 25, "Charge Complete");
 
-            case UI_STATE_MENU_SET_VOLTAGE:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                u8g2.drawStr(0, 12, "Set Max Voltage");
-                u8g2.drawHLine(0, 14, 128);
-                u8g2.setFont(u8g2_font_7x13B_tr);
-                sprintf(buffer, "%.1f V", tempSetting_Voltage / 10.0);
-                u8g2.drawStr(20, 40, buffer);
-                break;
+                        // 增加目標SOC顯示
+                        u8g2.setFont(u8g2_font_ncenB08_tr);
+                        sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                        strWidth = u8g2.getStrWidth(buffer);
+                        u8g2.drawStr((128 - strWidth) / 2, 45, buffer);
 
-            case UI_STATE_MENU_SET_CURRENT:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                u8g2.drawStr(0, 12, "Set Max Current");
-                u8g2.drawHLine(0, 14, 128);
-                u8g2.setFont(u8g2_font_7x13B_tr);
-                sprintf(buffer, "%.1f A", tempSetting_Current / 10.0);
-                u8g2.drawStr(20, 40, buffer);
-                break;
+                        // 增加提示
+                        u8g2.setFont(u8g2_font_6x10_tr);
+                        strWidth = u8g2.getStrWidth("Ready for Next Charge");
+                        u8g2.drawStr((128 - strWidth) / 2, 62, "Ready for Next Charge");
+                    } else {
+                        // 第一行：Ready to Charge
+                        u8g2.setFont(u8g2_font_ncenB10_tr);
+                        strWidth = u8g2.getStrWidth("Ready to Charge");
+                        u8g2.drawStr((128 - strWidth) / 2, 25, "Ready to Charge"); // Y座標上移
 
-            case UI_STATE_MENU_SET_SOC:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                u8g2.drawStr(0, 12, "Set Target SOC");
-                u8g2.drawHLine(0, 14, 128);
-                u8g2.setFont(u8g2_font_7x13B_tr);
-                sprintf(buffer, "%d %%", tempSetting_SOC);
-                u8g2.drawStr(30, 40, buffer);
-                break;
-            default: break;
-        }
-    } else {
-        // --- 繪製正常的充電狀態界面 ---
-        // 從 Logic 層獲取所有需要的數據
-        ChargerState charger_state = logic_get_charger_state();
-        
-        switch (charger_state) {
-            case STATE_CHG_IDLE:
-                if (logic_is_fault_latched()) {
-                    u8g2.setFont(u8g2_font_ncenB12_tr);
-                    strWidth = u8g2.getStrWidth("ERROR!");
-                    u8g2.drawStr((128 - strWidth) / 2, 30, "ERROR!");
-                    u8g2.setFont(u8g2_font_ncenB08_tr);
-                    strWidth = u8g2.getStrWidth("Press START to reset");
-                    u8g2.drawStr((128 - strWidth) / 2, 50, "Press START to reset");
-                } else if (logic_is_charge_complete()) {
+                        // 第二行：顯示當前目標SOC
+                        u8g2.setFont(u8g2_font_ncenB08_tr);
+                        sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                        strWidth = u8g2.getStrWidth(buffer);
+                        u8g2.drawStr((128 - strWidth) / 2, 45, buffer); // 在中間顯示
+
+                        // 第三行：提示操作
+                        u8g2.setFont(u8g2_font_6x10_tr); // 使用更小的字體
+                        strWidth = u8g2.getStrWidth("Connect Scooter");
+                        u8g2.drawStr((128 - strWidth) / 2, 62, "Connect Scooter");
+                    }
+                    break;
+                case STATE_CHG_INITIAL_PARAM_EXCHANGE:
+                case STATE_CHG_PRE_CHARGE_OPERATIONS:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
-                    strWidth = u8g2.getStrWidth("Charge Complete");
-                    u8g2.drawStr((128 - strWidth) / 2, 25, "Charge Complete");
-
-                    // 增加目標SOC顯示
+                    strWidth = u8g2.getStrWidth("Connecting...");
+                    u8g2.drawStr((128 - strWidth) / 2, 30, "Connecting...");
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
-                    strWidth = u8g2.getStrWidth(buffer);
-                    u8g2.drawStr((128 - strWidth) / 2, 45, buffer);
-
-                    // 增加提示
-                    u8g2.setFont(u8g2_font_6x10_tr);
-                    strWidth = u8g2.getStrWidth("Ready for Next Charge");
-                    u8g2.drawStr((128 - strWidth) / 2, 62, "Ready for Next Charge");
-                } else {
-                     // 第一行：Ready to Charge
+                    strWidth = u8g2.getStrWidth("Handshaking with BMS");
+                    u8g2.drawStr((128 - strWidth) / 2, 50, "Handshaking with BMS");
+                    break;
+                case STATE_CHG_DC_CURRENT_OUTPUT:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
-                    strWidth = u8g2.getStrWidth("Ready to Charge");
-                    u8g2.drawStr((128 - strWidth) / 2, 25, "Ready to Charge"); // Y座標上移
-
-                    // 第二行：顯示當前目標SOC
+                    sprintf(buffer, "SOC: %d %%", logic_get_soc());
+                    u8g2.drawStr(5, 18, buffer);
+                    
+                    if (logic_is_timer_running() && logic_get_total_time_seconds() > 0) {
+                        uint16_t remainingMinutes = (logic_get_remaining_seconds() + 30) / 60;
+                        uint16_t hours = remainingMinutes / 60;
+                        uint16_t minutes = remainingMinutes % 60;
+                        if (hours > 0) sprintf(buffer, "Time: %dh %dm", hours, minutes);
+                        else sprintf(buffer, "Time: %d min", remainingMinutes);
+                    } else {
+                        strcpy(buffer, "Time: ...");
+                    }
+                    u8g2.drawStr(5, 40, buffer);
+                    
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
-                    strWidth = u8g2.getStrWidth(buffer);
-                    u8g2.drawStr((128 - strWidth) / 2, 45, buffer); // 在中間顯示
-
-                    // 第三行：提示操作
-                    u8g2.setFont(u8g2_font_6x10_tr); // 使用更小的字體
-                    strWidth = u8g2.getStrWidth("Connect Scooter");
-                    u8g2.drawStr((128 - strWidth) / 2, 62, "Connect Scooter");
-                }
-                break;
-            case STATE_CHG_INITIAL_PARAM_EXCHANGE:
-            case STATE_CHG_PRE_CHARGE_OPERATIONS:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                strWidth = u8g2.getStrWidth("Connecting...");
-                u8g2.drawStr((128 - strWidth) / 2, 30, "Connecting...");
-                u8g2.setFont(u8g2_font_ncenB08_tr);
-                strWidth = u8g2.getStrWidth("Handshaking with BMS");
-                u8g2.drawStr((128 - strWidth) / 2, 50, "Handshaking with BMS");
-                break;
-            case STATE_CHG_DC_CURRENT_OUTPUT:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                sprintf(buffer, "SOC: %d %%", logic_get_soc());
-                u8g2.drawStr(5, 18, buffer);
-                
-                if (logic_is_timer_running() && logic_get_total_time_seconds() > 0) {
-                    uint16_t remainingMinutes = (logic_get_remaining_seconds() + 30) / 60;
-                    uint16_t hours = remainingMinutes / 60;
-                    uint16_t minutes = remainingMinutes % 60;
-                    if (hours > 0) sprintf(buffer, "Time: %dh %dm", hours, minutes);
-                    else sprintf(buffer, "Time: %d min", remainingMinutes);
-                } else {
-                    strcpy(buffer, "Time: ...");
-                }
-                u8g2.drawStr(5, 40, buffer);
-                
-                u8g2.setFont(u8g2_font_ncenB08_tr);
-                sprintf(buffer, "%.1fV / %.1fA", logic_get_measured_voltage(), logic_get_measured_current());
-                u8g2.drawStr(5, 60, buffer);
-                break;
-            case STATE_CHG_ENDING_CHARGE_PROCESS:
-            case STATE_CHG_FINALIZATION:
-                u8g2.setFont(u8g2_font_ncenB10_tr);
-                strWidth = u8g2.getStrWidth("Finalizing...");
-                u8g2.drawStr((128 - strWidth) / 2, 38, "Finalizing...");
-                break;
-            default:
-                u8g2.setFont(u8g2_font_ncenB08_tr);
-                strWidth = u8g2.getStrWidth("System Fault");
-                u8g2.drawStr((128 - strWidth) / 2, 38, "System Fault");
-                break;
+                    sprintf(buffer, "%.1fV / %.1fA", logic_get_measured_voltage(), logic_get_measured_current());
+                    u8g2.drawStr(5, 60, buffer);
+                    break;
+                case STATE_CHG_ENDING_CHARGE_PROCESS:
+                case STATE_CHG_FINALIZATION:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    strWidth = u8g2.getStrWidth("Finalizing...");
+                    u8g2.drawStr((128 - strWidth) / 2, 38, "Finalizing...");
+                    break;
+                default:
+                    u8g2.setFont(u8g2_font_ncenB08_tr);
+                    strWidth = u8g2.getStrWidth("System Fault");
+                    u8g2.drawStr((128 - strWidth) / 2, 38, "System Fault");
+                    break;
+            }
         }
+        u8g2.sendBuffer();
     }
-    u8g2.sendBuffer();
 }
