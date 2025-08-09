@@ -64,3 +64,20 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 您可以自由地分享與改作本專案，惟需遵守「姓名標示」、「非商業性使用」及「相同方式分享」等條款。詳情請參閱授權協議全文。
 
 Copyright (c) 2025 黃丞左(Chris Huang)
+
+## 影片(Video)
+https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
+
+## 照片(Images)
+![](docs/images/20250804_205003.jpg)
+![](docs/images/20250804_205006.jpg)
+![](docs/images/20250804_205017.jpg)
+![](docs/images/20250804_205024.jpg)
+![](docs/images/20250804_205031.jpg)
+![](docs/images/20250804_205036.jpg)
+![](docs/images/20250804_205042.jpg)
+![](docs/images/20250804_205055.jpg)
+![](docs/images/20250804_205058.jpg)
+![](docs/images/20250804_205101.jpg)
+![](docs/images/20250804_205114.jpg)
+![](docs/images/20250804_205116.jpg)
