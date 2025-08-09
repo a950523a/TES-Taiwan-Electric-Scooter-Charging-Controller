@@ -5,9 +5,12 @@
 
 #include "Charger_Defs.h" // 引入公共定義
 #include "Config.h"       // 引入CAN ID等配置
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 // --- 聲明全局的、已解析的數據存儲變數 ---
 // ChargerLogic 將從這裡讀取車輛的最新狀態
+extern SemaphoreHandle_t canDataMutex;
 extern CAN_Vehicle_Status_500 vehicleStatus500;
 extern CAN_Vehicle_Params_501 vehicleParams501;
 extern CAN_Vehicle_Emergency_5F0 vehicleEmergency5F0;
