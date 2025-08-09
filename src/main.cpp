@@ -53,40 +53,143 @@
 #include "CAN_Protocol/CAN_Protocol.h"
 #include "LuxBeacon/LuxBeacon.h"
 
+// --- FreeRTOS 任務函數原型 ---
+void can_task(void *pvParameters);
+void logic_task(void *pvParameters);
+void ui_task(void *pvParameters);
+void monitor_task(void *pvParameters);
+
+// --- FreeRTOS 同步工具 ---
+// 為CAN數據創建一個互斥鎖
+SemaphoreHandle_t canDataMutex;
+
+TaskHandle_t canTaskHandle = NULL;
+TaskHandle_t logicTaskHandle = NULL;
+TaskHandle_t uiTaskHandle = NULL;
+
 void setup() {
     Serial.begin(115200);
-    Serial.println(F("DC Charger Controller Booting Up... (Layered Arch)"));
+    Serial.println(F("DC Charger Controller Booting Up..."));
+
+    canDataMutex = xSemaphoreCreateMutex();
+    if (canDataMutex == NULL) {
+        Serial.println("FATAL: Failed to create canDataMutex!");
+    }
 
     // 按順序初始化各層
     hal_init_pins();
     hal_init_adc();
     hal_init_can();
-    
-    logic_init();        // 初始化核心邏輯層
-    ui_init();           // 初始化UI層
+
+    logic_init();        
+    ui_init();           
 
     beacon_init();
 
-    Serial.println(F("System Initialized."));
+    Serial.println(F("System Initialized. Creating FreeRTOS tasks..."));
+
+    xTaskCreate(
+        can_task,
+        "CAN_Task",
+        3072, // 堆疊大小 (Bytes)
+        NULL,
+        5,    // 優先級 (數字越大越高)
+        &canTaskHandle
+    );
+
+    xTaskCreate(
+        logic_task,
+        "Logic_Task",
+        4096,
+        NULL,
+        4,
+        &logicTaskHandle
+    );
+
+    xTaskCreate(
+        ui_task,
+        "UI_Task",
+        4096,
+        NULL,
+        3,
+        &uiTaskHandle
+    );
+
+    xTaskCreate(
+        monitor_task, 
+        "Monitor_Task", 
+        2048, 
+        NULL, 
+        1, 
+        NULL
+    );
+
+    vTaskDelete(NULL);
 }
 
 void loop() {
-    // 1. 處理使用者輸入 (菜單操作等)
-    ui_handle_input();
+}
 
-    // 2. 只有在正常模式下才運行充電邏輯
-    if (ui_get_current_state() == UI_STATE_NORMAL) {
+void can_task(void *pvParameters) {
+    Serial.println("CAN Task started.");
+    for (;;) {
         can_protocol_handle_receive();
-        logic_run_statemachine();
-        logic_handle_periodic_tasks(); // 這個函數內部會處理CAN的收發
+        
+        vTaskDelay(pdMS_TO_TICKS(10)); 
     }
-    // 3. 更新硬體狀態 (LED)
-    LedState current_led_state = logic_get_led_state();
-    hal_update_leds(current_led_state);
+}
 
-    // 4. 更新顯示螢幕
-    ui_update_display();
+void logic_task(void *pvParameters) {
+    Serial.println("Logic Task started.");
+    
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(20); 
 
-    beacon_handle_tasks();
+    for (;;) {
+        if (ui_get_current_state() == UI_STATE_NORMAL) {
+            logic_run_statemachine();
+            logic_handle_periodic_tasks();
+        }
+        
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
 
+void ui_task(void *pvParameters) {
+    Serial.println("UI Task started.");
+    
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(50); 
+
+    for (;;) {
+        ui_handle_input();
+
+        LedState current_led_state = logic_get_led_state();
+        hal_update_leds(current_led_state);
+        ui_update_display();
+
+        beacon_handle_tasks();
+        
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+void monitor_task(void *pvParameters) {
+    Serial.println("System Monitor Task started.");
+    for (;;) {
+        // 每10秒打印一次報告
+        vTaskDelay(pdMS_TO_TICKS(10000));
+
+        UBaseType_t can_stack_hwm = uxTaskGetStackHighWaterMark(canTaskHandle);
+        UBaseType_t logic_stack_hwm = uxTaskGetStackHighWaterMark(logicTaskHandle);
+        UBaseType_t ui_stack_hwm = uxTaskGetStackHighWaterMark(uiTaskHandle);
+
+        Serial.println("\n--- RTOS STATUS ---");
+        // 打印的是剩餘的最小值，單位是字(4 bytes)
+        Serial.printf("CAN Task Stack HWM: %u words (%u bytes)\n", can_stack_hwm, can_stack_hwm * 4);
+        Serial.printf("Logic Task Stack HWM: %u words (%u bytes)\n", logic_stack_hwm, logic_stack_hwm * 4);
+        Serial.printf("UI Task Stack HWM: %u words (%u bytes)\n", ui_stack_hwm, ui_stack_hwm * 4);
+        Serial.printf("Free Heap: %u bytes\n", ESP.getFreeHeap());
+        Serial.println("-------------------\n");
+    }
 }

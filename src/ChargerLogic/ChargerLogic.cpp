@@ -3,6 +3,10 @@
 #include "HAL/HAL.h"
 #include "CAN_Protocol/CAN_Protocol.h"
 #include <Preferences.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
+extern SemaphoreHandle_t canDataMutex;
 
 // --- 私有(static)變量，只在這個文件內可見 ---
 static Preferences preferences; 
@@ -172,9 +176,18 @@ void logic_run_statemachine() {
       break;
 
     case STATE_CHG_PRE_CHARGE_OPERATIONS: { // 使用大括號創建局部作用域
-        static unsigned long relay_close_delay_start_time = 0;
+        CAN_Vehicle_Status_500 status_snapshot;
+        if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+            xSemaphoreGive(canDataMutex);
+        } else {
+            Serial.println("WARN: PRE_CHARGE failed to get mutex!");
+            break; // 獲取鎖失敗，跳過本輪處理
+        }
 
-        if (!(currentCPState == CP_STATE_ON && (vehicleStatus500.statusFlags & 0x01))) {
+        static unsigned long relay_close_delay_start_time = 0;
+        
+        if (!(currentCPState == CP_STATE_ON && (status_snapshot.statusFlags & 0x01))) {
             if (millis() - currentStateStartTime > 20000) {
                 Serial.println(F("Logic: Timeout in PRE_CHARGE (CP or CAN permission not ready)."));
                 ch_sub_10_protection_and_end_flow(true);
@@ -258,11 +271,20 @@ void logic_run_statemachine() {
           relay_open_delay_start_time = millis();
       }
 
+      CAN_Vehicle_Status_500 status_snapshot;
+        if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+            xSemaphoreGive(canDataMutex);
+        } else {
+            Serial.println("WARN: ENDING_PROCESS failed to get mutex!");
+            break;
+        }
+
       // 步驟3: 延遲結束後，等待車輛最終狀態
       if (relay_open_delay_start_time > 0 && (millis() - relay_open_delay_start_time >= 250)) {
           chargerStatus508.statusFlags |= 0x01;
           chargerStatus508.statusFlags &= ~0x02;
-          if ((vehicleStatus500.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
+          if ((status_snapshot.statusFlags & 0x02) && currentCPState == CP_STATE_OFF) {
               hal_control_coupler_lock(false);
               chargerStatus508.statusFlags &= ~0x04;
               Serial.println(F("Logic: Coupler unlocked. -> FINALIZATION."));
@@ -318,18 +340,32 @@ void logic_run_statemachine() {
 
 void logic_handle_periodic_tasks() {
     unsigned long now = millis();
+
+    CAN_Vehicle_Status_500 status_snapshot;
+    CAN_Vehicle_Params_501 params_snapshot;
+    CAN_Vehicle_Emergency_5F0 emergency_snapshot;
+    // 一次性鎖定，快照所有需要的數據
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+        memcpy(&params_snapshot, &vehicleParams501, sizeof(CAN_Vehicle_Params_501));
+        memcpy(&emergency_snapshot, &vehicleEmergency5F0, sizeof(CAN_Vehicle_Emergency_5F0));
+        xSemaphoreGive(canDataMutex);
+    } else {
+        Serial.println("WARN: PERIODIC_TASKS failed to get mutex!");
+        return; // 獲取鎖失敗，跳過本輪處理
+    }
     
-    if ((vehicleStatus500.statusFlags & 0x01) && !vehicleReadyForCharge && currentChargerState == STATE_CHG_INITIAL_PARAM_EXCHANGE) {
+    if ((status_snapshot.statusFlags & 0x01) && !vehicleReadyForCharge && currentChargerState == STATE_CHG_INITIAL_PARAM_EXCHANGE) {
         Serial.println(F("Logic: Vehicle CAN permission granted."));
         vehicleReadyForCharge = true;
     }
-    if (vehicleEmergency5F0.errorRequestFlags & 0x01) {
+    if (emergency_snapshot.errorRequestFlags & 0x01) {
         Serial.println(F("Logic: Vehicle sent EMERGENCY STOP!"));
         ch_sub_12_emergency_stop_procedure();
         vehicleEmergency5F0.errorRequestFlags = 0;
     }
-    if (isChargingTimerRunning && vehicleParams501.maxChargeTime != 0xFFFF) {
-        uint32_t newTotalTimeSeconds = (uint32_t)vehicleParams501.maxChargeTime * 60;
+    if (isChargingTimerRunning && params_snapshot.maxChargeTime != 0xFFFF) {
+        uint32_t newTotalTimeSeconds = (uint32_t)params_snapshot.maxChargeTime * 60;
         if (currentTotalTimeSeconds != newTotalTimeSeconds) {
             currentTotalTimeSeconds = newTotalTimeSeconds;
             Serial.print(F("Logic: Total charge time updated by BMS to "));
@@ -383,7 +419,14 @@ LedState logic_get_led_state() {
 ChargerState logic_get_charger_state() { return currentChargerState; }
 bool logic_is_fault_latched() { return faultLatch; }
 bool logic_is_charge_complete() { return chargeCompleteLatch; }
-int logic_get_soc() { return vehicleParams501.stateOfCharge; }
+int logic_get_soc() {
+    int soc = 0;
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        soc = vehicleParams501.stateOfCharge;
+        xSemaphoreGive(canDataMutex);
+    }
+    return soc;
+}
 uint32_t logic_get_remaining_seconds() { return remainingTimeSeconds_global; }
 float logic_get_measured_voltage() { return measuredVoltage; }
 float logic_get_measured_current() { return measuredCurrent; }
@@ -420,9 +463,17 @@ static void readAndSetCPState() {
 }
 
 static bool ch_sub_01_battery_compatibility_check() {
-    if (vehicleStatus500.chargeVoltageLimit > chargerMaxOutputVoltage_0_1V) return false;
-    if (vehicleStatus500.maxChargeVoltage > 0 && vehicleStatus500.chargeVoltageLimit > vehicleStatus500.maxChargeVoltage) return false;
-    chargerStatus508.faultDetectionVoltageLimit = min(vehicleStatus500.maxChargeVoltage, chargerMaxOutputVoltage_0_1V);
+    CAN_Vehicle_Status_500 status_snapshot;
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+        xSemaphoreGive(canDataMutex);
+    } else {
+        Serial.println("WARN: CH_SUB_01 failed to get mutex!");
+        return false; // 獲取數據失敗，則兼容性檢查失敗
+    }
+    if (status_snapshot.chargeVoltageLimit > chargerMaxOutputVoltage_0_1V) return false;
+    if (status_snapshot.maxChargeVoltage > 0 && status_snapshot.chargeVoltageLimit > status_snapshot.maxChargeVoltage) return false;
+    chargerStatus508.faultDetectionVoltageLimit = min(status_snapshot.maxChargeVoltage, chargerMaxOutputVoltage_0_1V);
     return true;
 }
 
@@ -434,15 +485,33 @@ static bool ch_sub_03_coupler_lock_and_insulation_diagnosis() {
 
 static void ch_sub_04_dc_current_output_control() {
     measuredVoltage = hal_read_voltage_sensor();
-    if (digitalRead(CHARGE_RELAY_PIN) == HIGH) {
-        measuredCurrent = (float)vehicleStatus500.chargeCurrentCommand / 10.0;
+    CAN_Vehicle_Status_500 status_snapshot;
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+        xSemaphoreGive(canDataMutex);
+    } else {
+        Serial.println("WARN: CH_SUB_04 failed to get mutex!");
+        // 如果獲取鎖失敗，我們不更新電流，使用上一次的值
+        return;
+    }
+    if (hal_get_charge_relay_state()) {
+        measuredCurrent = (float)status_snapshot.chargeCurrentCommand / 10.0;
     } else {
         measuredCurrent = 0.0;
     }
 }
 
 static void ch_sub_06_monitoring_process() {
-    if (!(vehicleStatus500.statusFlags & 0x01)) {
+    CAN_Vehicle_Status_500 status_snapshot;
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+        xSemaphoreGive(canDataMutex);
+    } else {
+        Serial.println("WARN: CH_SUB_06 failed to get mutex!");
+        return; // 跳過本輪監控
+    }
+    
+    if (!(status_snapshot.statusFlags & 0x01)) {
         Serial.println(F("Logic MONITOR: Vehicle CAN stop request."));
         ch_sub_10_protection_and_end_flow(false); return;
     }
@@ -458,7 +527,7 @@ static void ch_sub_06_monitoring_process() {
         Serial.println(F("Logic MONITOR: Max charge time reached."));
         ch_sub_10_protection_and_end_flow(false); return;
     }
-    if (vehicleStatus500.faultFlags != 0) {
+    if (status_snapshot.faultFlags != 0) {
         Serial.println(F("Logic MONITOR: Fault reported by vehicle."));
         ch_sub_10_protection_and_end_flow(true); return;
     }
