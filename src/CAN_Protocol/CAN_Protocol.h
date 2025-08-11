@@ -1,5 +1,3 @@
-// src/CAN_Protocol/CAN_Protocol.h
-
 #ifndef CAN_PROTOCOL_H
 #define CAN_PROTOCOL_H
 
@@ -17,6 +15,8 @@ extern CAN_Vehicle_Emergency_5F0 vehicleEmergency5F0;
 
 // --- 公開的API函數 ---
 void can_protocol_handle_receive(); // 在主循環中調用，處理接收
+
+CAN_Vehicle_Status_500 can_protocol_get_vehicle_status();
 
 // --- 發送函數 ---
 void can_protocol_send_charger_status(const CAN_Charger_Status_508& status);

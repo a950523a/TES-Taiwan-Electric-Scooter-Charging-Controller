@@ -77,21 +77,19 @@ const int HARDWARE_MIN_SOC = 10;  // 10% (邏輯上的最小值)
 // --- 充電參數 ---
 const unsigned int chargerManufacturerCode = 0x0000;
 
+//WiFi
+#define WIFI_AP_SSID "TES_Charger_ESP32"
+#define WIFI_AP_PASSWORD "12345678"
+
 // --- 功能開關 (Feature Toggles) ---
 
 // 是否啟用OLED顯示和設定選單功能
 // 如果您沒有連接OLED，可以將下面這一行註解掉，以節省程式碼空間
 #define ENABLE_OLED_SUPPORT
 
-// 編譯模式選擇
-// 取消註解下面其中一行來選擇模式
-#define BUILD_MODE_CHARGING_STATION
-// #define BUILD_MODE_PORTABLE_CHARGER (規劃中)
-
 // --- ?????? ---
 const int LUX_BEACON_TIME_UNIT_MS = 150;
 //#define DEVELOPER_MODE
-
 #ifdef DEVELOPER_MODE
     #define CHARGER_RELAY_SIM_LED_PIN   2
 #endif

@@ -1,5 +1,3 @@
-// src/CAN_Protocol/CAN_Protocol.cpp
-
 #include "CAN_Protocol.h"
 #include "HAL/HAL.h" // 翻譯部門需要和收發室(HAL)打交道
 
@@ -84,4 +82,20 @@ void can_protocol_send_emergency_stop(const CAN_Charger_Emergency_5F8& emergency
     d[4] = emergency.chargerManufacturerID & 0xFF;
     d[5] = (emergency.chargerManufacturerID >> 8) & 0xFF;
     hal_can_send(CHARGER_EMERGENCY_STOP_ID, d, 8);
+}
+
+CAN_Vehicle_Status_500 can_protocol_get_vehicle_status() {
+    CAN_Vehicle_Status_500 status_snapshot;
+    
+    // 使用Mutex來保證線程安全地複製數據
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
+        xSemaphoreGive(canDataMutex);
+    } else {
+        // 如果獲取鎖失敗，返回一個清零的結構體，防止上層使用髒數據
+        memset(&status_snapshot, 0, sizeof(CAN_Vehicle_Status_500));
+        Serial.println("WARN: Failed to get mutex in can_protocol_get_vehicle_status!");
+    }
+    
+    return status_snapshot;
 }
