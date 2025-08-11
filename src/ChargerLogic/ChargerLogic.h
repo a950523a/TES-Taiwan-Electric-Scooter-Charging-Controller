@@ -7,7 +7,9 @@
 void logic_init();
 void logic_run_statemachine();
 void logic_handle_periodic_tasks();
-void logic_save_config(unsigned int voltage, unsigned int current, int soc);
+void logic_save_config(unsigned int voltage, unsigned int current, int soc);\
+void logic_start_button_pressed();
+void logic_stop_button_pressed();
 
 // --- 提供給其他層讀取狀態的 Getters ---
 LedState logic_get_led_state();

@@ -52,11 +52,13 @@
 #include "ChargerLogic/ChargerLogic.h"
 #include "CAN_Protocol/CAN_Protocol.h"
 #include "LuxBeacon/LuxBeacon.h"
+#include "NetworkServices/NetworkServices.h"
 
 // --- FreeRTOS 任務函數原型 ---
 void can_task(void *pvParameters);
 void logic_task(void *pvParameters);
 void ui_task(void *pvParameters);
+void wifi_task(void *pvParameters);
 void monitor_task(void *pvParameters);
 
 // --- FreeRTOS 同步工具 ---
@@ -66,6 +68,7 @@ SemaphoreHandle_t canDataMutex;
 TaskHandle_t canTaskHandle = NULL;
 TaskHandle_t logicTaskHandle = NULL;
 TaskHandle_t uiTaskHandle = NULL;
+TaskHandle_t wifitaskHandle = NULL;
 
 void setup() {
     Serial.begin(115200);
@@ -74,6 +77,7 @@ void setup() {
     canDataMutex = xSemaphoreCreateMutex();
     if (canDataMutex == NULL) {
         Serial.println("FATAL: Failed to create canDataMutex!");
+        while(1);
     }
 
     // 按順序初始化各層
@@ -82,8 +86,7 @@ void setup() {
     hal_init_can();
 
     logic_init();        
-    ui_init();           
-
+    ui_init();     
     beacon_init();
 
     Serial.println(F("System Initialized. Creating FreeRTOS tasks..."));
@@ -91,7 +94,7 @@ void setup() {
     xTaskCreate(
         can_task,
         "CAN_Task",
-        3072, // 堆疊大小 (Bytes)
+        1024, // 堆疊大小 (Bytes)
         NULL,
         5,    // 優先級 (數字越大越高)
         &canTaskHandle
@@ -100,7 +103,7 @@ void setup() {
     xTaskCreate(
         logic_task,
         "Logic_Task",
-        4096,
+        2048,
         NULL,
         4,
         &logicTaskHandle
@@ -109,10 +112,19 @@ void setup() {
     xTaskCreate(
         ui_task,
         "UI_Task",
-        4096,
+        3072,
         NULL,
         3,
         &uiTaskHandle
+    );
+
+    xTaskCreate(
+        wifi_task,
+        "WiFi_Task",
+        4096, 
+        NULL,
+        2,       
+        NULL
     );
 
     xTaskCreate(
@@ -124,6 +136,7 @@ void setup() {
         NULL
     );
 
+    Serial.println("Setup complete. Deleting setup/loop task.");
     vTaskDelete(NULL);
 }
 
@@ -174,6 +187,22 @@ void ui_task(void *pvParameters) {
     }
 }
 
+void wifi_task(void *pvParameters) {
+    Serial.println("WiFi Task started.");
+    // 在任務內部執行初始化
+    net_init(); // 使用我們新的、正確的模塊名
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(100); 
+
+    for (;;) {
+        net_handle_tasks();
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
 void monitor_task(void *pvParameters) {
     Serial.println("System Monitor Task started.");
     for (;;) {
@@ -183,13 +212,16 @@ void monitor_task(void *pvParameters) {
         UBaseType_t can_stack_hwm = uxTaskGetStackHighWaterMark(canTaskHandle);
         UBaseType_t logic_stack_hwm = uxTaskGetStackHighWaterMark(logicTaskHandle);
         UBaseType_t ui_stack_hwm = uxTaskGetStackHighWaterMark(uiTaskHandle);
+        UBaseType_t wifi_stack_hwm = uxTaskGetStackHighWaterMark(wifitaskHandle);
 
         Serial.println("\n--- RTOS STATUS ---");
         // 打印的是剩餘的最小值，單位是字(4 bytes)
         Serial.printf("CAN Task Stack HWM: %u words (%u bytes)\n", can_stack_hwm, can_stack_hwm * 4);
         Serial.printf("Logic Task Stack HWM: %u words (%u bytes)\n", logic_stack_hwm, logic_stack_hwm * 4);
         Serial.printf("UI Task Stack HWM: %u words (%u bytes)\n", ui_stack_hwm, ui_stack_hwm * 4);
+        Serial.printf("WiFi Task Stack HWM: %u words (%u bytes)\n", wifi_stack_hwm, wifi_stack_hwm * 4);
         Serial.printf("Free Heap: %u bytes\n", ESP.getFreeHeap());
         Serial.println("-------------------\n");
     }
 }
+

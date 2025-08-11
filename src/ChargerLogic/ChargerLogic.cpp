@@ -322,19 +322,19 @@ void logic_run_statemachine() {
       break;
 
     case STATE_CHG_FINALIZATION:
-      measuredVoltage = hal_read_voltage_sensor();
-      if (measuredVoltage > 10.0) {
-        Serial.print(F("Logic Warning: Output DC voltage still > 10V ("));
-        Serial.print(measuredVoltage); Serial.println(F("V)) after finalization!"));
-      }
-      Serial.println(F("Logic: Charge finalized. -> IDLE."));
-      currentChargerState = STATE_CHG_IDLE;
-      break;
+        measuredVoltage = hal_read_voltage_sensor();
+        if (measuredVoltage > 10.0) {
+            Serial.print(F("Logic Warning: Output DC voltage still > 10V ("));
+            Serial.print(measuredVoltage); Serial.println(F("V)) after finalization!"));
+        }
+        Serial.println(F("Logic: Charge finalized. -> IDLE."));
+        currentChargerState = STATE_CHG_IDLE;
+        break;
 
-    default:
-      Serial.println(F("Logic: Unknown charger state! -> IDLE."));
-      currentChargerState = STATE_CHG_IDLE;
-      break;
+        default:
+        Serial.println(F("Logic: Unknown charger state! -> IDLE."));
+        currentChargerState = STATE_CHG_IDLE;
+        break;
   }
 }
 
@@ -568,4 +568,39 @@ static void ch_sub_12_emergency_stop_procedure() {
 
     currentChargerState = STATE_CHG_EMERGENCY_STOP_PROC;
     currentStateStartTime = millis();
+}
+
+void logic_start_button_pressed() {
+    // 這個動作只在IDLE狀態下有效
+    if (currentChargerState == STATE_CHG_IDLE) {
+        Serial.println("Logic: Start action triggered by remote.");
+        
+        // 執行與物理按鈕完全相同的啟動準備邏輯
+        faultLatch = false;
+        chargeCompleteLatch = false;
+        hal_control_vp_relay(true);
+        readAndSetCPState();
+        
+        if (currentCPState == CP_STATE_OFF || currentCPState == CP_STATE_ON) {
+            currentChargerState = STATE_CHG_INITIAL_PARAM_EXCHANGE;
+            currentStateStartTime = millis();
+        } else {
+            Serial.println(F("Logic: Remote start failed, CP state is ERROR/UNKNOWN."));
+            // 可以在這裡觸發一個臨時的錯誤狀態，讓UI顯示
+        }
+    } else {
+        Serial.println("Logic: Ignoring remote start, charger is not in IDLE state.");
+    }
+}
+
+void logic_stop_button_pressed() {
+    // 這個動作只在充電過程中有效
+    if (currentChargerState == STATE_CHG_DC_CURRENT_OUTPUT) {
+        Serial.println("Logic: Stop action triggered by remote.");
+        
+        // 直接呼叫統一的停止流程函數
+        ch_sub_10_protection_and_end_flow(false);
+    } else {
+        Serial.println("Logic: Ignoring remote stop, charger is not in charging state.");
+    }
 }
