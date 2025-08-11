@@ -51,6 +51,7 @@ static void ch_sub_04_dc_current_output_control();
 static void ch_sub_06_monitoring_process();
 static void ch_sub_10_protection_and_end_flow(bool isFault);
 static void ch_sub_12_emergency_stop_procedure();
+static bool remote_start_requested = false;
 
 enum PreChargeStep {
     STEP_INIT,
@@ -142,7 +143,8 @@ void logic_run_statemachine() {
       isChargingTimerRunning = false;
       preChargeStep = STEP_INIT;
       
-      if (hal_get_button_state(BUTTON_START)) {
+      if (hal_get_button_state(BUTTON_START)|| remote_start_requested) {
+        remote_start_requested = false; 
         faultLatch = false;
         chargeCompleteLatch = false;
         hal_control_vp_relay(true);
@@ -574,20 +576,7 @@ void logic_start_button_pressed() {
     // 這個動作只在IDLE狀態下有效
     if (currentChargerState == STATE_CHG_IDLE) {
         Serial.println("Logic: Start action triggered by remote.");
-        
-        // 執行與物理按鈕完全相同的啟動準備邏輯
-        faultLatch = false;
-        chargeCompleteLatch = false;
-        hal_control_vp_relay(true);
-        readAndSetCPState();
-        
-        if (currentCPState == CP_STATE_OFF || currentCPState == CP_STATE_ON) {
-            currentChargerState = STATE_CHG_INITIAL_PARAM_EXCHANGE;
-            currentStateStartTime = millis();
-        } else {
-            Serial.println(F("Logic: Remote start failed, CP state is ERROR/UNKNOWN."));
-            // 可以在這裡觸發一個臨時的錯誤狀態，讓UI顯示
-        }
+        remote_start_requested = true;
     } else {
         Serial.println("Logic: Ignoring remote start, charger is not in IDLE state.");
     }
