@@ -13,7 +13,7 @@
 // 按鈕 (Buttons)
 #define START_BUTTON_PIN      25
 #define STOP_BUTTON_PIN       32
-#define EMERGENCY_BUTTON_PIN  4
+#define EMERGENCY_BUTTON_PIN  16
 #define SETTING_BUTTON_PIN    33
 
 // LED 指示燈
@@ -26,9 +26,9 @@
 #define LOCK_SOLENOID_PIN     27  // 電磁鎖 (可選)
 #define VP_RELAY_PIN          15  // VP 繼電器 (充電樁模式)
 
-// CAN Bus 模組 (MCP2515)
-#define SPI_CS_PIN            5
-#define MCP2515_INT_PIN       35
+// CAN Bus (TJA1051T/3)
+#define TWAI_TX_PIN           GPIO_NUM_5
+#define TWAI_RX_PIN           GPIO_NUM_4
 
 // I2C 總線 (OLED & ADS1115)
 // 通常是固定的，除非您有特殊需求
@@ -37,7 +37,7 @@
 
 // --- 分壓電阻定義 ---
 const float VOLTAGE_DIVIDER_120V_R1 = 348.0; // 標稱348kΩ 需自行校準
-const float VOLTAGE_DIVIDER_120V_R2 = 12;  // 標稱12kΩ 需自行校準
+const float VOLTAGE_DIVIDER_120V_R2 = 11.731;  // 標稱12kΩ 需自行校準
 const float VOLTAGE_DIVIDER_120V_RATIO = VOLTAGE_DIVIDER_120V_R2 / (VOLTAGE_DIVIDER_120V_R1 + VOLTAGE_DIVIDER_120V_R2);
 
 const float VOLTAGE_DIVIDER_CP_R1 = 150.0; // Ω

@@ -2,7 +2,6 @@
 #define HAL_H
 
 #include <Arduino.h>
-#include <mcp_can.h>
 #include "Charger_Defs.h"
 
 enum ButtonType {
@@ -34,7 +33,6 @@ float hal_read_cp_voltage();
 // CAN 通訊接口
 void hal_can_send(unsigned long id, byte* data, byte len);
 bool hal_can_receive(unsigned long* id, byte* len, byte* buf);
-bool hal_is_can_interrupt_pending();
 
 
 #endif // HAL_H
