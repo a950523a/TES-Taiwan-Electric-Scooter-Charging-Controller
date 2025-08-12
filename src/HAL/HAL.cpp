@@ -1,24 +1,15 @@
 #include "HAL.h"
 #include "Config.h"
-#include <mcp_can.h>
 #include <Adafruit_ADS1X15.h>
 #include "LuxBeacon/LuxBeacon.h"
 #include <Preferences.h> 
+#include "driver/twai.h"
 
-static MCP_CAN CAN(SPI_CS_PIN);
 static Adafruit_ADS1115 ads;
-static volatile bool canInterruptTriggered = false;
 
 static bool charge_relay_state = false;
 
-static void IRAM_ATTR onCANInterrupt() {
-    canInterruptTriggered = true;
-}
-
 void hal_init_pins() {
-    pinMode(MCP2515_INT_PIN, INPUT);
-    pinMode(SPI_CS_PIN, OUTPUT);
-    digitalWrite(SPI_CS_PIN, HIGH);
     pinMode(START_BUTTON_PIN, INPUT_PULLUP);
     pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
     pinMode(EMERGENCY_BUTTON_PIN, INPUT_PULLUP);
@@ -33,7 +24,6 @@ void hal_init_pins() {
     pinMode(LED_CHARGING_PIN, OUTPUT);
     pinMode(LED_ERROR_PIN, OUTPUT);
 
-    attachInterrupt(digitalPinToInterrupt(MCP2515_INT_PIN), onCANInterrupt, FALLING);
 
     #ifdef DEVELOPER_MODE
         pinMode(CHARGER_RELAY_SIM_LED_PIN, OUTPUT);
@@ -43,19 +33,28 @@ void hal_init_pins() {
 }
 
 void hal_init_can() {
-    if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
-        Serial.println(F("HAL: MCP2515 Init Okay!"));
-        CAN.setMode(MCP_NORMAL);
-        CAN.init_Mask(0, 0, 0x7FF);
-        CAN.init_Filt(0, 0, VEHICLE_STATUS_ID);
-        CAN.init_Filt(1, 0, VEHICLE_PARAMS_ID);
-        CAN.init_Mask(1, 0, 0x7FF);
-        CAN.init_Filt(2, 0, VEHICLE_EMERGENCY_ID);
-    } else {
-        Serial.println(F("HAL: MCP2515 Init Failed! Halting."));
-        while (1);
+    // 1. 通用配置: 設定工作模式為Normal, 並指定TX/RX引腳
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(TWAI_TX_PIN, TWAI_RX_PIN, TWAI_MODE_NORMAL);
+    
+    // 2. 時序配置: 設定CAN總線鮑率為 500Kbps
+    twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
+    
+    // 3. 濾波器配置: 暫時先接收所有報文，方便除錯。
+    //    未來可以設定精確的Filter來只接收需要的ID，以提升性能。
+    twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+
+    // 4. 安裝並啟動TWAI驅動
+    if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+        Serial.println("HAL: Failed to install TWAI driver!");
+        return;
     }
+    if (twai_start() != ESP_OK) {
+        Serial.println("HAL: Failed to start TWAI driver!");
+        return;
+    }
+    Serial.println("HAL: Onboard TWAI driver started successfully.");
 }
+
 
 void hal_init_adc() {
     if (!ads.begin()) {
@@ -142,42 +141,38 @@ void hal_update_leds(LedState state) {
 }
 
 void hal_can_send(unsigned long id, byte* data, byte len) {
-    byte result = CAN.sendMsgBuf(id, 0, len, data);
-    if (result == CAN_OK) {
-        /*
-        Serial.print(F("CAN send OK for ID 0x"));
-        Serial.println(id, HEX);
-        */
-    } else {
-        Serial.print(F("!!! CAN send FAILED for ID 0x"));
-        Serial.print(id, HEX);
-        Serial.print(F(", Error code: "));
-        Serial.println(result);
-    }
-}
-bool hal_can_receive(unsigned long* id, byte* len, byte* buf) {
-    //if (!canInterruptTriggered) {
-        //return false;
-    //}
-    //canInterruptTriggered = false; // 清除中斷旗標
+    twai_message_t message;
+    message.identifier = id;
+    message.flags = TWAI_MSG_FLAG_NONE; // 標準幀
+    message.data_length_code = len;
     
-    if (CAN_MSGAVAIL == CAN.checkReceive()) {
-        CAN.readMsgBuf(id, len, buf);
-        /*
-        Serial.print("CAN received! ID: 0x");
-        Serial.print(*id, HEX); // 打印出讀到的ID
-        Serial.print(", Len: ");
-        Serial.println(*len);
-        */
-        return true;
+    // 複製數據
+    for (int i = 0; i < len; i++) {
+        message.data[i] = data[i];
     }
-    return false;
+
+    // 發送報文，pdMS_TO_TICKS(100) 表示最多等待100ms
+    if (twai_transmit(&message, pdMS_TO_TICKS(100)) != ESP_OK) {
+        Serial.print("!!! HAL: TWAI send FAILED for ID 0x");
+        Serial.println(id, HEX);
+    }
 }
-bool hal_is_can_interrupt_pending() {
-    if (canInterruptTriggered) {
-        canInterruptTriggered = false; // 讀取即清除
+
+bool hal_can_receive(unsigned long* id, byte* len, byte* buf) {
+    twai_message_t message;
+    
+    // 檢查並接收報文，pdMS_TO_TICKS(0) 表示不等待，立刻返回
+    if (twai_receive(&message, pdMS_TO_TICKS(0)) == ESP_OK) {
+        *id = message.identifier;
+        *len = message.data_length_code;
+        
+        // 複製數據
+        for (int i = 0; i < *len; i++) {
+            buf[i] = message.data[i];
+        }
         return true;
     }
+    
     return false;
 }
 
