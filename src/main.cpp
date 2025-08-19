@@ -117,7 +117,7 @@ void setup() {
         3,
         &uiTaskHandle
     );
-
+    
     xTaskCreate(
         wifi_task,
         "WiFi_Task",
@@ -126,7 +126,7 @@ void setup() {
         2,       
         NULL
     );
-
+    
     xTaskCreate(
         monitor_task, 
         "Monitor_Task", 
@@ -135,7 +135,7 @@ void setup() {
         1, 
         NULL
     );
-
+    
     Serial.println("Setup complete. Deleting setup/loop task.");
     vTaskDelete(NULL);
 }
@@ -215,7 +215,7 @@ void monitor_task(void *pvParameters) {
         UBaseType_t wifi_stack_hwm = uxTaskGetStackHighWaterMark(wifitaskHandle);
 
         Serial.println("\n--- RTOS STATUS ---");
-        // 打印的是剩餘的最小值，單位是字(4 bytes)
+        //打印的是剩餘的最小值，單位是字(4 bytes)
         Serial.printf("CAN Task Stack HWM: %u words (%u bytes)\n", can_stack_hwm, can_stack_hwm * 4);
         Serial.printf("Logic Task Stack HWM: %u words (%u bytes)\n", logic_stack_hwm, logic_stack_hwm * 4);
         Serial.printf("UI Task Stack HWM: %u words (%u bytes)\n", ui_stack_hwm, ui_stack_hwm * 4);
