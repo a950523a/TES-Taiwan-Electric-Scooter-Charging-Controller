@@ -24,7 +24,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 *   **標準相容**: 遵循TES-0D-02-01標準的CAN Bus通訊協議。
 *   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
-*   **可調輸出(可選)**: 可調最大電壓、電流、SOC。
+*   **可調輸出**: 可調最大電壓、電流、SOC。
 *   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
 *   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
 
@@ -34,7 +34,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
-本專案基於Arduino框架開發。請在Arduino IDE的函式庫管理員中安裝以下函式庫：
+本專案基於Arduino框架開發。請在編譯器的函式庫管理員中安裝以下函式庫：
 
 **請參照Release**
   
