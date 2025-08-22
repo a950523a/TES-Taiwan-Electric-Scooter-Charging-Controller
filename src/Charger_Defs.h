@@ -43,8 +43,36 @@ enum UIState {
     UI_STATE_MENU_SAVED
 };
 
+// --- [新增] UI 顯示數據包 ---
+// 這是所有前端 (OLED, Web) 的唯一數據來源
+struct DisplayData {
+    // 核心狀態
+    ChargerState chargerState;
+    bool isFaultLatched;
+    bool isChargeComplete;
+
+    // 即時充電數據
+    int soc;
+    float measuredVoltage;
+    float measuredCurrent;
+    
+    // 時間相關
+    uint32_t remainingSeconds;
+    bool isTimerRunning;
+    uint32_t totalTimeSeconds;
+
+    // 設定值
+    int targetSOC;
+    unsigned int maxVoltageSetting_0_1V;
+    unsigned int maxCurrentSetting_0_1A;
+
+    // CAN Bus 旗標 (未來可擴充)
+    // byte vehicleFaultFlags;
+    // byte vehicleStatusFlags;
+};
+
+
 // --- CAN訊息資料結構 ---
-// 這些結構體現在是公共的，因為 Logic層需要填充它們，CAN層需要解析/打包它們
 struct CAN_Charger_Status_508 {
     byte faultFlags;
     byte statusFlags;

@@ -5,8 +5,8 @@
 
 // 函數原型
 void ui_init();
-void ui_handle_input();
-void ui_update_display();
-UIState ui_get_current_state(); // 提供給 main.cpp 判斷
+void ui_handle_input(const DisplayData& data);
+void ui_update_display(const DisplayData& data);
+UIState ui_get_current_state();
 
 #endif // UI_H

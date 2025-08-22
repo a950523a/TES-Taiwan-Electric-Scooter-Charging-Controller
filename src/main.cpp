@@ -53,6 +53,7 @@
 #include "CAN_Protocol/CAN_Protocol.h"
 #include "LuxBeacon/LuxBeacon.h"
 #include "NetworkServices/NetworkServices.h"
+#include "Charger_Defs.h"
 
 // --- FreeRTOS 任務函數原型 ---
 void can_task(void *pvParameters);
@@ -170,35 +171,33 @@ void logic_task(void *pvParameters) {
 
 void ui_task(void *pvParameters) {
     Serial.println("UI Task started.");
-    
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(50); 
-
+    DisplayData ui_data_packet;
     for (;;) {
-        ui_handle_input();
-
+        logic_get_display_data(ui_data_packet);
+        
+        ui_handle_input(ui_data_packet);
+        
         LedState current_led_state = logic_get_led_state();
         hal_update_leds(current_led_state);
-        ui_update_display();
-
-        beacon_handle_tasks();
         
+        ui_update_display(ui_data_packet);
+        
+        beacon_handle_tasks();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void wifi_task(void *pvParameters) {
     Serial.println("WiFi Task started.");
-    // 在任務內部執行初始化
-    net_init(); // 使用我們新的、正確的模塊名
-
+    net_init();
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(100); 
-
+    DisplayData net_data_packet; // 宣告數據包裹
     for (;;) {
-        net_handle_tasks();
-        vTaskDelay(pdMS_TO_TICKS(10));
-
+        logic_get_display_data(net_data_packet); // 從 Logic 層獲取數據
+        net_handle_tasks(net_data_packet); // 將數據包裹傳給 Network
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
