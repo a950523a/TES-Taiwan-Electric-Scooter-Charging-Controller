@@ -1,3 +1,5 @@
+// src/ChargerLogic/ChargerLogic.h
+
 #ifndef CHARGERLOGIC_H
 #define CHARGERLOGIC_H
 
@@ -7,11 +9,14 @@
 void logic_init();
 void logic_run_statemachine();
 void logic_handle_periodic_tasks();
-void logic_save_config(unsigned int voltage, unsigned int current, int soc);\
+void logic_save_config(unsigned int voltage, unsigned int current, int soc);
 void logic_start_button_pressed();
 void logic_stop_button_pressed();
 
-// --- 提供給其他層讀取狀態的 Getters ---
+// --- [新增] 提供給所有前端的統一數據接口 ---
+void logic_get_display_data(DisplayData& data);
+
+// --- 舊的 Getters 現在主要供內部或特定功能使用 ---
 LedState logic_get_led_state();
 ChargerState logic_get_charger_state();
 bool logic_is_fault_latched();

@@ -66,6 +66,21 @@ static PreChargeStep preChargeStep = STEP_INIT;
 // =                      公開API函數實現                          =
 // =================================================================
 
+void logic_get_display_data(DisplayData& data) {
+    data.chargerState = currentChargerState;
+    data.isFaultLatched = faultLatch;
+    data.isChargeComplete = chargeCompleteLatch;
+    data.soc = logic_get_soc(); // 內部仍然可以使用小的getter以保證執行緒安全
+    data.remainingSeconds = remainingTimeSeconds_global;
+    data.isTimerRunning = isChargingTimerRunning;
+    data.totalTimeSeconds = currentTotalTimeSeconds;
+    data.measuredVoltage = measuredVoltage;
+    data.measuredCurrent = measuredCurrent;
+    data.targetSOC = userSetTargetSOC;
+    data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
+    data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
+}
+
 void logic_init() {
     preferences.begin("charger_config", false);
     chargerMaxOutputVoltage_0_1V = preferences.getUInt("max_voltage", 1000);
@@ -85,7 +100,6 @@ void logic_init() {
     
     chargerStatus508.availableVoltage = chargerMaxOutputVoltage_0_1V;
     chargerStatus508.availableCurrent = chargerMaxOutputCurrent_0_1A;
-    // *** 關鍵修正點：初始化故障偵測電壓限制 ***
     chargerStatus508.faultDetectionVoltageLimit = chargerMaxOutputVoltage_0_1V;
     
     chargerParams509.esChargeSequenceNumber = 18;

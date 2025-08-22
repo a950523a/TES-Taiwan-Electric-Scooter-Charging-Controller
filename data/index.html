@@ -1,0 +1,90 @@
+<!-- data/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TES Charger Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 8px; background-color: #f5f5f5; }
+        .container { max-width: 800px; margin: auto; }
+        .card { background-color: white; box-shadow: 0 2px 4px 0 rgba(0,0,0,0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        h1, h2 { color: #333; }
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+        .data-item label { color: #666; }
+        .data-item .value { font-size: 1.8em; font-weight: bold; color: #000; }
+        .button-group { display: flex; gap: 10px; margin-top: 16px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; }
+        .btn-start { background-color: #4CAF50; color: white; }
+        .btn-stop { background-color: #F44336; color: white; }
+        .btn-settings { background-color: #008CBA; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TES Charger Status</h1>
+        <div class="card">
+            <h2>Live Data</h2>
+            <div class="data-grid">
+                <div class="data-item">
+                    <label>Voltage</label>
+                    <div><span id="voltage" class="value">--</span> V</div>
+                </div>
+                <div class="data-item">
+                    <label>Current</label>
+                    <div><span id="current" class="value">--</span> A</div>
+                </div>
+                <div class="data-item">
+                    <label>SOC</label>
+                    <div><span id="soc" class="value">--</span> %</div>
+                </div>
+                <div class="data-item">
+                    <label>Time Left</label>
+                    <div><span id="time" class="value">--:--</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Controls & Settings</h2>
+            <div class="data-grid">
+                <div class="data-item">
+                    <label>Target SOC</label>
+                    <div><span id="target_soc">--</span> %</div>
+                </div>
+                <div class="data-item">
+                    <label>Max Current</label>
+                    <div><span id="max_current">--</span> A</div>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-start" onclick="sendAction('/start_charge')">START</button>
+                <button class="btn btn-stop" onclick="sendAction('/stop_charge')">STOP</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function sendAction(path) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", path, true);
+            xhttp.send();
+        }
+        function updateStatus() {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var data = JSON.parse(this.responseText);
+                    document.getElementById("voltage").innerHTML = data.voltage.toFixed(1);
+                    document.getElementById("current").innerHTML = data.current.toFixed(1);
+                    document.getElementById("soc").innerHTML = data.soc;
+                    document.getElementById("time").innerHTML = data.time_formatted;
+                    document.getElementById("target_soc").innerHTML = data.target_soc;
+                    document.getElementById("max_current").innerHTML = data.max_current.toFixed(1);
+                }
+            };
+            xhttp.open("GET", "/status.json", true);
+            xhttp.send();
+        }
+        window.onload = function() { updateStatus(); };
+        setInterval(updateStatus, 2000);
+    </script>
+</body>
+</html>

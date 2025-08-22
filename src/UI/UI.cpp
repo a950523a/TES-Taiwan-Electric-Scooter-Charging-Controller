@@ -1,16 +1,17 @@
+// src/UI/UI.cpp
+
 #include "UI.h"
 #include "Config.h"
 #include "Version.h"
-#include "ChargerLogic/ChargerLogic.h"
 #include "HAL/HAL.h"
 #include <U8g2lib.h>
 #include <Wire.h>
 
-// --- 私有(static)變量，只在這個文件內可見 ---
+// --- 私有(static)變量 ---
+// ... (此處省略了所有 static 變數，它們維持不變) ...
 static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 static UIState currentUIState = UI_STATE_NORMAL;
 static bool isOledConnected = false;
-
 static unsigned long lastDisplayUpdateTime = 0;
 static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
@@ -20,11 +21,20 @@ static unsigned int tempSetting_Current;
 static int tempSetting_SOC;
 static unsigned long settingButtonPressedTime = 0;
 static bool isSettingButtonLongPress = false;
-static unsigned long keyRepeatStartTime = 0; 
-static unsigned long nextRepeatTime = 0;     
-const unsigned long KEY_REPEAT_INITIAL_DELAY_MS = 400; 
-const unsigned long KEY_REPEAT_INTERVAL_MS = 80;  
-static bool force_display_update = false;     
+static unsigned long keyRepeatStartTime = 0;
+static unsigned long nextRepeatTime = 0;
+const unsigned long KEY_REPEAT_INITIAL_DELAY_MS = 400;
+const unsigned long KEY_REPEAT_INTERVAL_MS = 80;
+static bool force_display_update = false;
+
+
+// --- 引用外部函數以獲取初始設定值和保存設定 ---
+// 這是 UI 層唯一需要與 Logic 層直接交互的地方
+extern unsigned int logic_get_max_voltage_setting();
+extern unsigned int logic_get_max_current_setting();
+extern int logic_get_target_soc_setting();
+extern void logic_save_config(unsigned int voltage, unsigned int current, int soc);
+
 
 static byte findOledDevice() {
     byte common_addresses[] = {0x3C, 0x3D};
@@ -44,7 +54,6 @@ void ui_init() {
         if (u8g2.begin()) {
             isOledConnected = true;
             Serial.println(F("UI: OLED display initialized successfully."));
-            
             u8g2.clearBuffer();
             u8g2.setFont(u8g2_font_ncenB10_tr);
             uint16_t strWidth = u8g2.getStrWidth("TES Charger");
@@ -71,14 +80,15 @@ UIState ui_get_current_state() {
     return currentUIState;
 }
 
-void ui_handle_input() {
+void ui_handle_input(const DisplayData& data) {
     if (!isOledConnected) return;
 
     bool settingIsPressed = hal_get_button_state(BUTTON_SETTING);
     bool upIsPressed = hal_get_button_state(BUTTON_START);
     bool downIsPressed = hal_get_button_state(BUTTON_STOP);
-
-    if (currentUIState == UI_STATE_NORMAL && logic_get_charger_state() == STATE_CHG_IDLE) {
+    
+    // --- [修正] 使用傳入的 data.chargerState 來判斷 ---
+    if (currentUIState == UI_STATE_NORMAL && data.chargerState == STATE_CHG_IDLE) {
         if (settingIsPressed) {
             if (settingButtonPressedTime == 0) {
                 settingButtonPressedTime = millis();
@@ -108,36 +118,32 @@ void ui_handle_input() {
         isSettingButtonLongPress = false;
     }
 
+    // ... (此處省略了 handle_input 的其餘部分，它們維持不變) ...
     static bool settingKeyWasPressed = false;
     bool settingTrigger = settingIsPressed && !settingKeyWasPressed;
     settingKeyWasPressed = settingIsPressed;
-
     if (currentUIState == UI_STATE_MENU_SAVED) {
         if (millis() - savedScreenStartTime > SAVED_SCREEN_DURATION_MS) {
             currentUIState = UI_STATE_NORMAL;
         }
         return;
     }
-
     if (currentUIState == UI_STATE_NORMAL) {
         return;
     }
-
-    
-    bool upAction_single = false; // 短按單次觸發
+    bool upAction_single = false;
     bool downAction_single = false;
-    bool upAction_repeat = false; // 長按重複觸發
+    bool upAction_repeat = false;
     bool downAction_repeat = false;
     unsigned long now = millis();
-
     if (upIsPressed) {
-        if (keyRepeatStartTime == 0) { // 第一次按下
+        if (keyRepeatStartTime == 0) {
             keyRepeatStartTime = now;
             nextRepeatTime = now + KEY_REPEAT_INITIAL_DELAY_MS;
-            upAction_single = true; // 立即觸發一次短按動作
-        } else if (now >= nextRepeatTime) { // 達到重複觸發的時間點
+            upAction_single = true;
+        } else if (now >= nextRepeatTime) {
             nextRepeatTime = now + KEY_REPEAT_INTERVAL_MS;
-            upAction_repeat = true; // 觸發重複動作
+            upAction_repeat = true;
         }
     } else if (downIsPressed) {
         if (keyRepeatStartTime == 0) {
@@ -149,14 +155,12 @@ void ui_handle_input() {
             downAction_repeat = true;
         }
     } else {
-        keyRepeatStartTime = 0; // 兩個按鈕都鬆開了，重置計時器
+        keyRepeatStartTime = 0;
     }
-
     bool action_triggered = settingTrigger || upAction_single || downAction_single || upAction_repeat || downAction_repeat;
     if (currentUIState != UI_STATE_NORMAL && action_triggered) {
         force_display_update = true;
     }
-
     switch (currentUIState) {
         case UI_STATE_MENU_MAIN:
             if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 3 : mainMenuSelection - 1;
@@ -172,25 +176,22 @@ void ui_handle_input() {
                 }
             }
             break;
-
         case UI_STATE_MENU_SET_VOLTAGE:
-            if (upAction_single) tempSetting_Voltage += 1;   // 短按 +0.1V
-            if (downAction_single) tempSetting_Voltage -= 1; // 短按 -0.1V
-            if (upAction_repeat) tempSetting_Voltage += 10;  // 長按 +1.0V
-            if (downAction_repeat) tempSetting_Voltage -= 10; // 長按 -1.0V
+            if (upAction_single) tempSetting_Voltage += 1;
+            if (downAction_single) tempSetting_Voltage -= 1;
+            if (upAction_repeat) tempSetting_Voltage += 10;
+            if (downAction_repeat) tempSetting_Voltage -= 10;
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Voltage = constrain(tempSetting_Voltage, HARDWARE_MIN_VOLTAGE_0_1V, HARDWARE_MAX_VOLTAGE_0_1V);
             break;
-
         case UI_STATE_MENU_SET_CURRENT:
-            if (upAction_single) tempSetting_Current += 1;   // 短按 +0.1A
-            if (downAction_single) tempSetting_Current -= 1; // 短按 -0.1A
-            if (upAction_repeat) tempSetting_Current += 10;  // 長按 +1.0A
-            if (downAction_repeat) tempSetting_Current -= 10; // 長按 -1.0A
+            if (upAction_single) tempSetting_Current += 1;
+            if (downAction_single) tempSetting_Current -= 1;
+            if (upAction_repeat) tempSetting_Current += 10;
+            if (downAction_repeat) tempSetting_Current -= 10;
             if (settingTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Current = constrain(tempSetting_Current, HARDWARE_MIN_CURRENT_0_1A, HARDWARE_MAX_CURRENT_0_1A);
             break;
-
         case UI_STATE_MENU_SET_SOC:
             if (upAction_single || upAction_repeat) tempSetting_SOC += 1;
             if (downAction_single || downAction_repeat) tempSetting_SOC -= 1;
@@ -201,18 +202,17 @@ void ui_handle_input() {
     }
 }
 
-void ui_update_display() {
+// --- ui_update_display 函式維持不變，因此省略以節省篇幅 ---
+// ...
+void ui_update_display(const DisplayData& data) {
     if (!isOledConnected) return;
     if ((millis() - lastDisplayUpdateTime >= DISPLAY_UPDATE_INTERVAL_MS) || force_display_update) {
         lastDisplayUpdateTime = millis();
         force_display_update = false;
-
         u8g2.clearBuffer();
         char buffer[32];
         uint16_t strWidth;
-
         if (currentUIState != UI_STATE_NORMAL) {
-            // --- 繪製菜單界面 ---
             switch (currentUIState) {
                 case UI_STATE_MENU_MAIN:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
@@ -224,21 +224,19 @@ void ui_update_display() {
                         u8g2.drawStr(15, 28 + i * 12, mainMenuItems[i]);
                     }
                     break;
-                
                 case UI_STATE_MENU_SAVED:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     strWidth = u8g2.getStrWidth("Settings Saved!");
                     u8g2.drawStr((128 - strWidth) / 2, 12, "Settings Saved!");
                     u8g2.drawHLine(0, 14, 128);
                     u8g2.setFont(u8g2_font_7x13_tr);
-                    sprintf(buffer, "Max V: %.1f V", logic_get_max_voltage_setting() / 10.0);
+                    sprintf(buffer, "Max V: %.1f V", data.maxVoltageSetting_0_1V / 10.0);
                     u8g2.drawStr(5, 30, buffer);
-                    sprintf(buffer, "Max A: %.1f A", logic_get_max_current_setting() / 10.0);
+                    sprintf(buffer, "Max A: %.1f A", data.maxCurrentSetting_0_1A / 10.0);
                     u8g2.drawStr(5, 45, buffer);
-                    sprintf(buffer, "SOC  : %d %%", logic_get_target_soc_setting());
+                    sprintf(buffer, "SOC  : %d %%", data.targetSOC);
                     u8g2.drawStr(5, 60, buffer);
                     break;
-
                 case UI_STATE_MENU_SET_VOLTAGE:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "Set Max Voltage");
@@ -247,7 +245,6 @@ void ui_update_display() {
                     sprintf(buffer, "%.1f V", tempSetting_Voltage / 10.0);
                     u8g2.drawStr(20, 40, buffer);
                     break;
-
                 case UI_STATE_MENU_SET_CURRENT:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "Set Max Current");
@@ -256,7 +253,6 @@ void ui_update_display() {
                     sprintf(buffer, "%.1f A", tempSetting_Current / 10.0);
                     u8g2.drawStr(20, 40, buffer);
                     break;
-
                 case UI_STATE_MENU_SET_SOC:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "Set Target SOC");
@@ -268,48 +264,35 @@ void ui_update_display() {
                 default: break;
             }
         } else {
-            // --- 繪製正常的充電狀態界面 ---
-            // 從 Logic 層獲取所有需要的數據
-            ChargerState charger_state = logic_get_charger_state();
-            
-            switch (charger_state) {
+            switch (data.chargerState) {
                 case STATE_CHG_IDLE:
-                    if (logic_is_fault_latched()) {
+                    if (data.isFaultLatched) {
                         u8g2.setFont(u8g2_font_ncenB12_tr);
                         strWidth = u8g2.getStrWidth("ERROR!");
                         u8g2.drawStr((128 - strWidth) / 2, 30, "ERROR!");
                         u8g2.setFont(u8g2_font_ncenB08_tr);
                         strWidth = u8g2.getStrWidth("Press START to reset");
                         u8g2.drawStr((128 - strWidth) / 2, 50, "Press START to reset");
-                    } else if (logic_is_charge_complete()) {
+                    } else if (data.isChargeComplete) {
                         u8g2.setFont(u8g2_font_ncenB10_tr);
                         strWidth = u8g2.getStrWidth("Charge Complete");
                         u8g2.drawStr((128 - strWidth) / 2, 25, "Charge Complete");
-
-                        // 增加目標SOC顯示
                         u8g2.setFont(u8g2_font_ncenB08_tr);
-                        sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                        sprintf(buffer, "Target SOC: %d%%", data.targetSOC);
                         strWidth = u8g2.getStrWidth(buffer);
                         u8g2.drawStr((128 - strWidth) / 2, 45, buffer);
-
-                        // 增加提示
                         u8g2.setFont(u8g2_font_6x10_tr);
                         strWidth = u8g2.getStrWidth("Ready for Next Charge");
                         u8g2.drawStr((128 - strWidth) / 2, 62, "Ready for Next Charge");
                     } else {
-                        // 第一行：Ready to Charge
                         u8g2.setFont(u8g2_font_ncenB10_tr);
                         strWidth = u8g2.getStrWidth("Ready to Charge");
-                        u8g2.drawStr((128 - strWidth) / 2, 25, "Ready to Charge"); // Y座標上移
-
-                        // 第二行：顯示當前目標SOC
+                        u8g2.drawStr((128 - strWidth) / 2, 25, "Ready to Charge");
                         u8g2.setFont(u8g2_font_ncenB08_tr);
-                        sprintf(buffer, "Target SOC: %d%%", logic_get_target_soc_setting());
+                        sprintf(buffer, "Target SOC: %d%%", data.targetSOC);
                         strWidth = u8g2.getStrWidth(buffer);
-                        u8g2.drawStr((128 - strWidth) / 2, 45, buffer); // 在中間顯示
-
-                        // 第三行：提示操作
-                        u8g2.setFont(u8g2_font_6x10_tr); // 使用更小的字體
+                        u8g2.drawStr((128 - strWidth) / 2, 45, buffer);
+                        u8g2.setFont(u8g2_font_6x10_tr);
                         strWidth = u8g2.getStrWidth("Connect Scooter");
                         u8g2.drawStr((128 - strWidth) / 2, 62, "Connect Scooter");
                     }
@@ -325,11 +308,10 @@ void ui_update_display() {
                     break;
                 case STATE_CHG_DC_CURRENT_OUTPUT:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
-                    sprintf(buffer, "SOC: %d %%", logic_get_soc());
+                    sprintf(buffer, "SOC: %d %%", data.soc);
                     u8g2.drawStr(5, 18, buffer);
-                    
-                    if (logic_is_timer_running() && logic_get_total_time_seconds() > 0) {
-                        uint16_t remainingMinutes = (logic_get_remaining_seconds() + 30) / 60;
+                    if (data.isTimerRunning && data.totalTimeSeconds > 0) {
+                        uint16_t remainingMinutes = (data.remainingSeconds + 30) / 60;
                         uint16_t hours = remainingMinutes / 60;
                         uint16_t minutes = remainingMinutes % 60;
                         if (hours > 0) sprintf(buffer, "Time: %dh %dm", hours, minutes);
@@ -338,9 +320,8 @@ void ui_update_display() {
                         strcpy(buffer, "Time: ...");
                     }
                     u8g2.drawStr(5, 40, buffer);
-                    
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    sprintf(buffer, "%.1fV / %.1fA", logic_get_measured_voltage(), logic_get_measured_current());
+                    sprintf(buffer, "%.1fV / %.1fA", data.measuredVoltage, data.measuredCurrent);
                     u8g2.drawStr(5, 60, buffer);
                     break;
                 case STATE_CHG_ENDING_CHARGE_PROCESS:
