@@ -24,7 +24,7 @@
 // 繼電器與輸出 (Relays & Outputs)
 #define CHARGE_RELAY_PIN      26  // 主充電繼電器
 #define LOCK_SOLENOID_PIN     27  // 電磁鎖 (可選)
-#define VP_RELAY_PIN          15  // VP 繼電器 (充電樁模式)
+#define VP_RELAY_PIN          15  // VP 繼電器 
 
 // CAN Bus (TJA1051T/3)
 #define TWAI_TX_PIN           GPIO_NUM_5
