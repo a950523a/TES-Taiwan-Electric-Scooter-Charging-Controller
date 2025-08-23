@@ -87,7 +87,6 @@ static void startWebServer() {
 
 // --- Wi-Fi事件處理函數 ---
 static void onWiFiEvent(WiFiEvent_t event) {
-    // 省略，維持不變
 }
 
 // --- 初始化函數 ---
@@ -107,7 +106,6 @@ void net_handle_tasks(const DisplayData& data) {
     memcpy(&network_display_data, &data, sizeof(DisplayData));
     dnsServer.processNextRequest();
 
-    // ... (此處省略了 WiFi 狀態機的 switch-case 邏輯，它們維持不變) ...
     switch (wifiState) {
         case WIFI_STATE_INIT: {
             Preferences prefs;
