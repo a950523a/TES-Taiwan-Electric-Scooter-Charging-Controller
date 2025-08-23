@@ -52,6 +52,7 @@ static void ch_sub_06_monitoring_process();
 static void ch_sub_10_protection_and_end_flow(bool isFault);
 static void ch_sub_12_emergency_stop_procedure();
 static bool remote_start_requested = false;
+static bool remote_stop_requested = false;
 
 enum PreChargeStep {
     STEP_INIT,
@@ -126,7 +127,6 @@ void logic_save_config(unsigned int voltage, unsigned int current, int soc){
 
     chargerStatus508.availableVoltage = chargerMaxOutputVoltage_0_1V;
     chargerStatus508.availableCurrent = chargerMaxOutputCurrent_0_1A;
-    // 當設定改變時，也要同步更新初始的故障偵測電壓
     chargerStatus508.faultDetectionVoltageLimit = chargerMaxOutputVoltage_0_1V;
     unsigned int ratedPower_W = (chargerMaxOutputVoltage_0_1V / 10.0) * (chargerMaxOutputCurrent_0_1A / 10.0);
     chargerParams509.ratedOutputPower = ratedPower_W / 50;
@@ -159,6 +159,7 @@ void logic_run_statemachine() {
       
       if (hal_get_button_state(BUTTON_START)|| remote_start_requested) {
         remote_start_requested = false; 
+        remote_stop_requested = false; 
         faultLatch = false;
         chargeCompleteLatch = false;
         hal_control_vp_relay(true);
@@ -535,6 +536,11 @@ static void ch_sub_06_monitoring_process() {
         Serial.println(F("Logic MONITOR: User stop button pressed."));
         ch_sub_10_protection_and_end_flow(false); return;
     }
+    if (remote_stop_requested) {
+        Serial.println(F("Logic MONITOR: Remote stop request detected."));
+        remote_stop_requested = false; // 立即重置
+        ch_sub_10_protection_and_end_flow(false); return;
+    }
     if (logic_get_soc() >= userSetTargetSOC) {
         Serial.println(F("Logic MONITOR: Target SOC reached."));
         ch_sub_10_protection_and_end_flow(false); return;
@@ -597,12 +603,9 @@ void logic_start_button_pressed() {
 }
 
 void logic_stop_button_pressed() {
-    // 這個動作只在充電過程中有效
     if (currentChargerState == STATE_CHG_DC_CURRENT_OUTPUT) {
         Serial.println("Logic: Stop action triggered by remote.");
-        
-        // 直接呼叫統一的停止流程函數
-        ch_sub_10_protection_and_end_flow(false);
+        remote_stop_requested = true; // 只設定旗標，不做任何事
     } else {
         Serial.println("Logic: Ignoring remote stop, charger is not in charging state.");
     }
