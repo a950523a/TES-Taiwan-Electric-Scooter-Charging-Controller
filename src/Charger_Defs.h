@@ -40,11 +40,11 @@ enum UIState {
     UI_STATE_MENU_SET_VOLTAGE,
     UI_STATE_MENU_SET_CURRENT,
     UI_STATE_MENU_SET_SOC,
-    UI_STATE_MENU_SAVED
+    UI_STATE_MENU_SAVED,
+    UI_STATE_MENU_ABOUT
 };
 
-// --- [新增] UI 顯示數據包 ---
-// 這是所有前端 (OLED, Web) 的唯一數據來源
+// --- UI 顯示數據包 ---
 struct DisplayData {
     // 核心狀態
     ChargerState chargerState;
@@ -69,6 +69,13 @@ struct DisplayData {
     // CAN Bus 旗標 (未來可擴充)
     // byte vehicleFaultFlags;
     // byte vehicleStatusFlags;
+
+    // OTA 相關數據
+    const char* currentFirmwareVersion;
+    const char* latestFirmwareVersion;
+    bool updateAvailable;
+    int otaProgress;
+    const char* otaStatusMessage;
 };
 
 

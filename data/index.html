@@ -16,7 +16,9 @@
         .btn { padding: 12px 24px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; }
         .btn-start { background-color: #4CAF50; color: white; }
         .btn-stop { background-color: #F44336; color: white; }
-        .btn-settings { background-color: #008CBA; color: white; }
+        .btn-update { background-color: #008CBA; color: white; }
+        .progress-bar { width: 100%; background-color: #f1f1f1; border-radius: 5px; margin-top: 10px; }
+        .progress-bar-inner { width: 0%; height: 20px; background-color: #4CAF50; border-radius: 5px; text-align: center; line-height: 20px; color: white; }
     </style>
 </head>
 <body>
@@ -25,39 +27,35 @@
         <div class="card">
             <h2>Live Data</h2>
             <div class="data-grid">
-                <div class="data-item">
-                    <label>Voltage</label>
-                    <div><span id="voltage" class="value">--</span> V</div>
-                </div>
-                <div class="data-item">
-                    <label>Current</label>
-                    <div><span id="current" class="value">--</span> A</div>
-                </div>
-                <div class="data-item">
-                    <label>SOC</label>
-                    <div><span id="soc" class="value">--</span> %</div>
-                </div>
-                <div class="data-item">
-                    <label>Time Left</label>
-                    <div><span id="time" class="value">--:--</span></div>
-                </div>
+                <div class="data-item"><label>Voltage</label><div><span id="voltage" class="value">--</span> V</div></div>
+                <div class="data-item"><label>Current</label><div><span id="current" class="value">--</span> A</div></div>
+                <div class="data-item"><label>SOC</label><div><span id="soc" class="value">--</span> %</div></div>
+                <div class="data-item"><label>Time Left</label><div><span id="time" class="value">--:--</span></div></div>
             </div>
         </div>
         <div class="card">
             <h2>Controls & Settings</h2>
             <div class="data-grid">
-                <div class="data-item">
-                    <label>Target SOC</label>
-                    <div><span id="target_soc">--</span> %</div>
-                </div>
-                <div class="data-item">
-                    <label>Max Current</label>
-                    <div><span id="max_current">--</span> A</div>
-                </div>
+                <div class="data-item"><label>Target SOC</label><div><span id="target_soc">--</span> %</div></div>
+                <div class="data-item"><label>Max Current</label><div><span id="max_current">--</span> A</div></div>
             </div>
             <div class="button-group">
                 <button class="btn btn-start" onclick="sendAction('/start_charge')">START</button>
                 <button class="btn btn-stop" onclick="sendAction('/stop_charge')">STOP</button>
+            </div>
+        </div>
+        <!-- [新增] About & OTA 區塊 -->
+        <div class="card">
+            <h2>About & Firmware Update</h2>
+            <p><strong>Current Firmware:</strong> <span id="current_fw">--</span></p>
+            <p><strong>Copyright (c) 2025 Chris Huang</strong></p>
+            <div class="button-group">
+                <button class="btn btn-update" onclick="sendAction('/ota_check')">Check for Updates</button>
+                <button id="btn_update_start" class="btn btn-update" onclick="sendAction('/ota_start')" disabled>Start Update</button>
+            </div>
+            <p><strong>Status:</strong> <span id="ota_status">Idle</span></p>
+            <div class="progress-bar">
+                <div id="ota_progress" class="progress-bar-inner">0%</div>
             </div>
         </div>
     </div>
@@ -72,19 +70,34 @@
             xhttp.onreadystatechange = function() {
                 if (this.readyState == 4 && this.status == 200) {
                     var data = JSON.parse(this.responseText);
+                    // 更新 Live Data
                     document.getElementById("voltage").innerHTML = data.voltage.toFixed(1);
                     document.getElementById("current").innerHTML = data.current.toFixed(1);
                     document.getElementById("soc").innerHTML = data.soc;
                     document.getElementById("time").innerHTML = data.time_formatted;
                     document.getElementById("target_soc").innerHTML = data.target_soc;
                     document.getElementById("max_current").innerHTML = data.max_current.toFixed(1);
+                    // 更新 About & OTA
+                    document.getElementById("current_fw").innerHTML = data.current_fw_version;
+                    document.getElementById("ota_status").innerHTML = data.ota_status_message;
+                    var btnUpdate = document.getElementById("btn_update_start");
+                    if (data.update_available) {
+                        btnUpdate.disabled = false;
+                        btnUpdate.innerHTML = "Update to " + data.latest_fw_version;
+                    } else {
+                        btnUpdate.disabled = true;
+                        btnUpdate.innerHTML = "Start Update";
+                    }
+                    var progressBar = document.getElementById("ota_progress");
+                    progressBar.style.width = data.ota_progress + "%";
+                    progressBar.innerHTML = data.ota_progress + "%";
                 }
             };
             xhttp.open("GET", "/status.json", true);
             xhttp.send();
         }
         window.onload = function() { updateStatus(); };
-        setInterval(updateStatus, 2000);
+        setInterval(updateStatus, 2000); // 縮短更新間隔以獲得更即時的 OTA 反饋
     </script>
 </body>
 </html>

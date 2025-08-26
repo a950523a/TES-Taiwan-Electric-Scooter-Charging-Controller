@@ -5,6 +5,8 @@
 #include <Preferences.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "OTAManager/OTAManager.h"
+#include "Version.h"
 
 extern SemaphoreHandle_t canDataMutex;
 
@@ -80,6 +82,13 @@ void logic_get_display_data(DisplayData& data) {
     data.targetSOC = userSetTargetSOC;
     data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
     data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
+
+    // --- [新增] 填充 OTA 數據 ---
+    data.currentFirmwareVersion = FIRMWARE_VERSION;
+    data.latestFirmwareVersion = ota_get_latest_version();
+    data.updateAvailable = (ota_get_status() == OTA_UPDATE_AVAILABLE);
+    data.otaProgress = ota_get_progress();
+    data.otaStatusMessage = ota_get_status_message();
 }
 
 void logic_init() {
