@@ -54,6 +54,7 @@
 #include "LuxBeacon/LuxBeacon.h"
 #include "NetworkServices/NetworkServices.h"
 #include "Charger_Defs.h"
+#include "OTAManager/OTAManager.h"
 
 // --- FreeRTOS 任務函數原型 ---
 void can_task(void *pvParameters);
@@ -61,6 +62,7 @@ void logic_task(void *pvParameters);
 void ui_task(void *pvParameters);
 void wifi_task(void *pvParameters);
 void monitor_task(void *pvParameters);
+void ota_task(void *pvParameters);
 
 // --- FreeRTOS 同步工具 ---
 // 為CAN數據創建一個互斥鎖
@@ -70,6 +72,7 @@ TaskHandle_t canTaskHandle = NULL;
 TaskHandle_t logicTaskHandle = NULL;
 TaskHandle_t uiTaskHandle = NULL;
 TaskHandle_t wifitaskHandle = NULL;
+TaskHandle_t otaTaskHandle = NULL;
 
 void setup() {
     Serial.begin(115200);
@@ -89,6 +92,7 @@ void setup() {
     logic_init();        
     ui_init();     
     beacon_init();
+    ota_init(); 
 
     Serial.println(F("System Initialized. Creating FreeRTOS tasks..."));
 
@@ -126,6 +130,15 @@ void setup() {
         NULL,
         2,       
         NULL
+    );
+
+    xTaskCreate(
+        ota_task,
+        "OTA_Task",
+        4096, 
+        NULL,
+        1,    
+        &otaTaskHandle
     );
     
     xTaskCreate(
@@ -202,6 +215,14 @@ void wifi_task(void *pvParameters) {
     }
 }
 
+void ota_task(void *pvParameters) {
+    Serial.println("OTA Task started.");
+    for (;;) {
+        ota_handle_tasks();
+        vTaskDelay(pdMS_TO_TICKS(500)); // 每 500ms 檢查一次是否有 OTA 請求
+    }
+}
+
 void monitor_task(void *pvParameters) {
     Serial.println("System Monitor Task started.");
     for (;;) {
@@ -212,6 +233,7 @@ void monitor_task(void *pvParameters) {
         UBaseType_t logic_stack_hwm = uxTaskGetStackHighWaterMark(logicTaskHandle);
         UBaseType_t ui_stack_hwm = uxTaskGetStackHighWaterMark(uiTaskHandle);
         UBaseType_t wifi_stack_hwm = uxTaskGetStackHighWaterMark(wifitaskHandle);
+        UBaseType_t ota_stack_hwm = uxTaskGetStackHighWaterMark(otaTaskHandle);
 
         Serial.println("\n--- RTOS STATUS ---");
         //打印的是剩餘的最小值，單位是字(4 bytes)
@@ -219,6 +241,7 @@ void monitor_task(void *pvParameters) {
         Serial.printf("Logic Task Stack HWM: %u words (%u bytes)\n", logic_stack_hwm, logic_stack_hwm * 4);
         Serial.printf("UI Task Stack HWM: %u words (%u bytes)\n", ui_stack_hwm, ui_stack_hwm * 4);
         Serial.printf("WiFi Task Stack HWM: %u words (%u bytes)\n", wifi_stack_hwm, wifi_stack_hwm * 4);
+        Serial.printf("OTA Task Stack HWM: %u words (%u bytes)\n", ota_stack_hwm, ota_stack_hwm * 4);
         Serial.printf("Free Heap: %u bytes\n", ESP.getFreeHeap());
         Serial.println("-------------------\n");
     }

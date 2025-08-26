@@ -14,6 +14,10 @@ static AsyncWebServer server(80);
 static DNSServer dnsServer;
 static DisplayData network_display_data; // 儲存最新數據的副本
 
+// --- [新增] 引用外部的 OTA 觸發函數 ---
+extern void ota_start_check();
+extern void ota_start_update();
+
 enum WiFiState {
     WIFI_STATE_INIT,
     WIFI_STATE_STA_CONNECTING,
@@ -57,6 +61,13 @@ static void startWebServer() {
         json_doc["target_soc"] = network_display_data.targetSOC;
         json_doc["max_current"] = (float)network_display_data.maxCurrentSetting_0_1A / 10.0;
         json_doc["time_formatted"] = time_buffer;
+
+        // --- [新增] 填充 OTA 數據 ---
+        json_doc["current_fw_version"] = network_display_data.currentFirmwareVersion;
+        json_doc["latest_fw_version"] = network_display_data.latestFirmwareVersion;
+        json_doc["update_available"] = network_display_data.updateAvailable;
+        json_doc["ota_progress"] = network_display_data.otaProgress;
+        json_doc["ota_status_message"] = network_display_data.otaStatusMessage;
         
         String json_response;
         serializeJson(json_doc, json_response);
@@ -74,6 +85,11 @@ static void startWebServer() {
 
     server.on("/stop_charge", HTTP_POST, [](AsyncWebServerRequest *request){
         logic_stop_button_pressed(); 
+        request->send(200, "text/plain", "OK");
+    });
+
+    server.on("/ota_start", HTTP_POST, [](AsyncWebServerRequest *request){
+        ota_start_update();
         request->send(200, "text/plain", "OK");
     });
 

@@ -6,16 +6,18 @@
 #include "HAL/HAL.h"
 #include <U8g2lib.h>
 #include <Wire.h>
+#include "OTAManager/OTAManager.h"
 
 // --- 私有(static)變量 ---
-// ... (此處省略了所有 static 變數，它們維持不變) ...
 static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 static UIState currentUIState = UI_STATE_NORMAL;
 static bool isOledConnected = false;
 static unsigned long lastDisplayUpdateTime = 0;
 static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
-static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "Save & Exit"};
+static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "About", "Save & Exit"};
+static int aboutMenuSelection = 0; // About 頁面內的選單
+static const char* aboutMenuItems[] = {"Check", "Update"};
 static unsigned int tempSetting_Voltage;
 static unsigned int tempSetting_Current;
 static int tempSetting_SOC;
@@ -54,6 +56,7 @@ void ui_init() {
         if (u8g2.begin()) {
             isOledConnected = true;
             Serial.println(F("UI: OLED display initialized successfully."));
+            u8g2.setFlipMode(1);
             u8g2.clearBuffer();
             u8g2.setFont(u8g2_font_ncenB10_tr);
             uint16_t strWidth = u8g2.getStrWidth("TES Charger");
@@ -87,7 +90,6 @@ void ui_handle_input(const DisplayData& data) {
     bool upIsPressed = hal_get_button_state(BUTTON_START);
     bool downIsPressed = hal_get_button_state(BUTTON_STOP);
     
-    // --- [修正] 使用傳入的 data.chargerState 來判斷 ---
     if (currentUIState == UI_STATE_NORMAL && data.chargerState == STATE_CHG_IDLE) {
         if (settingIsPressed) {
             if (settingButtonPressedTime == 0) {
@@ -118,10 +120,10 @@ void ui_handle_input(const DisplayData& data) {
         isSettingButtonLongPress = false;
     }
 
-    // ... (此處省略了 handle_input 的其餘部分，它們維持不變) ...
     static bool settingKeyWasPressed = false;
     bool settingTrigger = settingIsPressed && !settingKeyWasPressed;
     settingKeyWasPressed = settingIsPressed;
+
     if (currentUIState == UI_STATE_MENU_SAVED) {
         if (millis() - savedScreenStartTime > SAVED_SCREEN_DURATION_MS) {
             currentUIState = UI_STATE_NORMAL;
@@ -131,11 +133,13 @@ void ui_handle_input(const DisplayData& data) {
     if (currentUIState == UI_STATE_NORMAL) {
         return;
     }
+
     bool upAction_single = false;
     bool downAction_single = false;
     bool upAction_repeat = false;
     bool downAction_repeat = false;
     unsigned long now = millis();
+
     if (upIsPressed) {
         if (keyRepeatStartTime == 0) {
             keyRepeatStartTime = now;
@@ -163,19 +167,40 @@ void ui_handle_input(const DisplayData& data) {
     }
     switch (currentUIState) {
         case UI_STATE_MENU_MAIN:
-            if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 3 : mainMenuSelection - 1;
-            if (downAction_single) mainMenuSelection = (mainMenuSelection + 1) % 4;
+            if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 4 : mainMenuSelection - 1;
+            if (downAction_single) mainMenuSelection = (mainMenuSelection + 1) % 5;
             if (settingTrigger) {
                 if (mainMenuSelection == 0) currentUIState = UI_STATE_MENU_SET_VOLTAGE;
                 else if (mainMenuSelection == 1) currentUIState = UI_STATE_MENU_SET_CURRENT;
                 else if (mainMenuSelection == 2) currentUIState = UI_STATE_MENU_SET_SOC;
                 else if (mainMenuSelection == 3) {
+                    currentUIState = UI_STATE_MENU_ABOUT;
+                    aboutMenuSelection = 0;
+                }
+                else if (mainMenuSelection == 4) {
                     logic_save_config(tempSetting_Voltage, tempSetting_Current, tempSetting_SOC);
                     currentUIState = UI_STATE_MENU_SAVED;
                     savedScreenStartTime = millis();
                 }
             }
             break;
+        
+        case UI_STATE_MENU_ABOUT:
+            if (upAction_single) aboutMenuSelection = (aboutMenuSelection == 0) ? 1 : aboutMenuSelection - 1;
+            if (downAction_single) aboutMenuSelection = (aboutMenuSelection + 1) % 2;
+            if (settingTrigger) {
+                if (aboutMenuSelection == 0) { // Check for Update
+                    ota_start_check();
+                } else if (aboutMenuSelection == 1 && data.updateAvailable) { // Start Update
+                    ota_start_update();
+                }
+            }
+            // 短按設定鍵返回主選單
+            if (settingTrigger) {
+                 currentUIState = UI_STATE_MENU_MAIN;
+            }
+            break;
+
         case UI_STATE_MENU_SET_VOLTAGE:
             if (upAction_single) tempSetting_Voltage += 1;
             if (downAction_single) tempSetting_Voltage -= 1;
@@ -202,8 +227,6 @@ void ui_handle_input(const DisplayData& data) {
     }
 }
 
-// --- ui_update_display 函式維持不變，因此省略以節省篇幅 ---
-// ...
 void ui_update_display(const DisplayData& data) {
     if (!isOledConnected) return;
     if ((millis() - lastDisplayUpdateTime >= DISPLAY_UPDATE_INTERVAL_MS) || force_display_update) {
@@ -222,6 +245,38 @@ void ui_update_display(const DisplayData& data) {
                     for (int i = 0; i < 4; i++) {
                         if (i == mainMenuSelection) u8g2.drawStr(5, 28 + i * 12, ">");
                         u8g2.drawStr(15, 28 + i * 12, mainMenuItems[i]);
+                    }
+                    break;
+                case UI_STATE_MENU_ABOUT:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "About & Update");
+                    u8g2.drawHLine(0, 14, 128);
+
+                    u8g2.setFont(u8g2_font_6x10_tr);
+                    sprintf(buffer, "FW: %s", data.currentFirmwareVersion);
+                    u8g2.drawStr(0, 26, buffer);
+                    
+                    sprintf(buffer, "Copyright (c) 2025");
+                    u8g2.drawStr(0, 36, buffer);
+                    u8g2.drawStr(0, 46, "Chris Huang");
+
+                    u8g2.drawHLine(0, 48, 128);
+
+                    u8g2.setFont(u8g2_font_ncenB08_tr);
+                    if (aboutMenuSelection == 0) u8g2.drawStr(0, 62, ">");
+                    u8g2.drawStr(10, 62, aboutMenuItems[0]);
+
+                    if (data.updateAvailable) {
+                        if (aboutMenuSelection == 1) u8g2.drawStr(60, 62, ">");
+                        u8g2.drawStr(70, 62, aboutMenuItems[1]);
+                    }
+                    
+                    // 顯示 OTA 狀態
+                    u8g2.setFont(u8g2_font_6x10_tr);
+                    strWidth = u8g2.getStrWidth(data.otaStatusMessage);
+                    u8g2.drawStr((128 - strWidth) / 2, 56, data.otaStatusMessage);
+                    if (ota_get_status() == OTA_DOWNLOADING) {
+                        u8g2.drawBox(0, 58, (int)(128 * (data.otaProgress / 100.0)), 6);
                     }
                     break;
                 case UI_STATE_MENU_SAVED:
