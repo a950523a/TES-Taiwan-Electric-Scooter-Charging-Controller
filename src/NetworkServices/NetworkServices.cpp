@@ -8,6 +8,8 @@
 #include <Preferences.h>
 #include "ArduinoJson.h"
 #include <LittleFS.h>
+#include <HTTPUpdate.h>
+#include "OTAManager/OTAManager.h"
 
 // --- 私有變數 ---
 static AsyncWebServer server(80);
@@ -68,6 +70,7 @@ static void startWebServer() {
         json_doc["update_available"] = network_display_data.updateAvailable;
         json_doc["ota_progress"] = network_display_data.otaProgress;
         json_doc["ota_status_message"] = network_display_data.otaStatusMessage;
+        json_doc["ip_address"] = network_display_data.ipAddress;
         
         String json_response;
         serializeJson(json_doc, json_response);
@@ -88,9 +91,42 @@ static void startWebServer() {
         request->send(200, "text/plain", "OK");
     });
 
+    server.on("/ota_check", HTTP_POST, [](AsyncWebServerRequest *request){
+        ota_start_check();
+        request->send(200, "text/plain", "OK");
+    });
+
     server.on("/ota_start", HTTP_POST, [](AsyncWebServerRequest *request){
         ota_start_update();
         request->send(200, "text/plain", "OK");
+    });
+
+    // --- [新增] 手動韌體上傳路由 ---
+    server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+        // 只有在沒有其他 OTA 任務時才允許上傳
+        bool shouldReboot = (ota_get_status() == OTA_IDLE);
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK" : "FAIL");
+        response->addHeader("Connection", "close");
+        request->send(response);
+    }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        if(!index){
+            Serial.printf("Update Start: %s\n", filename.c_str());
+            // 檢查是否有足夠的空間
+            if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
+                Update.printError(Serial);
+            }
+        }
+        // 寫入數據
+        if(len){
+            Update.write(data, len);
+        }
+        if(final){
+            if(Update.end(true)){
+                Serial.printf("Update Success: %uB\n", index+len);
+            } else {
+                Update.printError(Serial);
+            }
+        }
     });
 
     server.onNotFound([](AsyncWebServerRequest *request) {

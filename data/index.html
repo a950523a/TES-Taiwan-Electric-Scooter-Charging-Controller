@@ -45,19 +45,28 @@
             </div>
         </div>
         <!-- [新增] About & OTA 區塊 -->
-        <div class="card">
-            <h2>About & Firmware Update</h2>
-            <p><strong>Current Firmware:</strong> <span id="current_fw">--</span></p>
-            <p><strong>Copyright (c) 2025 Chris Huang</strong></p>
-            <div class="button-group">
-                <button class="btn btn-update" onclick="sendAction('/ota_check')">Check for Updates</button>
-                <button id="btn_update_start" class="btn btn-update" onclick="sendAction('/ota_start')" disabled>Start Update</button>
-            </div>
-            <p><strong>Status:</strong> <span id="ota_status">Idle</span></p>
-            <div class="progress-bar">
-                <div id="ota_progress" class="progress-bar-inner">0%</div>
-            </div>
+    <div class="card">
+        <h2>About & Firmware Update</h2>
+        <p><strong>Current Firmware:</strong> <span id="current_fw">--</span></p>
+        <p><strong>IP Address:</strong> <span id="ip_address">--</span></p>
+        <p><strong>Copyright (c) 2025 Chris Huang</strong></p>
+        
+        <h3>Online Update (Requires Internet)</h3>
+        <div class="button-group">
+            <button class="btn btn-update" onclick="sendAction('/ota_check')">Check for Updates</button>
+            <button id="btn_update_start" class="btn btn-update" onclick="sendAction('/ota_start')" disabled>Start Update</button>
         </div>
+        <p><strong>Status:</strong> <span id="ota_status">Idle</span></p>
+        <div class="progress-bar">
+            <div id="ota_progress" class="progress-bar-inner">0%</div>
+        </div>
+
+        <!-- [新增] 手動上傳區塊 -->
+        <h3>Manual Update (Offline)</h3>
+        <form method="POST" action="/update" enctype="multipart/form-data">
+            <input type="file" name="update">
+            <input type="submit" value="Upload & Update">
+        </form>
     </div>
     <script>
         function sendAction(path) {
@@ -80,6 +89,7 @@
                     // 更新 About & OTA
                     document.getElementById("current_fw").innerHTML = data.current_fw_version;
                     document.getElementById("ota_status").innerHTML = data.ota_status_message;
+                    document.getElementById("ip_address").innerHTML = data.ip_address;
                     var btnUpdate = document.getElementById("btn_update_start");
                     if (data.update_available) {
                         btnUpdate.disabled = false;

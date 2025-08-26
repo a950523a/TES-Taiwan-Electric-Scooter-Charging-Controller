@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "OTAManager/OTAManager.h"
 #include "Version.h"
+#include <WiFi.h>
 
 extern SemaphoreHandle_t canDataMutex;
 
@@ -89,6 +90,14 @@ void logic_get_display_data(DisplayData& data) {
     data.updateAvailable = (ota_get_status() == OTA_UPDATE_AVAILABLE);
     data.otaProgress = ota_get_progress();
     data.otaStatusMessage = ota_get_status_message();
+
+    if (WiFi.status() == WL_CONNECTED) {
+        data.ipAddress = WiFi.localIP().toString();
+    } else if (WiFi.getMode() == WIFI_AP) {
+        data.ipAddress = WiFi.softAPIP().toString();
+    } else {
+        data.ipAddress = "Disconnected";
+    }
 }
 
 void logic_init() {
