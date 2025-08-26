@@ -91,13 +91,15 @@ void logic_get_display_data(DisplayData& data) {
     data.otaProgress = ota_get_progress();
     data.otaStatusMessage = ota_get_status_message();
 
+    // --- [修正] 填充 IP 地址 ---
     if (WiFi.status() == WL_CONNECTED) {
-        data.ipAddress = WiFi.localIP().toString();
+        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
     } else if (WiFi.getMode() == WIFI_AP) {
-        data.ipAddress = WiFi.softAPIP().toString();
+        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
     } else {
-        data.ipAddress = "Disconnected";
+        strncpy(data.ipAddress, "Disconnected", 15);
     }
+    data.ipAddress[15] = '\0'; // 確保字串結尾
 }
 
 void logic_init() {

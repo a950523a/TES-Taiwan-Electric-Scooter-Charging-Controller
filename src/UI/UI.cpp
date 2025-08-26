@@ -17,7 +17,7 @@ static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
 static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "About", "Save & Exit"};
 static int aboutMenuSelection = 0; // About 頁面內的選單
-static const char* aboutMenuItems[] = {"Check", "Update"};
+static const char* aboutMenuItems[] = {"Check", "Start Update"};
 static unsigned int tempSetting_Voltage;
 static unsigned int tempSetting_Current;
 static int tempSetting_SOC;
@@ -186,18 +186,13 @@ void ui_handle_input(const DisplayData& data) {
             break;
         
         case UI_STATE_MENU_ABOUT:
-            // 使用 上/下 按鈕在 "Check" 和 "Update" 之間切換
             if (upAction_single) aboutMenuSelection = (aboutMenuSelection == 0) ? 1 : aboutMenuSelection - 1;
             if (downAction_single) aboutMenuSelection = (aboutMenuSelection + 1) % 2;
-            
-            // 短按 "設定" 鍵來觸發動作
             if (settingTrigger) {
-                if (aboutMenuSelection == 0) { // 如果選中的是 "Check"
-                    Serial.println("UI: OTA check requested.");
+                if (aboutMenuSelection == 0) { // Check
                     ota_start_check();
-                } else if (aboutMenuSelection == 1 && data.updateAvailable) { // 如果選中的是 "Update" 且有更新可用
-                    Serial.println("UI: OTA update started.");
-                    ota_start_update();
+                } else if (aboutMenuSelection == 1 && data.updateAvailable) { // Start Full Update
+                    ota_start_full_update();
                 }
             }
             // 短按設定鍵返回主選單
@@ -258,35 +253,30 @@ void ui_update_display(const DisplayData& data) {
                     u8g2.drawHLine(0, 14, 128);
 
                     u8g2.setFont(u8g2_font_6x10_tr);
-                    // 顯示當前韌體版本
                     sprintf(buffer, "FW: %s", data.currentFirmwareVersion);
                     u8g2.drawStr(0, 26, buffer);
                     
-                    // 顯示 IP 地址
-                    sprintf(buffer, "IP: %s", data.ipAddress.c_str());
+                    // --- [修正] 使用 data.ipAddress ---
+                    sprintf(buffer, "IP: %s", data.ipAddress);
                     u8g2.drawStr(0, 36, buffer);
 
-                    // 顯示版權
-                    u8g2.drawStr(0, 46, "Copyright (c) 2025 C.H."); // 簡化以節省空間
-
+                    u8g2.drawStr(0, 46, "Copyright (c) 2025 C.H.");
                     u8g2.drawHLine(0, 48, 128);
 
-                    // 顯示 OTA 狀態訊息
                     strWidth = u8g2.getStrWidth(data.otaStatusMessage);
                     u8g2.drawStr((128 - strWidth) / 2, 56, data.otaStatusMessage);
 
-                    // 繪製 OTA 選項和選擇器
                     u8g2.setFont(u8g2_font_ncenB08_tr);
                     if (aboutMenuSelection == 0) u8g2.drawStr(0, 62, ">");
-                    u8g2.drawStr(10, 62, aboutMenuItems[0]); // "Check"
+                    u8g2.drawStr(10, 62, aboutMenuItems[0]);
 
                     if (data.updateAvailable) {
                         if (aboutMenuSelection == 1) u8g2.drawStr(60, 62, ">");
-                        u8g2.drawStr(70, 62, aboutMenuItems[1]); // "Update"
+                        u8g2.drawStr(70, 62, aboutMenuItems[1]);
                     }
                     
-                    // 如果正在下載，顯示進度條
-                    if (ota_get_status() == OTA_DOWNLOADING && data.otaProgress > 0) {
+                    // --- [修正] 檢查兩個下載狀態 ---
+                    if ((ota_get_status() == OTA_DOWNLOADING_FW || ota_get_status() == OTA_DOWNLOADING_FS) && data.otaProgress > 0) {
                         u8g2.drawBox(0, 50, (int)(128 * (data.otaProgress / 100.0)), 8);
                     }
                     break;
