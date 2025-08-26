@@ -15,6 +15,8 @@ static bool isOledConnected = false;
 static unsigned long lastDisplayUpdateTime = 0;
 static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
+static int mainMenuOffset = 0;
+const int MAX_MENU_ITEMS_ON_SCREEN = 4;
 static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "About", "Save & Exit"};
 static int aboutMenuSelection = 0; // About 頁面內的選單
 static const char* aboutMenuItems[] = {"Check", "Start Update"};
@@ -102,6 +104,7 @@ void ui_handle_input(const DisplayData& data) {
                 tempSetting_SOC = logic_get_target_soc_setting();
                 currentUIState = UI_STATE_MENU_MAIN;
                 mainMenuSelection = 0;
+                mainMenuOffset = 0;
             }
         } else {
             if (settingButtonPressedTime > 0 && !isSettingButtonLongPress) {
@@ -130,6 +133,7 @@ void ui_handle_input(const DisplayData& data) {
         }
         return;
     }
+
     if (currentUIState == UI_STATE_NORMAL) {
         return;
     }
@@ -166,9 +170,19 @@ void ui_handle_input(const DisplayData& data) {
         force_display_update = true;
     }
     switch (currentUIState) {
-        case UI_STATE_MENU_MAIN:
-            if (upAction_single) mainMenuSelection = (mainMenuSelection == 0) ? 4 : mainMenuSelection - 1;
-            if (downAction_single) mainMenuSelection = (mainMenuSelection + 1) % 5;
+        case UI_STATE_MENU_MAIN: { // 使用大括號創建局部作用域
+            const int totalMenuItems = sizeof(mainMenuItems) / sizeof(mainMenuItems[0]);
+            if (upAction_single) {
+                mainMenuSelection = (mainMenuSelection == 0) ? (totalMenuItems - 1) : (mainMenuSelection - 1);
+            }
+            if (downAction_single) {
+                mainMenuSelection = (mainMenuSelection + 1) % totalMenuItems;
+            }
+            if (mainMenuSelection < mainMenuOffset) {
+                mainMenuOffset = mainMenuSelection;
+            } else if (mainMenuSelection >= mainMenuOffset + MAX_MENU_ITEMS_ON_SCREEN) {
+                mainMenuOffset = mainMenuSelection - MAX_MENU_ITEMS_ON_SCREEN + 1;
+            }
             if (settingTrigger) {
                 if (mainMenuSelection == 0) currentUIState = UI_STATE_MENU_SET_VOLTAGE;
                 else if (mainMenuSelection == 1) currentUIState = UI_STATE_MENU_SET_CURRENT;
@@ -184,6 +198,7 @@ void ui_handle_input(const DisplayData& data) {
                 }
             }
             break;
+        }
         
         case UI_STATE_MENU_ABOUT:
             if (upAction_single) aboutMenuSelection = (aboutMenuSelection == 0) ? 1 : aboutMenuSelection - 1;
@@ -237,16 +252,31 @@ void ui_update_display(const DisplayData& data) {
         uint16_t strWidth;
         if (currentUIState != UI_STATE_NORMAL) {
             switch (currentUIState) {
-                case UI_STATE_MENU_MAIN:
+                case UI_STATE_MENU_MAIN: { // 使用大括號創建局部作用域
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "Settings");
                     u8g2.drawHLine(0, 14, 128);
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    for (int i = 0; i < 4; i++) {
-                        if (i == mainMenuSelection) u8g2.drawStr(5, 28 + i * 12, ">");
-                        u8g2.drawStr(15, 28 + i * 12, mainMenuItems[i]);
+                    const int totalMenuItems = sizeof(mainMenuItems) / sizeof(mainMenuItems[0]);
+                    for (int i = 0; i < MAX_MENU_ITEMS_ON_SCREEN; i++) {
+                        int itemIndex = mainMenuOffset + i;
+                        if (itemIndex < totalMenuItems) {
+                            int yPos = 28 + i * 12;
+                            if (itemIndex == mainMenuSelection) {
+                                u8g2.drawStr(5, yPos, ">");
+                            }
+                            u8g2.drawStr(15, yPos, mainMenuItems[itemIndex]);
+                        }
+                    }
+                    if (totalMenuItems > MAX_MENU_ITEMS_ON_SCREEN) {
+                        int scrollBarHeight = 64 - 16;
+                        int handleHeight = scrollBarHeight * MAX_MENU_ITEMS_ON_SCREEN / totalMenuItems;
+                        int handleY = 16 + scrollBarHeight * mainMenuOffset / totalMenuItems;
+                        u8g2.drawFrame(126, 16, 2, scrollBarHeight);
+                        u8g2.drawBox(126, handleY, 2, handleHeight);
                     }
                     break;
+                }
                 case UI_STATE_MENU_ABOUT:
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "About & Update");
