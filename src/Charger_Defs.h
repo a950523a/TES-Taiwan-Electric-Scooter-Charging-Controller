@@ -76,6 +76,7 @@ struct DisplayData {
     bool updateAvailable;
     int otaProgress;
     const char* otaStatusMessage;
+    String ipAddress;
 };
 
 

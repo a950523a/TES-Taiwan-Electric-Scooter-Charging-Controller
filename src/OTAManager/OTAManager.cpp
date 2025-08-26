@@ -5,6 +5,7 @@
 #include <HTTPUpdate.h>
 #include <WiFi.h>
 #include "Version.h" // 引用 FIRMWARE_VERSION
+#include "config.h"
 
 // --- 設定您的 GitHub 專案 ---
 #define GITHUB_USER "a950523a"
@@ -79,12 +80,29 @@ static void perform_check() {
     Serial.println("OTA: Checking for updates...");
 
     HTTPClient http;
-    String url = "https://api.github.com/repos/" GITHUB_USER "/" GITHUB_REPO "/releases/latest";
+    String url;
+
+    #ifdef OTA_DEVELOPER_MODE
+        url = "https://api.github.com/repos/" GITHUB_USER "/" GITHUB_REPO "/releases";
+        Serial.println("OTA: Developer mode enabled. Checking all releases.");
+    #else
+        url = "https://api.github.com/repos/" GITHUB_USER "/" GITHUB_REPO "/releases/latest";
+        Serial.println("OTA: Checking latest stable release.");
+    #endif
+
     http.begin(url);
 
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
+        
+        #ifdef OTA_DEVELOPER_MODE
+            int first_tag_name_index = payload.indexOf("\"tag_name\"");
+            if (first_tag_name_index != -1) {
+                payload = payload.substring(first_tag_name_index);
+            }
+        #endif
+
         int tag_name_index = payload.indexOf("\"tag_name\"");
         if (tag_name_index != -1) {
             int start_index = payload.indexOf("\"", tag_name_index + 12) + 1;
@@ -118,7 +136,6 @@ static void onProgress(int progress, int total) {
     statusMessage = "Downloading: " + String(downloadProgress) + "%";
 }
 
-// --- [修正] perform_update 函式 ---
 static void perform_update() {
     if (WiFi.status() != WL_CONNECTED || latestVersion == "") {
         statusMessage = "Prerequisites not met";
@@ -136,19 +153,13 @@ static void perform_update() {
     
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
 
-    // 建立一個 WiFiClient 物件
     WiFiClient client;
-
-    // 設定進度回調函數
     httpUpdate.onProgress(onProgress);
-    
-    // 使用正確的 update 函式，傳入 WiFiClient 和 URL
     t_httpUpdate_return ret = httpUpdate.update(client, url);
 
     switch (ret) {
         case HTTP_UPDATE_OK:
             Serial.println("OTA: Update successful! Rebooting...");
-            // 成功後會自動重啟，通常不會執行到這裡
             break;
         case HTTP_UPDATE_FAILED:
             Serial.printf("OTA: Update failed! Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
