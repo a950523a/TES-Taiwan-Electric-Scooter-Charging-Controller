@@ -8,7 +8,8 @@ enum OTAStatus {
     OTA_IDLE,
     OTA_CHECKING,
     OTA_UPDATE_AVAILABLE,
-    OTA_DOWNLOADING,
+    OTA_DOWNLOADING_FW, 
+    OTA_DOWNLOADING_FS,
     OTA_INSTALLING,
     OTA_SUCCESS,
     OTA_FAILED
@@ -19,7 +20,7 @@ void ota_handle_tasks();
 
 // 觸發 OTA 動作的接口
 void ota_start_check();
-void ota_start_update();
+void ota_start_full_update();
 
 // 提供給外部讀取狀態的接口
 OTAStatus ota_get_status();
