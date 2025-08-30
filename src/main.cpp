@@ -135,7 +135,7 @@ void setup() {
     xTaskCreate(
         ota_task,
         "OTA_Task",
-        4096, 
+        8192, 
         NULL,
         1,    
         &otaTaskHandle
