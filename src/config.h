@@ -89,10 +89,7 @@ const unsigned int chargerManufacturerCode = 0x0000;
 
 // --- ?????? ---
 const int LUX_BEACON_TIME_UNIT_MS = 150;
-//#define DEVELOPER_MODE
-#ifdef DEVELOPER_MODE
-    #define CHARGER_RELAY_SIM_LED_PIN   2
-#endif
+#define DEVELOPER_MODE
 
 // =================================================================
 // =                END OF USER CONFIGURATION SECTION              =
