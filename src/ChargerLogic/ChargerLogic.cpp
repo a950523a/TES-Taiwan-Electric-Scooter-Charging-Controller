@@ -192,14 +192,20 @@ void logic_run_statemachine() {
       }
       break;
 
-    case STATE_CHG_PRE_CHARGE_OPERATIONS: { // 使用大括號創建局部作用域
+    case STATE_CHG_PRE_CHARGE_OPERATIONS: { 
         CAN_Vehicle_Status_500 status_snapshot;
         if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             memcpy(&status_snapshot, &vehicleStatus500, sizeof(CAN_Vehicle_Status_500));
             xSemaphoreGive(canDataMutex);
         } else {
             Serial.println("WARN: PRE_CHARGE failed to get mutex!");
-            break; // 獲取鎖失敗，跳過本輪處理
+            break; 
+        }
+
+        if (status_snapshot.statusFlags & 0x08) { 
+        Serial.println(F("Logic: Vehicle requested a normal stop BEFORE charging."));
+        ch_sub_10_protection_and_end_flow(false); 
+        return; 
         }
 
         static unsigned long relay_close_delay_start_time = 0;
