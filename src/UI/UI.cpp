@@ -17,7 +17,7 @@ static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
 static int mainMenuOffset = 0;
 const int MAX_MENU_ITEMS_ON_SCREEN = 4;
-static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "About", "Save & Exit"};
+static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "Save & Exit", "About"};
 static int aboutMenuSelection = 0; // About 頁面內的選單
 static const char* aboutMenuItems[] = {"Check", "Start Update"};
 static unsigned int tempSetting_Voltage;
@@ -170,7 +170,7 @@ void ui_handle_input(const DisplayData& data) {
         force_display_update = true;
     }
     switch (currentUIState) {
-        case UI_STATE_MENU_MAIN: { // 使用大括號創建局部作用域
+        case UI_STATE_MENU_MAIN: { 
             const int totalMenuItems = sizeof(mainMenuItems) / sizeof(mainMenuItems[0]);
             if (upAction_single) {
                 mainMenuSelection = (mainMenuSelection == 0) ? (totalMenuItems - 1) : (mainMenuSelection - 1);
@@ -187,14 +187,14 @@ void ui_handle_input(const DisplayData& data) {
                 if (mainMenuSelection == 0) currentUIState = UI_STATE_MENU_SET_VOLTAGE;
                 else if (mainMenuSelection == 1) currentUIState = UI_STATE_MENU_SET_CURRENT;
                 else if (mainMenuSelection == 2) currentUIState = UI_STATE_MENU_SET_SOC;
-                else if (mainMenuSelection == 3) {
-                    currentUIState = UI_STATE_MENU_ABOUT;
-                    aboutMenuSelection = 0;
-                }
-                else if (mainMenuSelection == 4) {
+                else if (mainMenuSelection == 3) { // Save & Exit
                     logic_save_config(tempSetting_Voltage, tempSetting_Current, tempSetting_SOC);
                     currentUIState = UI_STATE_MENU_SAVED;
                     savedScreenStartTime = millis();
+                }
+                else if (mainMenuSelection == 4) { // About
+                    currentUIState = UI_STATE_MENU_ABOUT;
+                    aboutMenuSelection = 0;
                 }
             }
             break;
