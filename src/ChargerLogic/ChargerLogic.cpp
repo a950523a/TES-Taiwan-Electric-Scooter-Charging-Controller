@@ -93,6 +93,8 @@ void logic_get_display_data(DisplayData& data) {
     data.otaProgress = ota_get_progress();
     data.otaStatusMessage = ota_get_status_message();
 
+    data.filesystemMismatch = filesystem_version_mismatch;
+
     // --- [修正] 填充 IP 地址 ---
     if (WiFi.status() == WL_CONNECTED) {
         strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
@@ -102,9 +104,6 @@ void logic_get_display_data(DisplayData& data) {
         strncpy(data.ipAddress, "Disconnected", 15);
     }
     data.ipAddress[15] = '\0'; // 確保字串結尾
-    if (filesystem_version_mismatch) {
-        data.otaStatusMessage = "FS Version Mismatch!";
-    }
 }
 
 void logic_init() {

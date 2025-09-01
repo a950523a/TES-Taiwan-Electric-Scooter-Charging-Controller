@@ -41,7 +41,8 @@ enum UIState {
     UI_STATE_MENU_SET_CURRENT,
     UI_STATE_MENU_SET_SOC,
     UI_STATE_MENU_SAVED,
-    UI_STATE_MENU_ABOUT
+    UI_STATE_MENU_ABOUT,
+    UI_STATE_MENU_UPDATE_OPTIONS
 };
 
 // --- UI 顯示數據包 ---
@@ -78,6 +79,7 @@ struct DisplayData {
     const char* otaStatusMessage;
     char ipAddress[16];
     bool filesystemMismatch; 
+    char filesystemVersion[16]; 
 };
 
 
