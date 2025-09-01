@@ -49,6 +49,7 @@
         <div class="card">
             <h2>About & Firmware Update</h2>
             <p><strong>Current Firmware:</strong> <span id="current_fw">--</span></p>
+            <p><strong>Current Web UI:</strong> <span id="current_fs">--</span></p>
             <p><strong>IP Address:</strong> <span id="ip_address">--</span></p>
             <p><strong>Copyright (c) 2025 Chris Huang</strong></p>
             
@@ -63,12 +64,22 @@
             </div>
 
             <h3>Manual Update (Offline)</h3>
-            <form id="upload_form" method="POST" action="/update" enctype="multipart/form-data">
-                <input type="file" name="update">
-                <input type="submit" value="Upload & Update">
+            <!-- [修改] 韌體手動上傳 -->
+            <h4>Upload Firmware (.bin)</h4>
+            <form id="upload_fw_form" method="POST" action="/update_fw" enctype="multipart/form-data">
+                <input type="file" name="firmware_update">
+                <input type="submit" value="Upload Firmware">
+            </form>
+
+            <!-- [新增] 檔案系統手動上傳 -->
+            <h4>Upload Web UI (.bin)</h4>
+            <form id="upload_fs_form" method="POST" action="/update_fs" enctype="multipart/form-data">
+                <input type="file" name="filesystem_update">
+                <input type="submit" value="Upload Web UI">
             </form>
         </div>
     </div>
+
 
     <script>
         function sendAction(path) {
@@ -92,6 +103,7 @@
                     
                     // 更新 About & OTA
                     document.getElementById("current_fw").innerHTML = data.current_fw_version;
+                    document.getElementById("current_fs").innerHTML = data.filesystem_version;
                     document.getElementById("ip_address").innerHTML = data.ip_address;
                     document.getElementById("ota_status").innerHTML = data.ota_status_message;
                     
@@ -114,7 +126,7 @@
         }
 
         // 處理手動上傳表單
-        document.getElementById('upload_form').addEventListener('submit', function(e) {
+        document.getElementById('upload_fw_form').addEventListener('submit', function(e) {
             e.preventDefault();
             var form = e.target;
             var data = new FormData(form);
@@ -122,10 +134,29 @@
             xhr.open(form.method, form.action, true);
             xhr.onload = function(e) {
                 if (xhr.status === 200) {
-                    alert('Upload successful! The device will now reboot.');
-                    // 可以在這裡加入一個倒數計時或提示，讓用戶知道設備正在重啟
+                    alert('Firmware upload successful! The device will now reboot.');
+                    // 延遲一小段時間，確保伺服器有時間處理重啟
+                    setTimeout(function(){ window.location.reload(); }, 3000);
                 } else {
-                    alert('Upload failed. Please try again.');
+                    alert('Firmware upload failed. Please try again.');
+                }
+            };
+            xhr.send(data);
+        });
+
+        // [新增] 處理手動上傳檔案系統表單
+        document.getElementById('upload_fs_form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = e.target;
+            var data = new FormData(form);
+            var xhr = new XMLHttpRequest();
+            xhr.open(form.method, form.action, true);
+            xhr.onload = function(e) {
+                if (xhr.status === 200) {
+                    alert('Web UI upload successful! The device will now reboot.');
+                    setTimeout(function(){ window.location.reload(); }, 3000);
+                } else {
+                    alert('Web UI upload failed. Please try again.');
                 }
             };
             xhr.send(data);

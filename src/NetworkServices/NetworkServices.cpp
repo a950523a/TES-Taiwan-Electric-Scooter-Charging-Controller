@@ -15,6 +15,7 @@
 static AsyncWebServer server(80);
 static DNSServer dnsServer;
 static DisplayData network_display_data; // 儲存最新數據的副本
+static bool should_reboot = false;
 
 // --- [新增] 引用外部的 OTA 觸發函數 ---
 extern void ota_start_check();
@@ -63,6 +64,7 @@ static void startWebServer() {
         json_doc["target_soc"] = network_display_data.targetSOC;
         json_doc["max_current"] = (float)network_display_data.maxCurrentSetting_0_1A / 10.0;
         json_doc["time_formatted"] = time_buffer;
+        json_doc["ip_address"] = network_display_data.ipAddress;
 
         // --- [新增] 填充 OTA 數據 ---
         json_doc["current_fw_version"] = network_display_data.currentFirmwareVersion;
@@ -70,6 +72,7 @@ static void startWebServer() {
         json_doc["update_available"] = network_display_data.updateAvailable;
         json_doc["ota_progress"] = network_display_data.otaProgress;
         json_doc["ota_status_message"] = network_display_data.otaStatusMessage;
+        json_doc["filesystem_version"] = network_display_data.filesystemVersion;
         
         String json_response;
         serializeJson(json_doc, json_response);
@@ -100,19 +103,15 @@ static void startWebServer() {
         request->send(200, "text/plain", "OK"); 
     });
 
-    server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
-        bool shouldReboot = (ota_get_status() == OTA_IDLE);
-        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK" : "FAIL");
-        response->addHeader("Connection", "close");
-        request->send(response);
-        if (shouldReboot) {
-            delay(100);
-            ESP.restart();
-        }
+    server.on("/update_fw", HTTP_POST, [](AsyncWebServerRequest *request){
+        // 上傳完成後，請求重啟
+        should_reboot = true;
+        request->send(200, "text/plain", "OK");
     }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
         if(!index){
-            Serial.printf("Update Start: %s\n", filename.c_str());
-            if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
+            Serial.printf("Manual FW Update Start: %s\n", filename.c_str());
+            // 明確指定更新韌體 (U_FLASH)
+            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)){
                 Update.printError(Serial);
             }
         }
@@ -123,7 +122,34 @@ static void startWebServer() {
         }
         if(final){
             if(Update.end(true)){
-                Serial.printf("Update Success: %uB\n", index+len);
+                Serial.printf("Manual FW Update Success: %uB\n", index+len);
+            } else {
+                Update.printError(Serial);
+            }
+        }
+    });
+
+    // --- [新增] 手動檔案系統上傳路由 ---
+    server.on("/update_fs", HTTP_POST, [](AsyncWebServerRequest *request){
+        // 上傳完成後，請求重啟
+        should_reboot = true;
+        request->send(200, "text/plain", "OK");
+    }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        if(!index){
+            Serial.printf("Manual FS Update Start: %s\n", filename.c_str());
+            // 明確指定更新檔案系統 (U_SPIFFS)
+            if(!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)){
+                Update.printError(Serial);
+            }
+        }
+        if(len){
+            if (Update.write(data, len) != len) {
+                Update.printError(Serial);
+            }
+        }
+        if(final){
+            if(Update.end(true)){
+                Serial.printf("Manual FS Update Success: %uB\n", index+len);
             } else {
                 Update.printError(Serial);
             }
@@ -157,7 +183,9 @@ void net_init() {
 // --- 任務處理函數 ---
 void net_handle_tasks(const DisplayData& data) {
     memcpy(&network_display_data, &data, sizeof(DisplayData));
-    dnsServer.processNextRequest();
+    if (WiFi.getMode() == WIFI_AP) {
+        dnsServer.processNextRequest();
+    }
 
     switch (wifiState) {
         case WIFI_STATE_INIT: {
@@ -189,10 +217,12 @@ void net_handle_tasks(const DisplayData& data) {
                 Serial.print("WiFi: STA connected! IP: ");
                 Serial.println(WiFi.localIP());
                 wifiState = WIFI_STATE_STA_CONNECTED;
+                dnsServer.stop();
                 startWebServer();
             } else if (millis() - state_timer > 20000) {
                 Serial.println("WiFi: STA connection failed. Switching to AP mode.");
                 WiFi.disconnect();
+                server.end();
                 wifiState = WIFI_STATE_INIT; // 回到 INIT 重新決策
             }
             break;
@@ -204,5 +234,11 @@ void net_handle_tasks(const DisplayData& data) {
             break;
         case WIFI_STATE_AP_IDLE:
             break;
+    }
+    if (should_reboot) {
+        Serial.println("Reboot requested by manual update. Rebooting in 1 second...");
+        should_reboot = false; // 清除旗標
+        delay(1000); // 等待 Web Server 回應完成
+        ESP.restart();
     }
 }

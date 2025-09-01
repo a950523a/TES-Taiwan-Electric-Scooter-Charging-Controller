@@ -77,6 +77,7 @@ TaskHandle_t wifitaskHandle = NULL;
 TaskHandle_t otaTaskHandle = NULL;
 
 bool filesystem_version_mismatch = false;
+char current_filesystem_version[16] = "N/A";
 
 void check_filesystem_version() {
     if (!LittleFS.exists("/fs_version.txt")) {
@@ -97,7 +98,13 @@ void check_filesystem_version() {
     Serial.print("Found Filesystem Version: "); Serial.println(fs_version);
     Serial.print("Expected Filesystem Version: "); Serial.println(FILESYSTEM_VERSION);
 
-    if (strcmp(fs_version.c_str(), FILESYSTEM_VERSION) == 0) {
+    strncpy(current_filesystem_version, fs_version.c_str(), 15);
+    current_filesystem_version[15] = '\0';
+
+    Serial.print("Found Filesystem Version: "); Serial.println(current_filesystem_version);
+    Serial.print("Expected Filesystem Version: "); Serial.println(FILESYSTEM_VERSION);
+
+    if (strcmp(current_filesystem_version, FILESYSTEM_VERSION) == 0) {
         filesystem_version_mismatch = false;
         Serial.println("Filesystem version check PASSED.");
     } else {
@@ -221,7 +228,7 @@ void ui_task(void *pvParameters) {
     DisplayData ui_data_packet;
     for (;;) {
         logic_get_display_data(ui_data_packet);
-        
+        strncpy(ui_data_packet.filesystemVersion, current_filesystem_version, 15);
         ui_handle_input(ui_data_packet);
         
         LedState current_led_state = logic_get_led_state();
@@ -243,6 +250,7 @@ void wifi_task(void *pvParameters) {
     DisplayData net_data_packet; // 宣告數據包裹
     for (;;) {
         logic_get_display_data(net_data_packet); // 從 Logic 層獲取數據
+        strncpy(net_data_packet.filesystemVersion, current_filesystem_version, 15);
         net_handle_tasks(net_data_packet); // 將數據包裹傳給 Network
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
