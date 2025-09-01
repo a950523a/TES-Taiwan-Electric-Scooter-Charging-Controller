@@ -210,9 +210,9 @@ void ui_handle_input(const DisplayData& data) {
                     ota_start_full_update();
                 }
             }
-            // 短按設定鍵返回主選單
-            if (settingTrigger) {
+            if (isSettingButtonLongPress) {
                  currentUIState = UI_STATE_MENU_MAIN;
+                 isSettingButtonLongPress = false; // 重置旗標
             }
             break;
 
@@ -252,7 +252,7 @@ void ui_update_display(const DisplayData& data) {
         uint16_t strWidth;
         if (currentUIState != UI_STATE_NORMAL) {
             switch (currentUIState) {
-                case UI_STATE_MENU_MAIN: { // 使用大括號創建局部作用域
+                case UI_STATE_MENU_MAIN: { 
                     u8g2.setFont(u8g2_font_ncenB10_tr);
                     u8g2.drawStr(0, 12, "Settings");
                     u8g2.drawHLine(0, 14, 128);
@@ -278,36 +278,38 @@ void ui_update_display(const DisplayData& data) {
                     break;
                 }
                 case UI_STATE_MENU_ABOUT:
-                    u8g2.setFont(u8g2_font_ncenB10_tr);
-                    u8g2.drawStr(0, 12, "About & Update");
-                    u8g2.drawHLine(0, 14, 128);
-
-                    u8g2.setFont(u8g2_font_6x10_tr);
-                    sprintf(buffer, "FW: %s", data.currentFirmwareVersion);
-                    u8g2.drawStr(0, 26, buffer);
-                    
-                    // --- [修正] 使用 data.ipAddress ---
-                    sprintf(buffer, "IP: %s", data.ipAddress);
-                    u8g2.drawStr(0, 36, buffer);
-
-                    u8g2.drawStr(0, 46, "Copyright (c) 2025 C.H.");
-                    u8g2.drawHLine(0, 48, 128);
-
-                    strWidth = u8g2.getStrWidth(data.otaStatusMessage);
-                    u8g2.drawStr((128 - strWidth) / 2, 56, data.otaStatusMessage);
-
-                    u8g2.setFont(u8g2_font_ncenB08_tr);
-                    if (aboutMenuSelection == 0) u8g2.drawStr(0, 62, ">");
-                    u8g2.drawStr(10, 62, aboutMenuItems[0]);
-
-                    if (data.updateAvailable) {
-                        if (aboutMenuSelection == 1) u8g2.drawStr(60, 62, ">");
-                        u8g2.drawStr(70, 62, aboutMenuItems[1]);
-                    }
-                    
-                    // --- [修正] 檢查兩個下載狀態 ---
-                    if ((ota_get_status() == OTA_DOWNLOADING_FW || ota_get_status() == OTA_DOWNLOADING_FS) && data.otaProgress > 0) {
-                        u8g2.drawBox(0, 50, (int)(128 * (data.otaProgress / 100.0)), 8);
+                    // --- [修正] 在 About 頁面優先顯示錯誤 ---
+                    if (data.filesystemMismatch) {
+                        u8g2.setFont(u8g2_font_ncenB10_tr);
+                        u8g2.drawStr(0, 12, "System Error");
+                        u8g2.drawHLine(0, 14, 128);
+                        u8g2.setFont(u8g2_font_6x10_tr);
+                        u8g2.drawStr(0, 30, "Web UI version mismatch.");
+                        u8g2.drawStr(0, 42, "Please update filesystem");
+                        u8g2.drawStr(0, 54, "via OTA.");
+                    } else {
+                        u8g2.setFont(u8g2_font_ncenB10_tr);
+                        u8g2.drawStr(0, 12, "About & Update");
+                        u8g2.drawHLine(0, 14, 128);
+                        u8g2.setFont(u8g2_font_6x10_tr);
+                        sprintf(buffer, "FW: %s", data.currentFirmwareVersion);
+                        u8g2.drawStr(0, 26, buffer);
+                        sprintf(buffer, "IP: %s", data.ipAddress);
+                        u8g2.drawStr(0, 36, buffer);
+                        u8g2.drawStr(0, 46, "Copyright (c) 2025 C.H.");
+                        u8g2.drawHLine(0, 48, 128);
+                        strWidth = u8g2.getStrWidth(data.otaStatusMessage);
+                        u8g2.drawStr((128 - strWidth) / 2, 56, data.otaStatusMessage);
+                        u8g2.setFont(u8g2_font_ncenB08_tr);
+                        if (aboutMenuSelection == 0) u8g2.drawStr(0, 62, ">");
+                        u8g2.drawStr(10, 62, aboutMenuItems[0]);
+                        if (data.updateAvailable) {
+                            if (aboutMenuSelection == 1) u8g2.drawStr(60, 62, ">");
+                            u8g2.drawStr(70, 62, aboutMenuItems[1]);
+                        }
+                        if ((ota_get_status() == OTA_DOWNLOADING_FW || ota_get_status() == OTA_DOWNLOADING_FS) && data.otaProgress > 0) {
+                            u8g2.drawBox(0, 50, (int)(128 * (data.otaProgress / 100.0)), 8);
+                        }
                     }
                     break;
                 case UI_STATE_MENU_SAVED:
@@ -350,6 +352,10 @@ void ui_update_display(const DisplayData& data) {
                 default: break;
             }
         } else {
+            if (data.filesystemMismatch) {
+                u8g2.setFont(u8g2_font_unifont_t_symbols);
+                u8g2.drawGlyph(118, 12, 0x26a0); // 警告符號 ⚠
+            }
             switch (data.chargerState) {
                 case STATE_CHG_IDLE:
                     if (data.isFaultLatched) {

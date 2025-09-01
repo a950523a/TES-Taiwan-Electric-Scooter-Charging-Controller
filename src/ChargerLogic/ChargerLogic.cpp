@@ -10,6 +10,7 @@
 #include <WiFi.h>
 
 extern SemaphoreHandle_t canDataMutex;
+extern bool filesystem_version_mismatch;
 
 // --- 私有(static)變量，只在這個文件內可見 ---
 static Preferences preferences; 
@@ -83,6 +84,7 @@ void logic_get_display_data(DisplayData& data) {
     data.targetSOC = userSetTargetSOC;
     data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
     data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
+    data.filesystemMismatch = filesystem_version_mismatch;
 
     // --- [新增] 填充 OTA 數據 ---
     data.currentFirmwareVersion = FIRMWARE_VERSION;
@@ -100,6 +102,9 @@ void logic_get_display_data(DisplayData& data) {
         strncpy(data.ipAddress, "Disconnected", 15);
     }
     data.ipAddress[15] = '\0'; // 確保字串結尾
+    if (filesystem_version_mismatch) {
+        data.otaStatusMessage = "FS Version Mismatch!";
+    }
 }
 
 void logic_init() {
