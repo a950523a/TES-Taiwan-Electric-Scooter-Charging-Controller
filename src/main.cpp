@@ -55,6 +55,8 @@
 #include "NetworkServices/NetworkServices.h"
 #include "Charger_Defs.h"
 #include "OTAManager/OTAManager.h"
+#include "Version.h" // 引用 Version.h
+#include <LittleFS.h> // 引用 LittleFS
 
 // --- FreeRTOS 任務函數原型 ---
 void can_task(void *pvParameters);
@@ -73,6 +75,36 @@ TaskHandle_t logicTaskHandle = NULL;
 TaskHandle_t uiTaskHandle = NULL;
 TaskHandle_t wifitaskHandle = NULL;
 TaskHandle_t otaTaskHandle = NULL;
+
+bool filesystem_version_mismatch = false;
+
+void check_filesystem_version() {
+    if (!LittleFS.exists("/fs_version.txt")) {
+        Serial.println("ERROR: fs_version.txt not found!");
+        filesystem_version_mismatch = true;
+        return;
+    }
+    File versionFile = LittleFS.open("/fs_version.txt", "r");
+    if (!versionFile) {
+        Serial.println("ERROR: Failed to open fs_version.txt!");
+        filesystem_version_mismatch = true;
+        return;
+    }
+    String fs_version = versionFile.readStringUntil('\n');
+    versionFile.close();
+    fs_version.trim();
+
+    Serial.print("Found Filesystem Version: "); Serial.println(fs_version);
+    Serial.print("Expected Filesystem Version: "); Serial.println(FILESYSTEM_VERSION);
+
+    if (strcmp(fs_version.c_str(), FILESYSTEM_VERSION) == 0) {
+        filesystem_version_mismatch = false;
+        Serial.println("Filesystem version check PASSED.");
+    } else {
+        filesystem_version_mismatch = true;
+        Serial.println("ERROR: Filesystem version MISMATCH!");
+    }
+}
 
 void setup() {
     Serial.begin(115200);
@@ -205,6 +237,7 @@ void ui_task(void *pvParameters) {
 void wifi_task(void *pvParameters) {
     Serial.println("WiFi Task started.");
     net_init();
+    check_filesystem_version();
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(100); 
     DisplayData net_data_packet; // 宣告數據包裹
@@ -246,4 +279,3 @@ void monitor_task(void *pvParameters) {
         Serial.println("-------------------\n");
     }
 }
-

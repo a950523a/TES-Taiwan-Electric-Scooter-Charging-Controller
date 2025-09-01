@@ -77,6 +77,7 @@ struct DisplayData {
     int otaProgress;
     const char* otaStatusMessage;
     char ipAddress[16];
+    bool filesystemMismatch; 
 };
 
 
