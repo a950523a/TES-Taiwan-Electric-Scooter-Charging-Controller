@@ -206,12 +206,16 @@ void ui_handle_input(const DisplayData& data) {
             break;
 
         case UI_STATE_MENU_UPDATE_OPTIONS:
-            if (upShortPressTrigger) updateMenuSelection = (updateMenuSelection == 0) ? 1 : updateMenuSelection - 1;
-            if (downShortPressTrigger) updateMenuSelection = (updateMenuSelection + 1) % 2;
+            // --- [修正] 簡化輸入處理邏輯 ---
+            // 在這個頁面，"上/下" 按鈕沒有作用，因為只有一個選項
             
             if (settingShortPressTrigger) {
-                if (updateMenuSelection == 0) ota_start_check();
-                else if (updateMenuSelection == 1 && data.updateAvailable) ota_start_full_update();
+                // 根據是否有可用更新，來決定執行哪個動作
+                if (data.updateAvailable) {
+                    ota_start_full_update(); // 如果有更新，就執行更新
+                } else {
+                    ota_start_check(); // 如果沒有更新，就執行檢查
+                }
             }
             if (settingLongPressTrigger) {
                 currentUIState = UI_STATE_MENU_ABOUT;
