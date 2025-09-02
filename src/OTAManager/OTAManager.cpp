@@ -214,10 +214,7 @@ static void perform_firmware_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting firmware update...");
 
-    Serial.println("OTA: Suspending other tasks to free up resources...");
-    if (logicTaskHandle != NULL) vTaskSuspend(logicTaskHandle);
-    if (uiTaskHandle != NULL) vTaskSuspend(uiTaskHandle);
-
+    // --- [修正] 使用儲存在 RTC 中的確切檔名 ---
     String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fw_filename);
     
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
@@ -227,10 +224,6 @@ static void perform_firmware_update() {
     httpUpdate.onProgress(onProgress);
     httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     t_httpUpdate_return ret = httpUpdate.update(client, url);
-
-    Serial.println("OTA: Resuming other tasks...");
-    if (logicTaskHandle != NULL) vTaskResume(logicTaskHandle);
-    if (uiTaskHandle != NULL) vTaskResume(uiTaskHandle);
 
     switch (ret) {
         case HTTP_UPDATE_OK:
@@ -249,7 +242,6 @@ static void perform_firmware_update() {
 }
 
 static void perform_filesystem_update() {
-    // --- [修正] 使用 latest_release_tag 進行判斷 ---
     if (WiFi.status() != WL_CONNECTED || strcmp(latest_release_tag, "") == 0) {
         statusMessage = "Prerequisites not met";
         currentStatus = OTA_FAILED;
@@ -261,13 +253,11 @@ static void perform_filesystem_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting filesystem update...");
 
-    // --- [修正] 使用 latest_release_tag 來拼接 URL ---
-    String bin_name = "littlefs_" + String(latest_release_tag) + ".bin";
-    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + bin_name;
+    // --- [修正] 使用儲存在 RTC 中的確切檔名 ---
+    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fs_filename);
 
     Serial.print("OTA: Filesystem URL: "); Serial.println(url);
 
-    // ... (後續的程式碼維持不變) ...
     HTTPClient http;
     http.begin(url);
     int httpCode = http.GET();
@@ -277,41 +267,32 @@ static void perform_filesystem_update() {
         http.begin(redirectedUrl);
         httpCode = http.GET();
     }
-    int len = 0;
-    size_t written = 0;
+    
     if (httpCode == HTTP_CODE_OK) {
-        len = http.getSize();
+        int len = http.getSize();
         if (len <= 0) { statusMessage = "FS file size is 0"; currentStatus = OTA_FAILED; http.end(); return; }
         if (!Update.begin(len, U_SPIFFS)) { Update.printError(Serial); statusMessage = "Not enough space for FS"; currentStatus = OTA_FAILED; http.end(); return; }
+        
         WiFiClient* stream = http.getStreamPtr();
-        written = Update.writeStream(*stream);
-    }
-    if (written == len && len > 0) {
-        if (Update.end(true)) {
-            Serial.println("OTA: FS Update successful! Setting flag and rebooting...");
-            statusMessage = "FS Success! Rebooting...";
-            if (ota_step == 3) {
-                ota_step = 2;
-            } else {
-                ota_step = 0;
-            }
-            delay(1000);
-            ESP.restart();
-        } else { 
-            Update.printError(Serial); 
-            statusMessage = "FS Update failed!"; 
-            currentStatus = OTA_FAILED; 
-            ota_step = 0; 
-        }
-    } else {
-        if (httpCode == HTTP_CODE_OK) {
-            Serial.printf("OTA: FS Update incomplete. Written: %d, Total: %d\n", written, len);
-            statusMessage = "FS Download incomplete";
-        } else {
-            statusMessage = "FS Download failed: " + String(httpCode);
-            Serial.printf("OTA: Filesystem download failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
+        size_t written = Update.writeStream(*stream);
+
+        if (written == len) {
+            if (Update.end(true)) {
+                Serial.println("OTA: FS Update successful! Setting flag and rebooting...");
+                statusMessage = "FS Success! Rebooting...";
+                if (ota_step == 3) {
+                    ota_step = 2; // Next step is FW update
+                } else {
+                    ota_step = 0; // FS only update is complete
+                }
+                delay(1000);
+                ESP.restart();
+            } else { Update.printError(Serial); statusMessage = "FS Update failed!"; currentStatus = OTA_FAILED; ota_step = 0; }
+        } else { Serial.printf("OTA: FS Update incomplete. Written: %d, Total: %d\n", written, len); statusMessage = "FS Download incomplete"; currentStatus = OTA_FAILED; ota_step = 0; }
+    } else { 
+        statusMessage = "FS Download failed: " + String(httpCode); 
         currentStatus = OTA_FAILED; 
+        Serial.printf("OTA: Filesystem download failed, error: %s\n", http.errorToString(httpCode).c_str()); 
         ota_step = 0; 
     }
     http.end();
