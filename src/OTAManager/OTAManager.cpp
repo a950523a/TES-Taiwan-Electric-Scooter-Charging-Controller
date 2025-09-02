@@ -171,9 +171,17 @@ static void perform_check() {
                 }
             }
         }
+        
+        String local_fs_version_for_log = "N/A";
+        File versionFile = LittleFS.open("/fs_version.txt", "r");
+        if (versionFile) {
+            local_fs_version_for_log = versionFile.readStringUntil('\n');
+            versionFile.close();
+            local_fs_version_for_log.trim();
+        }
 
         Serial.printf("Current FW: %s, Latest FW from asset: %s\n", FIRMWARE_VERSION, latest_fw_version_from_asset.c_str());
-        Serial.printf("Current FS: %s, Latest FS from asset: %s\n", FILESYSTEM_VERSION, latest_fs_version_from_asset.c_str());
+        Serial.printf("Current FS: %s, Latest FS from asset: %s\n", local_fs_version_for_log.c_str(), latest_fs_version_from_asset.c_str());
 
         if (fw_update_needed && fs_update_needed) {
             ota_step = 3; // Both
@@ -224,31 +232,64 @@ static void perform_firmware_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting firmware update...");
 
-    // --- [修正] 使用儲存在 RTC 中的確切檔名 ---
     String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fw_filename);
-    
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
 
-    WiFiClient client;
-    client.setTimeout(15000); 
-    httpUpdate.onProgress(onProgress);
-    httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    t_httpUpdate_return ret = httpUpdate.update(client, url);
+    // --- [修改] 使用手動分塊下載邏輯 ---
+    HTTPClient http;
+    http.begin(url);
+    http.setConnectTimeout(10000);
 
-    switch (ret) {
-        case HTTP_UPDATE_OK:
-            Serial.println("OTA: FW Update successful! Rebooting...");
-            ota_step = 0;
-            delay(1000);
-            ESP.restart();
-            break;
-        default:
-            Serial.printf("OTA: FW Update failed! Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-            statusMessage = "FW Update failed: " + httpUpdate.getLastErrorString();
+    int httpCode = http.GET();
+    if (httpCode > 0 && http.getLocation().length() > 0) {
+        String redirectedUrl = http.getLocation();
+        http.end();
+        http.begin(redirectedUrl);
+        httpCode = http.GET();
+    }
+
+    if (httpCode == HTTP_CODE_OK) {
+        int len = http.getSize();
+        if (len <= 0) { statusMessage = "FW file size is 0"; currentStatus = OTA_FAILED; http.end(); return; }
+        
+        // U_FLASH 是用於韌體更新的標籤
+        if (!Update.begin(len, U_FLASH)) {
+            Update.printError(Serial);
+            statusMessage = "Not enough space for FW";
+            currentStatus = OTA_FAILED;
+            http.end();
+            return;
+        }
+        
+        WiFiClient* stream = http.getStreamPtr();
+        size_t written = Update.writeStream(*stream);
+
+        if (written == len) {
+            if (Update.end(true)) {
+                Serial.println("OTA: FW Update successful! Rebooting...");
+                statusMessage = "FW Success! Rebooting...";
+                ota_step = 0;
+                delay(1000);
+                ESP.restart();
+            } else {
+                Update.printError(Serial);
+                statusMessage = "FW Update failed!";
+                currentStatus = OTA_FAILED;
+                ota_step = 0;
+            }
+        } else {
+            Serial.printf("OTA: FW Update incomplete. Written: %d, Total: %d\n", written, len);
+            statusMessage = "FW Download incomplete";
             currentStatus = OTA_FAILED;
             ota_step = 0;
-            break;
+        }
+    } else {
+        statusMessage = "FW Download failed: " + String(httpCode);
+        currentStatus = OTA_FAILED;
+        Serial.printf("OTA: Firmware download failed, error: %s\n", http.errorToString(httpCode).c_str());
+        ota_step = 0;
     }
+    http.end();
 }
 
 static void perform_filesystem_update() {
