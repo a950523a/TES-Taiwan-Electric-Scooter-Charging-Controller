@@ -7,8 +7,6 @@
 #include <WiFi.h>
 #include "Version.h"
 #include <Update.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include <LittleFS.h>
 
 #define OTA_DEVELOPER_MODE 
@@ -16,24 +14,17 @@
 #define GITHUB_USER "a950523a"
 #define GITHUB_REPO "TES-Taiwan-Electric-Scooter-Charging-Controller"
 
-extern TaskHandle_t logicTaskHandle;
-extern TaskHandle_t uiTaskHandle;
-extern TaskHandle_t wifiTaskHandle;
+RTC_DATA_ATTR int ota_step = 0;
+RTC_DATA_ATTR char latest_release_tag[32] = {0};
+RTC_DATA_ATTR char latest_fw_filename[64] = {0};
+RTC_DATA_ATTR char latest_fs_filename[64] = {0};
 
-// --- [修正] RTC 記憶體標記，儲存更詳細的資訊 ---
-RTC_DATA_ATTR int ota_step = 0; // 0=Idle, 1=Need FS Update, 2=Need FW Update, 3=Need Both
-RTC_DATA_ATTR char latest_release_tag[32] = {0}; // 儲存 Release 的 Tag
-RTC_DATA_ATTR char latest_fw_filename[64] = {0}; // 儲存韌體檔名
-RTC_DATA_ATTR char latest_fs_filename[64] = {0}; // 儲存檔案系統檔名
-
-// --- 私有變數 ---
 static OTAStatus currentStatus = OTA_IDLE;
 static String statusMessage = "Idle";
 static bool check_requested = false;
 static bool full_update_requested = false;
 static int downloadProgress = 0;
 
-// --- 私有函數原型 ---
 static void perform_check();
 static void perform_firmware_update();
 static void perform_filesystem_update();
@@ -54,9 +45,9 @@ void ota_handle_tasks() {
     }
     if (full_update_requested) {
         full_update_requested = false;
-        if (ota_step == 1 || ota_step == 3) { // 如果需要更新 FS (單獨或兩者都需要)
+        if (ota_step == 1 || ota_step == 3) {
             perform_filesystem_update();
-        } else if (ota_step == 2) { // 如果只需要更新 FW
+        } else if (ota_step == 2) {
             perform_firmware_update();
         }
     }
@@ -78,8 +69,6 @@ OTAStatus ota_get_status() { return currentStatus; }
 const char* ota_get_status_message() { return statusMessage.c_str(); }
 const char* ota_get_latest_version() { return latest_release_tag; }
 int ota_get_progress() { return downloadProgress; }
-
-// --- 核心邏輯 ---
 
 static void perform_check() {
     if (WiFi.status() != WL_CONNECTED) {
@@ -137,7 +126,6 @@ static void perform_check() {
         String latest_fw_version_from_asset = "";
         String latest_fs_version_from_asset = "";
 
-        // 清空舊的檔名
         memset(latest_fw_filename, 0, sizeof(latest_fw_filename));
         memset(latest_fs_filename, 0, sizeof(latest_fs_filename));
 
@@ -157,7 +145,6 @@ static void perform_check() {
                 latest_fs_version_from_asset.replace("littlefs_v", "v");
                 latest_fs_version_from_asset.replace(".bin", "");
                 
-                // --- [修改] 讀取本地 FS 版本進行比較 ---
                 String local_fs_version = "N/A";
                 File versionFile = LittleFS.open("/fs_version.txt", "r");
                 if (versionFile) {
@@ -168,6 +155,8 @@ static void perform_check() {
                 
                 if (strcmp(latest_fs_version_from_asset.c_str(), local_fs_version.c_str()) != 0) {
                     fs_update_needed = true;
+                    // --- [修正] 補上儲存檔名的邏輯 ---
+                    strncpy(latest_fs_filename, asset_name.c_str(), sizeof(latest_fs_filename) - 1);
                 }
             }
         }
@@ -184,16 +173,16 @@ static void perform_check() {
         Serial.printf("Current FS: %s, Latest FS from asset: %s\n", local_fs_version_for_log.c_str(), latest_fs_version_from_asset.c_str());
 
         if (fw_update_needed && fs_update_needed) {
-            ota_step = 3; // Both
+            ota_step = 3;
             statusMessage = "FW & FS Update Available!";
         } else if (fw_update_needed) {
-            ota_step = 2; // FW only
+            ota_step = 2;
             statusMessage = "Firmware Update Available!";
         } else if (fs_update_needed) {
-            ota_step = 1; // FS only
+            ota_step = 1;
             statusMessage = "Web UI Update Available!";
         } else {
-            ota_step = 0; // No update
+            ota_step = 0;
             statusMessage = "No new update";
         }
 
@@ -235,7 +224,6 @@ static void perform_firmware_update() {
     String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fw_filename);
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
 
-    // --- [修改] 使用手動分塊下載邏輯 ---
     HTTPClient http;
     http.begin(url);
     http.setConnectTimeout(10000);
@@ -252,7 +240,6 @@ static void perform_firmware_update() {
         int len = http.getSize();
         if (len <= 0) { statusMessage = "FW file size is 0"; currentStatus = OTA_FAILED; http.end(); return; }
         
-        // U_FLASH 是用於韌體更新的標籤
         if (!Update.begin(len, U_FLASH)) {
             Update.printError(Serial);
             statusMessage = "Not enough space for FW";
@@ -262,6 +249,7 @@ static void perform_firmware_update() {
         }
         
         WiFiClient* stream = http.getStreamPtr();
+        Update.onProgress(onProgress);
         size_t written = Update.writeStream(*stream);
 
         if (written == len) {
@@ -293,7 +281,7 @@ static void perform_firmware_update() {
 }
 
 static void perform_filesystem_update() {
-    if (WiFi.status() != WL_CONNECTED || strcmp(latest_release_tag, "") == 0) {
+    if (WiFi.status() != WL_CONNECTED) {
         statusMessage = "Prerequisites not met";
         currentStatus = OTA_FAILED;
         return;
@@ -304,13 +292,13 @@ static void perform_filesystem_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting filesystem update...");
 
-    // --- [修正] 使用儲存在 RTC 中的確切檔名 ---
     String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fs_filename);
-
     Serial.print("OTA: Filesystem URL: "); Serial.println(url);
 
     HTTPClient http;
     http.begin(url);
+    http.setConnectTimeout(10000);
+
     int httpCode = http.GET();
     if (httpCode > 0 && http.getLocation().length() > 0) {
         String redirectedUrl = http.getLocation();
@@ -325,6 +313,7 @@ static void perform_filesystem_update() {
         if (!Update.begin(len, U_SPIFFS)) { Update.printError(Serial); statusMessage = "Not enough space for FS"; currentStatus = OTA_FAILED; http.end(); return; }
         
         WiFiClient* stream = http.getStreamPtr();
+        Update.onProgress(onProgress);
         size_t written = Update.writeStream(*stream);
 
         if (written == len) {
@@ -332,9 +321,9 @@ static void perform_filesystem_update() {
                 Serial.println("OTA: FS Update successful! Setting flag and rebooting...");
                 statusMessage = "FS Success! Rebooting...";
                 if (ota_step == 3) {
-                    ota_step = 2; // Next step is FW update
+                    ota_step = 2;
                 } else {
-                    ota_step = 0; // FS only update is complete
+                    ota_step = 0;
                 }
                 delay(1000);
                 ESP.restart();
