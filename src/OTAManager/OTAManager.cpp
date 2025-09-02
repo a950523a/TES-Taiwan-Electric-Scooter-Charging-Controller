@@ -9,6 +9,7 @@
 #include <Update.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <LittleFS.h>
 
 #define OTA_DEVELOPER_MODE 
 
@@ -98,7 +99,7 @@ static void perform_check() {
     #else
         url = "https://api.github.com/repos/" GITHUB_USER "/" GITHUB_REPO "/releases/latest";
     #endif
-    
+    http.setConnectTimeout(10000);
     http.begin(url);
     int httpCode = http.GET();
 
@@ -155,9 +156,18 @@ static void perform_check() {
                 latest_fs_version_from_asset = asset_name;
                 latest_fs_version_from_asset.replace("littlefs_v", "v");
                 latest_fs_version_from_asset.replace(".bin", "");
-                if (strcmp(latest_fs_version_from_asset.c_str(), FILESYSTEM_VERSION) != 0) {
+                
+                // --- [修改] 讀取本地 FS 版本進行比較 ---
+                String local_fs_version = "N/A";
+                File versionFile = LittleFS.open("/fs_version.txt", "r");
+                if (versionFile) {
+                    local_fs_version = versionFile.readStringUntil('\n');
+                    versionFile.close();
+                    local_fs_version.trim();
+                }
+                
+                if (strcmp(latest_fs_version_from_asset.c_str(), local_fs_version.c_str()) != 0) {
                     fs_update_needed = true;
-                    strncpy(latest_fs_filename, asset_name.c_str(), sizeof(latest_fs_filename) - 1);
                 }
             }
         }
