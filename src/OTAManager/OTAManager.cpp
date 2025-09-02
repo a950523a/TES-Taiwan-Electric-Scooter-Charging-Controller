@@ -1,22 +1,23 @@
 // src/OTAManager/OTAManager.cpp
 
 #include "OTAManager.h"
-#include <ArduinoJson.h> // --- [新增] 引入 ArduinoJson 函式庫 ---
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <WiFi.h>
 #include "Version.h"
 #include <Update.h>
 
-// --- [修改] 啟用開發者模式以測試 Beta 版 ---
 #define OTA_DEVELOPER_MODE 
 
 #define GITHUB_USER "a950523a"
 #define GITHUB_REPO "TES-Taiwan-Electric-Scooter-Charging-Controller"
 
-// --- [修改] RTC 記憶體標記，用於多步更新 ---
+// --- [修正] RTC 記憶體標記，儲存更詳細的資訊 ---
 RTC_DATA_ATTR int ota_step = 0; // 0=Idle, 1=Need FS Update, 2=Need FW Update, 3=Need Both
-RTC_DATA_ATTR char latest_version_tag[32] = {0}; // 儲存最新版本號標籤
+RTC_DATA_ATTR char latest_release_tag[32] = {0}; // 儲存 Release 的 Tag
+RTC_DATA_ATTR char latest_fw_filename[64] = {0}; // 儲存韌體檔名
+RTC_DATA_ATTR char latest_fs_filename[64] = {0}; // 儲存檔案系統檔名
 
 // --- 私有變數 ---
 static OTAStatus currentStatus = OTA_IDLE;
@@ -68,7 +69,7 @@ void ota_start_full_update() {
 
 OTAStatus ota_get_status() { return currentStatus; }
 const char* ota_get_status_message() { return statusMessage.c_str(); }
-const char* ota_get_latest_version() { return latest_version_tag; }
+const char* ota_get_latest_version() { return latest_release_tag; }
 int ota_get_progress() { return downloadProgress; }
 
 // --- 核心邏輯 ---
@@ -116,7 +117,7 @@ static void perform_check() {
 
         const char* tag_name = release_data["tag_name"];
         if (tag_name) {
-            strncpy(latest_version_tag, tag_name, sizeof(latest_version_tag) - 1);
+            strncpy(latest_release_tag, tag_name, sizeof(latest_release_tag) - 1);
         } else {
             statusMessage = "Tag name not found";
             currentStatus = OTA_FAILED;
@@ -126,31 +127,37 @@ static void perform_check() {
 
         bool fw_update_needed = false;
         bool fs_update_needed = false;
-        String latest_fw_version = "";
-        String latest_fs_version = "";
+        String latest_fw_version_from_asset = "";
+        String latest_fs_version_from_asset = "";
+
+        // 清空舊的檔名
+        memset(latest_fw_filename, 0, sizeof(latest_fw_filename));
+        memset(latest_fs_filename, 0, sizeof(latest_fs_filename));
 
         for (JsonVariant asset : release_data["assets"].as<JsonArray>()) {
             String asset_name = asset["name"].as<String>();
             if (asset_name.startsWith("firmware_v")) {
-                latest_fw_version = asset_name;
-                latest_fw_version.replace("firmware_v", "v");
-                latest_fw_version.replace(".bin", "");
-                if (strcmp(latest_fw_version.c_str(), FIRMWARE_VERSION) != 0) {
+                latest_fw_version_from_asset = asset_name;
+                latest_fw_version_from_asset.replace("firmware_v", "v");
+                latest_fw_version_from_asset.replace(".bin", "");
+                if (strcmp(latest_fw_version_from_asset.c_str(), FIRMWARE_VERSION) != 0) {
                     fw_update_needed = true;
+                    strncpy(latest_fw_filename, asset_name.c_str(), sizeof(latest_fw_filename) - 1);
                 }
             }
             if (asset_name.startsWith("littlefs_v")) {
-                latest_fs_version = asset_name;
-                latest_fs_version.replace("littlefs_v", "v");
-                latest_fs_version.replace(".bin", "");
-                if (strcmp(latest_fs_version.c_str(), FILESYSTEM_VERSION) != 0) {
+                latest_fs_version_from_asset = asset_name;
+                latest_fs_version_from_asset.replace("littlefs_v", "v");
+                latest_fs_version_from_asset.replace(".bin", "");
+                if (strcmp(latest_fs_version_from_asset.c_str(), FILESYSTEM_VERSION) != 0) {
                     fs_update_needed = true;
+                    strncpy(latest_fs_filename, asset_name.c_str(), sizeof(latest_fs_filename) - 1);
                 }
             }
         }
 
-        Serial.printf("Current FW: %s, Latest FW: %s\n", FIRMWARE_VERSION, latest_fw_version.c_str());
-        Serial.printf("Current FS: %s, Latest FS: %s\n", FILESYSTEM_VERSION, latest_fs_version.c_str());
+        Serial.printf("Current FW: %s, Latest FW from asset: %s\n", FIRMWARE_VERSION, latest_fw_version_from_asset.c_str());
+        Serial.printf("Current FS: %s, Latest FS from asset: %s\n", FILESYSTEM_VERSION, latest_fs_version_from_asset.c_str());
 
         if (fw_update_needed && fs_update_needed) {
             ota_step = 3; // Both
@@ -201,8 +208,7 @@ static void perform_firmware_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting firmware update...");
 
-    String bin_name = "firmware_" + String(latest_version_tag) + ".bin";
-    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_version_tag) + "/" + bin_name;
+    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fw_filename);
     
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
 
@@ -238,8 +244,7 @@ static void perform_filesystem_update() {
     downloadProgress = 0;
     Serial.println("OTA: Starting filesystem update...");
 
-    String bin_name = "littlefs_" + String(latest_version_tag) + ".bin";
-    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_version_tag) + "/" + bin_name;
+    String url = "https://github.com/" GITHUB_USER "/" GITHUB_REPO "/releases/download/" + String(latest_release_tag) + "/" + String(latest_fs_filename);
 
     Serial.print("OTA: Filesystem URL: "); Serial.println(url);
 
