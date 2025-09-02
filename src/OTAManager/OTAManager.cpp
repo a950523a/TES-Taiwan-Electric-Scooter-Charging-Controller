@@ -223,7 +223,9 @@ static void perform_firmware_update() {
     Serial.print("OTA: Firmware URL: "); Serial.println(url);
 
     WiFiClient client;
+    client.setTimeout(15000); 
     httpUpdate.onProgress(onProgress);
+    httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     t_httpUpdate_return ret = httpUpdate.update(client, url);
 
     Serial.println("OTA: Resuming other tasks...");
