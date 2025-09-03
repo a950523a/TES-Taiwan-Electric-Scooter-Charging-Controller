@@ -5,8 +5,12 @@
 #include <Preferences.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "OTAManager/OTAManager.h"
+#include "Version.h"
+#include <WiFi.h>
 
 extern SemaphoreHandle_t canDataMutex;
+extern bool filesystem_version_mismatch;
 
 // --- 私有(static)變量，只在這個文件內可見 ---
 static Preferences preferences; 
@@ -80,6 +84,26 @@ void logic_get_display_data(DisplayData& data) {
     data.targetSOC = userSetTargetSOC;
     data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
     data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
+    data.filesystemMismatch = filesystem_version_mismatch;
+
+    // --- [新增] 填充 OTA 數據 ---
+    data.currentFirmwareVersion = FIRMWARE_VERSION;
+    data.latestFirmwareVersion = ota_get_latest_version();
+    data.updateAvailable = (ota_get_status() == OTA_UPDATE_AVAILABLE);
+    data.otaProgress = ota_get_progress();
+    data.otaStatusMessage = ota_get_status_message();
+
+    data.filesystemMismatch = filesystem_version_mismatch;
+
+    // --- [修正] 填充 IP 地址 ---
+    if (WiFi.status() == WL_CONNECTED) {
+        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
+    } else if (WiFi.getMode() == WIFI_AP) {
+        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
+    } else {
+        strncpy(data.ipAddress, "Disconnected", 15);
+    }
+    data.ipAddress[15] = '\0'; // 確保字串結尾
 }
 
 void logic_init() {
@@ -206,6 +230,12 @@ void logic_run_statemachine() {
         Serial.println(F("Logic: Vehicle requested a normal stop BEFORE charging."));
         ch_sub_10_protection_and_end_flow(false); 
         return; 
+        }
+
+        if (status_snapshot.statusFlags & 0x08) { 
+            Serial.println(F("Logic: Vehicle requested a normal stop BEFORE charging."));
+            ch_sub_10_protection_and_end_flow(false); 
+            return;
         }
 
         static unsigned long relay_close_delay_start_time = 0;
