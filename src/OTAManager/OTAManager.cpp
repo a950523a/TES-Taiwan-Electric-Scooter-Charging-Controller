@@ -14,7 +14,7 @@
 #define GITHUB_USER "a950523a"
 #define GITHUB_REPO "TES-Taiwan-Electric-Scooter-Charging-Controller"
 
-RTC_DATA_ATTR int ota_step = 0;
+RTC_DATA_ATTR int ota_step = 0; // 0=Idle, 1=Need FS, 2=Need FW, 3=Need Both
 RTC_DATA_ATTR char latest_release_tag[32] = {0};
 RTC_DATA_ATTR char latest_fw_filename[64] = {0};
 RTC_DATA_ATTR char latest_fs_filename[64] = {0};
@@ -31,9 +31,13 @@ static void perform_filesystem_update();
 
 void ota_init() {
     Serial.println("OTA Manager Initialized.");
-    if (ota_step != 0) {
-        Serial.println("OTA: Detected pending update after reboot.");
-        delay(3000); 
+    // --- [修正] 檢查是否有待處理的韌體更新 ---
+    if (ota_step == 2 || ota_step == 3) { // 只要需要更新 FW (無論是否單獨)
+        Serial.println("OTA: Detected pending firmware update after reboot.");
+        // 立即設定狀態，以便 UI 顯示
+        currentStatus = OTA_DOWNLOADING_FW;
+        statusMessage = "Auto-starting FW update...";
+        delay(2000); // 等待 WiFi 連接
         ota_start_full_update(); 
     }
 }
@@ -71,6 +75,14 @@ const char* ota_get_latest_version() { return latest_release_tag; }
 int ota_get_progress() { return downloadProgress; }
 
 static void perform_check() {
+    // --- [修正] 如果有待處理的更新，則不執行新的檢查，防止狀態被覆寫 ---
+    if (ota_step != 0) {
+        Serial.println("OTA: Update is already pending, skipping check.");
+        statusMessage = "Pending update...";
+        currentStatus = OTA_UPDATE_AVAILABLE;
+        return;
+    }
+
     if (WiFi.status() != WL_CONNECTED) {
         statusMessage = "WiFi not connected";
         currentStatus = OTA_FAILED;
@@ -155,7 +167,6 @@ static void perform_check() {
                 
                 if (strcmp(latest_fs_version_from_asset.c_str(), local_fs_version.c_str()) != 0) {
                     fs_update_needed = true;
-                    // --- [修正] 補上儲存檔名的邏輯 ---
                     strncpy(latest_fs_filename, asset_name.c_str(), sizeof(latest_fs_filename) - 1);
                 }
             }
@@ -263,19 +274,19 @@ static void perform_firmware_update() {
                 Update.printError(Serial);
                 statusMessage = "FW Update failed!";
                 currentStatus = OTA_FAILED;
-                ota_step = 0;
+                //ota_step = 0;
             }
         } else {
             Serial.printf("OTA: FW Update incomplete. Written: %d, Total: %d\n", written, len);
             statusMessage = "FW Download incomplete";
             currentStatus = OTA_FAILED;
-            ota_step = 0;
+            //ota_step = 0;
         }
     } else {
         statusMessage = "FW Download failed: " + String(httpCode);
         currentStatus = OTA_FAILED;
         Serial.printf("OTA: Firmware download failed, error: %s\n", http.errorToString(httpCode).c_str());
-        ota_step = 0;
+        //ota_step = 0;
     }
     http.end();
 }
@@ -327,13 +338,23 @@ static void perform_filesystem_update() {
                 }
                 delay(1000);
                 ESP.restart();
-            } else { Update.printError(Serial); statusMessage = "FS Update failed!"; currentStatus = OTA_FAILED; ota_step = 0; }
-        } else { Serial.printf("OTA: FS Update incomplete. Written: %d, Total: %d\n", written, len); statusMessage = "FS Download incomplete"; currentStatus = OTA_FAILED; ota_step = 0; }
+            } else { 
+                Update.printError(Serial); 
+                statusMessage = "FS Update failed!"; 
+                currentStatus = OTA_FAILED; 
+                //ota_step = 0; 
+            }
+        } else { 
+            Serial.printf("OTA: FS Update incomplete. Written: %d, Total: %d\n", written, len); 
+            statusMessage = "FS Download incomplete"; 
+            currentStatus = OTA_FAILED; 
+            //ota_step = 0; 
+        }
     } else { 
         statusMessage = "FS Download failed: " + String(httpCode); 
         currentStatus = OTA_FAILED; 
         Serial.printf("OTA: Filesystem download failed, error: %s\n", http.errorToString(httpCode).c_str()); 
-        ota_step = 0; 
+        //ota_step = 0; 
     }
     http.end();
 }
