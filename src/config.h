@@ -11,8 +11,8 @@
 // 請根據您的實際接線修改以下GPIO編號
 
 // 按鈕 (Buttons)
-#define START_BUTTON_PIN      25
-#define STOP_BUTTON_PIN       32
+#define START_BUTTON_PIN      32
+#define STOP_BUTTON_PIN       25
 #define EMERGENCY_BUTTON_PIN  16
 #define SETTING_BUTTON_PIN    33
 
