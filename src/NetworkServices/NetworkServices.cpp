@@ -38,6 +38,8 @@ static void onWiFiEvent(WiFiEvent_t event);
 extern void logic_start_button_pressed();
 extern void logic_stop_button_pressed();
 
+extern void check_filesystem_version();
+
 // --- Web伺服器路由設定函數 ---
 static void startWebServer() {
     server.on("/status.json", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -73,6 +75,8 @@ static void startWebServer() {
         json_doc["ota_progress"] = network_display_data.otaProgress;
         json_doc["ota_status_message"] = network_display_data.otaStatusMessage;
         json_doc["filesystem_version"] = network_display_data.filesystemVersion;
+        json_doc["wifi_mode"] = network_display_data.wifiMode;
+        json_doc["wifi_ssid"] = network_display_data.wifiSSID;
         
         String json_response;
         serializeJson(json_doc, json_response);
@@ -228,7 +232,6 @@ void net_init() {
 
 // --- 任務處理函數 ---
 void net_handle_tasks(DisplayData& data) {
-    memcpy(&network_display_data, &data, sizeof(DisplayData));
     if (WiFi.status() == WL_CONNECTED) {
         data.wifiMode = "STA (Client)";
         strncpy(data.wifiSSID, WiFi.SSID().c_str(), 32);
@@ -246,6 +249,8 @@ void net_handle_tasks(DisplayData& data) {
     data.wifiSSID[32] = '\0';
     data.ipAddress[15] = '\0';
 
+    memcpy(&network_display_data, &data, sizeof(DisplayData));
+
     switch (wifiState) {
         case WIFI_STATE_INIT: {
             Preferences prefs;
@@ -258,12 +263,16 @@ void net_handle_tasks(DisplayData& data) {
                 Serial.print(ssid);
                 Serial.println("'...");
                 WiFi.mode(WIFI_STA);
+                LittleFS.begin();
+                check_filesystem_version();
                 WiFi.begin(ssid.c_str(), pass.c_str());
                 wifiState = WIFI_STATE_STA_CONNECTING;
                 state_timer = millis();
             } else {
                 Serial.println("WiFi: Starting AP mode.");
                 WiFi.mode(WIFI_AP);
+                LittleFS.begin();
+                check_filesystem_version();
                 WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
                 startWebServer();
                 dnsServer.start(53, "*", WiFi.softAPIP());

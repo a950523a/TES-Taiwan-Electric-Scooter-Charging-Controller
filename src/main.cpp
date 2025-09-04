@@ -69,6 +69,8 @@ void ota_task(void *pvParameters);
 // --- FreeRTOS 同步工具 ---
 // 為CAN數據創建一個互斥鎖
 SemaphoreHandle_t canDataMutex;
+DisplayData globalDisplayData;
+SemaphoreHandle_t displayDataMutex;
 
 TaskHandle_t canTaskHandle = NULL;
 TaskHandle_t logicTaskHandle = NULL;
@@ -122,6 +124,14 @@ void setup() {
         Serial.println("FATAL: Failed to create canDataMutex!");
         while(1);
     }
+
+    displayDataMutex = xSemaphoreCreateMutex();
+    if (displayDataMutex == NULL) {
+        Serial.println("FATAL: Failed to create displayDataMutex!");
+        while(1);
+    }
+    
+    memset(&globalDisplayData, 0, sizeof(DisplayData));
 
     // 按順序初始化各層
     hal_init_pins();
@@ -207,14 +217,23 @@ void can_task(void *pvParameters) {
 
 void logic_task(void *pvParameters) {
     Serial.println("Logic Task started.");
-    
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(20); 
-
     for (;;) {
         if (ui_get_current_state() == UI_STATE_NORMAL) {
             logic_run_statemachine();
             logic_handle_periodic_tasks();
+        }
+
+        if (xSemaphoreTake(displayDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            // 1. 填充充電相關數據
+            logic_get_display_data(globalDisplayData);
+            // 2. 補充系統級數據
+            globalDisplayData.filesystemMismatch = filesystem_version_mismatch;
+            strncpy(globalDisplayData.filesystemVersion, current_filesystem_version, 15);
+            globalDisplayData.filesystemVersion[15] = '\0';
+            
+            xSemaphoreGive(displayDataMutex);
         }
         
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -225,33 +244,38 @@ void ui_task(void *pvParameters) {
     Serial.println("UI Task started.");
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(50); 
-    DisplayData ui_data_packet;
+    DisplayData local_ui_data; // 宣告一個本地副本
+
     for (;;) {
-        logic_get_display_data(ui_data_packet);
-        strncpy(ui_data_packet.filesystemVersion, current_filesystem_version, 15);
-        ui_handle_input(ui_data_packet);
+        // --- [修改] 從數據中心獲取數據 ---
+        if (xSemaphoreTake(displayDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            memcpy(&local_ui_data, &globalDisplayData, sizeof(DisplayData));
+            xSemaphoreGive(displayDataMutex);
+        }
         
+        ui_handle_input(local_ui_data);
         LedState current_led_state = logic_get_led_state();
         hal_update_leds(current_led_state);
-        
-        ui_update_display(ui_data_packet);
-        
+        ui_update_display(local_ui_data);
         beacon_handle_tasks();
+        
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void wifi_task(void *pvParameters) {
     Serial.println("WiFi Task started.");
-    net_init();
-    check_filesystem_version();
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(100); 
-    DisplayData net_data_packet; // 宣告數據包裹
+
     for (;;) {
-        logic_get_display_data(net_data_packet); // 從 Logic 層獲取數據
-        strncpy(net_data_packet.filesystemVersion, current_filesystem_version, 15);
-        net_handle_tasks(net_data_packet); // 將數據包裹傳給 Network
+        // --- [修改] 處理網路，並直接更新數據中心 ---
+        if (xSemaphoreTake(displayDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            // net_handle_tasks 現在會直接修改 globalDisplayData
+            net_handle_tasks(globalDisplayData);
+            xSemaphoreGive(displayDataMutex);
+        }
+        
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
