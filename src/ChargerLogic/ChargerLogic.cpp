@@ -7,7 +7,6 @@
 #include "freertos/semphr.h"
 #include "OTAManager/OTAManager.h"
 #include "Version.h"
-#include <WiFi.h>
 
 extern SemaphoreHandle_t canDataMutex;
 extern bool filesystem_version_mismatch;
@@ -94,16 +93,6 @@ void logic_get_display_data(DisplayData& data) {
     data.otaStatusMessage = ota_get_status_message();
 
     data.filesystemMismatch = filesystem_version_mismatch;
-
-    // --- [修正] 填充 IP 地址 ---
-    if (WiFi.status() == WL_CONNECTED) {
-        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
-    } else if (WiFi.getMode() == WIFI_AP) {
-        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
-    } else {
-        strncpy(data.ipAddress, "Disconnected", 15);
-    }
-    data.ipAddress[15] = '\0'; // 確保字串結尾
 }
 
 void logic_init() {

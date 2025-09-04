@@ -232,15 +232,19 @@ void net_handle_tasks(DisplayData& data) {
     if (WiFi.status() == WL_CONNECTED) {
         data.wifiMode = "STA (Client)";
         strncpy(data.wifiSSID, WiFi.SSID().c_str(), 32);
+        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
     } else if (WiFi.getMode() == WIFI_AP) {
         data.wifiMode = "AP (Hotspot)";
         dnsServer.processNextRequest();
         strncpy(data.wifiSSID, WIFI_AP_SSID, 32);
+        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
     } else {
         data.wifiMode = "Connecting...";
         strncpy(data.wifiSSID, "", 32);
+        strncpy(data.ipAddress, "N/A", 15);
     }
     data.wifiSSID[32] = '\0';
+    data.ipAddress[15] = '\0';
 
     switch (wifiState) {
         case WIFI_STATE_INIT: {
