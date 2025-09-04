@@ -17,7 +17,7 @@ static unsigned long savedScreenStartTime = 0;
 static int mainMenuSelection = 0;
 static int mainMenuOffset = 0;
 const int MAX_MENU_ITEMS_ON_SCREEN = 4;
-static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "Save & Exit", "About"};
+static const char* mainMenuItems[] = {"Max Voltage", "Max Current", "Target SOC", "Save & Exit", "Network", "About"};
 static int aboutMenuSelection = 0; 
 static int updateMenuSelection = 0; 
 static const char* updateMenuItemText = "Check for Updates";
@@ -41,6 +41,7 @@ extern int logic_get_target_soc_setting();
 extern void logic_save_config(unsigned int voltage, unsigned int current, int soc);
 
 extern bool filesystem_version_mismatch;
+extern void net_reset_wifi_credentials();
 
 static byte findOledDevice() {
     byte common_addresses[] = {0x3C, 0x3D};
@@ -187,6 +188,9 @@ void ui_handle_input(const DisplayData& data) {
                     savedScreenStartTime = millis();
                 }
                 else if (mainMenuSelection == 4) {
+                    currentUIState = UI_STATE_MENU_NETWORK;
+                }
+                else if (mainMenuSelection == 5) {
                     currentUIState = UI_STATE_MENU_ABOUT;
                 }
             }
@@ -195,6 +199,16 @@ void ui_handle_input(const DisplayData& data) {
             }
             break;
         }
+
+        case UI_STATE_MENU_NETWORK:
+            if (settingShortPressTrigger) {
+                // 觸發 Wi-Fi 重置
+                net_reset_wifi_credentials();
+            }
+            if (settingLongPressTrigger) {
+                currentUIState = UI_STATE_MENU_MAIN;
+            }
+            break;
         
         case UI_STATE_MENU_ABOUT:
             if (settingShortPressTrigger) {
@@ -309,13 +323,31 @@ void ui_update_display(const DisplayData& data) {
                         u8g2.setFont(u8g2_font_5x8_tr);
                         sprintf(buffer, "FW: %s", data.currentFirmwareVersion);
                         u8g2.drawStr(0, 24, buffer);
-                        sprintf(buffer, "IP: %s", data.ipAddress);
+                        sprintf(buffer, "FS: %s", data.filesystemVersion);
                         u8g2.drawStr(0, 33, buffer);
                         u8g2.drawStr(0, 42, "Copyright (c) 2025 C.H.");
                         u8g2.setFont(u8g2_font_ncenB08_tr);
                         u8g2.drawStr(5, 60, ">");
                         u8g2.drawStr(15, 60, "Update Options");
                     }
+                    break;
+
+                case UI_STATE_MENU_NETWORK:
+                    u8g2.setFont(u8g2_font_ncenB10_tr);
+                    u8g2.drawStr(0, 12, "Network Settings");
+                    u8g2.drawHLine(0, 14, 128);
+
+                    u8g2.setFont(u8g2_font_6x10_tr);
+                    sprintf(buffer, "Mode: %s", data.wifiMode);
+                    u8g2.drawStr(0, 28, buffer);
+                    sprintf(buffer, "SSID: %s", data.wifiSSID);
+                    u8g2.drawStr(0, 40, buffer);
+                    sprintf(buffer, "IP: %s", data.ipAddress);
+                    u8g2.drawStr(0, 52, buffer);
+
+                    u8g2.setFont(u8g2_font_ncenB08_tr);
+                    u8g2.drawStr(5, 62, ">");
+                    u8g2.drawStr(15, 62, "Reset WiFi");
                     break;
                 
                 case UI_STATE_MENU_UPDATE_OPTIONS:
