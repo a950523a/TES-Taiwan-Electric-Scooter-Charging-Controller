@@ -11,33 +11,33 @@
 // 請根據您的實際接線修改以下GPIO編號
 
 // 按鈕 (Buttons)
-#define START_BUTTON_PIN      32
-#define STOP_BUTTON_PIN       25
-#define EMERGENCY_BUTTON_PIN  16
-#define SETTING_BUTTON_PIN    33
+#define START_BUTTON_PIN      42
+#define STOP_BUTTON_PIN       39
+#define EMERGENCY_BUTTON_PIN  40
+#define SETTING_BUTTON_PIN    41
 
 // LED 指示燈
-#define LED_STANDBY_PIN       14  // 橘燈
-#define LED_CHARGING_PIN      12  // 綠燈
-#define LED_ERROR_PIN         13  // 紅燈
+#define LED_STANDBY_PIN       5  // 橘燈
+#define LED_CHARGING_PIN      6  // 綠燈
+#define LED_ERROR_PIN         7  // 紅燈
 
 // 繼電器與輸出 (Relays & Outputs)
-#define CHARGE_RELAY_PIN      26  // 主充電繼電器
-#define LOCK_SOLENOID_PIN     27  // 電磁鎖 (可選)
-#define VP_RELAY_PIN          15  // VP 繼電器 
+#define CHARGE_RELAY_PIN      11  // 主充電繼電器
+#define LOCK_SOLENOID_PIN     10  // 電磁鎖 (可選)
+#define VP_RELAY_PIN          9  // VP 繼電器 
 
 // CAN Bus (TJA1051T/3)
-#define TWAI_TX_PIN           GPIO_NUM_5
-#define TWAI_RX_PIN           GPIO_NUM_4
+#define TWAI_TX_PIN           GPIO_NUM_17
+#define TWAI_RX_PIN           GPIO_NUM_18
 
 // I2C 總線 (OLED & ADS1115)
 // 通常是固定的，除非您有特殊需求
-// #define I2C_SDA_PIN           21
-// #define I2C_SCL_PIN           22
+#define I2C_SDA_PIN           16
+#define I2C_SCL_PIN           15
 
 // --- 分壓電阻定義 ---
 const float VOLTAGE_DIVIDER_120V_R1 = 348.0; // 標稱348kΩ 需自行校準
-const float VOLTAGE_DIVIDER_120V_R2 = 11.731;  // 標稱12kΩ 需自行校準
+const float VOLTAGE_DIVIDER_120V_R2 = 12;  // 標稱12kΩ 需自行校準
 const float VOLTAGE_DIVIDER_120V_RATIO = VOLTAGE_DIVIDER_120V_R2 / (VOLTAGE_DIVIDER_120V_R1 + VOLTAGE_DIVIDER_120V_R2);
 
 const float VOLTAGE_DIVIDER_CP_R1 = 150.0; // Ω
@@ -89,10 +89,7 @@ const unsigned int chargerManufacturerCode = 0x0000;
 
 // --- ?????? ---
 const int LUX_BEACON_TIME_UNIT_MS = 150;
-//#define DEVELOPER_MODE
-#ifdef DEVELOPER_MODE
-    #define CHARGER_RELAY_SIM_LED_PIN   2
-#endif
+#define DEVELOPER_MODE
 
 // =================================================================
 // =                END OF USER CONFIGURATION SECTION              =
