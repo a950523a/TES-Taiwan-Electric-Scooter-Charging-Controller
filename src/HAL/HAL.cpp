@@ -4,6 +4,7 @@
 #include "LuxBeacon/LuxBeacon.h"
 #include <Preferences.h> 
 #include "driver/twai.h"
+#include <Wire.h>
 
 static Adafruit_ADS1115 ads;
 
@@ -50,6 +51,8 @@ void hal_init_can() {
 
 
 void hal_init_adc() {
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    Serial.printf("HAL: I2C bus initialized on SDA=%d, SCL=%d\n", I2C_SDA_PIN, I2C_SCL_PIN);
     if (!ads.begin()) {
         Serial.println("HAL: Failed to initialize ADS1115. Halting.");
         while (1);
