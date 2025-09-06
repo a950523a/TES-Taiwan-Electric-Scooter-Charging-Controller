@@ -4,6 +4,7 @@
 #include "LuxBeacon/LuxBeacon.h"
 #include <Preferences.h> 
 #include "driver/twai.h"
+#include <Wire.h>
 
 static Adafruit_ADS1115 ads;
 
@@ -23,13 +24,6 @@ void hal_init_pins() {
     pinMode(LED_STANDBY_PIN, OUTPUT);
     pinMode(LED_CHARGING_PIN, OUTPUT);
     pinMode(LED_ERROR_PIN, OUTPUT);
-
-
-    #ifdef DEVELOPER_MODE
-        pinMode(CHARGER_RELAY_SIM_LED_PIN, OUTPUT);
-        digitalWrite(CHARGER_RELAY_SIM_LED_PIN, LOW);
-    #endif
-
 }
 
 void hal_init_can() {
@@ -57,6 +51,8 @@ void hal_init_can() {
 
 
 void hal_init_adc() {
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    Serial.printf("HAL: I2C bus initialized on SDA=%d, SCL=%d\n", I2C_SDA_PIN, I2C_SCL_PIN);
     if (!ads.begin()) {
         Serial.println("HAL: Failed to initialize ADS1115. Halting.");
         while (1);
@@ -96,9 +92,6 @@ void hal_control_vp_relay(bool on) {
 
 void hal_control_charge_relay(bool on) {
     digitalWrite(CHARGE_RELAY_PIN, on ? HIGH : LOW);
-    #ifdef DEVELOPER_MODE
-        digitalWrite(CHARGER_RELAY_SIM_LED_PIN, on ? HIGH : LOW);
-    #endif
     charge_relay_state = on;
 }
 

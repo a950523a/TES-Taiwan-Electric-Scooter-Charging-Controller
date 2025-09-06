@@ -1,0 +1,40 @@
+{
+  "build": {
+    "arduino": {
+      "memory_type": "qio_opi"
+    },
+    "core": "esp32",
+    "extra_flags": [
+      "-DARDUINO_ESP32S3_DEV",
+      "-DBOARD_HAS_PSRAM",
+      "-mfix-esp32-psram-cache-issue"
+    ],
+    "f_cpu": "240000000L",
+    "f_flash": "80000000L",
+    "flash_mode": "dio",
+    "mcu": "esp32s3",
+    "partitions": "default_16MB.csv",
+    "variant": "esp32s3"
+  },
+  "connectivity": [
+    "wifi",
+    "bluetooth"
+  ],
+  "debug": {
+    "openocd_target": "esp32s3.cfg"
+  },
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "name": "Custom ESP32-S3-WROOM-1 (N16R8)",
+  "upload": {
+    "flash_size": "16MB",
+    "maximum_ram_size": 8388608,
+    "maximum_size": 16777216,
+    "require_upload_port": true,
+    "speed": 921600
+  },
+  "url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_cn.pdf",
+  "vendor": "Custom"
+}
