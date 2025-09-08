@@ -629,3 +629,17 @@ void logic_stop_button_pressed() {
         Serial.println("Logic: Ignoring remote stop, charger is not in charging state.");
     }
 }
+
+void logic_save_web_settings(unsigned int current, int soc) {
+    // 獲取當前的設定值
+    unsigned int old_voltage = chargerMaxOutputVoltage_0_1V;
+    unsigned int old_current = chargerMaxOutputCurrent_0_1A;
+    int old_soc = userSetTargetSOC;
+
+    // 如果傳入的值不是 0，就使用新值；否則，使用舊值
+    unsigned int new_current = (current != 0) ? current : old_current;
+    int new_soc = (soc != 0) ? soc : old_soc;
+
+    // 呼叫底層的儲存函式
+    logic_save_config(old_voltage, new_current, new_soc);
+}
