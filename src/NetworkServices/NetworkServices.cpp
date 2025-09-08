@@ -20,6 +20,7 @@ static bool should_reboot = false;
 // --- [新增] 引用外部的 OTA 觸發函數 ---
 extern void ota_start_check();
 extern void ota_start_update();
+extern void logic_save_web_settings(unsigned int current, int soc);
 
 enum WiFiState {
     WIFI_STATE_INIT,
@@ -64,6 +65,7 @@ static void startWebServer() {
         json_doc["voltage"] = network_display_data.measuredVoltage;
         json_doc["current"] = network_display_data.measuredCurrent;
         json_doc["target_soc"] = network_display_data.targetSOC;
+        json_doc["max_voltage"] = network_display_data.maxVoltageSetting_0_1V;
         json_doc["max_current"] = (float)network_display_data.maxCurrentSetting_0_1A / 10.0;
         json_doc["time_formatted"] = time_buffer;
         json_doc["ip_address"] = network_display_data.ipAddress;
@@ -85,6 +87,23 @@ static void startWebServer() {
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(LittleFS, "/index.html", "text/html");
+    });
+
+    server.on("/save_settings", HTTP_POST, [](AsyncWebServerRequest *request){
+        unsigned int current = 0;
+        int soc = 0;
+
+        if (request->hasParam("max_current", true)) {
+            current = request->getParam("max_current", true)->value().toFloat() * 10;
+        }
+        if (request->hasParam("target_soc", true)) {
+            soc = request->getParam("target_soc", true)->value().toInt();
+        }
+
+        // 呼叫 logic 層的函式來儲存設定
+        logic_save_web_settings(current, soc);
+
+        request->send(200, "text/plain", "OK");
     });
 
     server.on("/wifi_setup.html", HTTP_GET, [](AsyncWebServerRequest *request){
