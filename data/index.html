@@ -7,7 +7,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 8px; background-color: #f5f5f5; }
         .container { max-width: 800px; margin: auto; }
         .card { background-color: white; box-shadow: 0 2px 4px 0 rgba(0,0,0,0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        h1, h2, h3 { color: #333; }
+        h1, h2, h3, h4 { color: #333; }
         .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
         .data-item label { color: #666; }
         .data-item .value { font-size: 1.8em; font-weight: bold; color: #000; }
@@ -15,10 +15,49 @@
         .btn { padding: 12px 24px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; }
         .btn-start { background-color: #4CAF50; color: white; }
         .btn-stop { background-color: #F44336; color: white; }
+        .btn-settings { background-color: #607D8B; color: white; }
+        .modal {
+            display: none; /* 預設隱藏 */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-btn:hover, .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; align-items: center; }
+        .settings-grid label { font-weight: bold; }
+        .settings-grid input[type=number] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        input[type=submit] { width: 100%; background-color: #008CBA; color: white; border: none; cursor: pointer; padding: 12px; margin-top: 10px; border-radius: 5px; }
         .btn-update { background-color: #008CBA; color: white; }
         .btn-update:disabled { background-color: #cccccc; cursor: not-allowed; }
         .progress-bar { width: 100%; background-color: #f1f1f1; border-radius: 5px; margin-top: 10px; }
         .progress-bar-inner { width: 0%; height: 20px; background-color: #4CAF50; border-radius: 5px; text-align: center; line-height: 20px; color: white; transition: width 0.5s; }
+        input[type=text], input[type=password], input[type=submit] { width: 100%; padding: 12px; margin: 8px 0; display: inline-block; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        input[type=submit] { background-color: #008CBA; color: white; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -36,21 +75,39 @@
         <div class="card">
             <h2>Controls & Settings</h2>
             <div class="data-grid">
-                <div class="data-item"><label>Target SOC</label><div><span id="target_soc">--</span> %</div></div>
+                <div class="data-item"><label>Max Voltage</label><div><span id="max_voltage">--</span> V</div></div>
                 <div class="data-item"><label>Max Current</label><div><span id="max_current">--</span> A</div></div>
+                <div class="data-item"><label>Target SOC</label><div><span id="target_soc">--</span> %</div></div>
             </div>
             <div class="button-group">
                 <button class="btn btn-start" onclick="sendAction('/start_charge')">START</button>
                 <button class="btn btn-stop" onclick="sendAction('/stop_charge')">STOP</button>
+                <button id="openSettingsModal" class="btn btn-settings">Settings</button>
             </div>
         </div>
+
+        <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span id="closeSettingsModal" class="close-btn">&times;</span>
+            <h2>Charge Parameters</h2>
+            <form id="settings_form">
+                <div class="settings-grid">
+                    <label for="max_current">Max Current (A)</label>
+                    <input type="number" id="max_current" name="max_current" step="0.1" min="1" max="100">
+
+                    <label for="target_soc">Target SOC (%)</label>
+                    <input type="number" id="target_soc" name="target_soc" step="1" min="50" max="100">
+                </div>
+                <input type="submit" value="Save Settings">
+            </form>
+        </div>
+    </div>
         
         <!-- [修改] About & OTA 區塊 -->
         <div class="card">
             <h2>About & Firmware Update</h2>
             <p><strong>Current Firmware:</strong> <span id="current_fw">--</span></p>
             <p><strong>Current Web UI:</strong> <span id="current_fs">--</span></p>
-            <p><strong>IP Address:</strong> <span id="ip_address">--</span></p>
             <p><strong>Copyright (c) 2025 Chris Huang</strong></p>
             
             <h3>Online Update (Requires Internet)</h3>
@@ -64,22 +121,38 @@
             </div>
 
             <h3>Manual Update (Offline)</h3>
-            <!-- [修改] 韌體手動上傳 -->
             <h4>Upload Firmware (.bin)</h4>
             <form id="upload_fw_form" method="POST" action="/update_fw" enctype="multipart/form-data">
-                <input type="file" name="firmware_update">
+                <input type="file" name="firmware_update" required>
                 <input type="submit" value="Upload Firmware">
             </form>
 
-            <!-- [新增] 檔案系統手動上傳 -->
             <h4>Upload Web UI (.bin)</h4>
             <form id="upload_fs_form" method="POST" action="/update_fs" enctype="multipart/form-data">
-                <input type="file" name="filesystem_update">
+                <input type="file" name="filesystem_update" required>
                 <input type="submit" value="Upload Web UI">
             </form>
         </div>
-    </div>
 
+        <!-- [新增] Network Settings 區塊 -->
+        <div class="card">
+            <h2>Network Settings</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Mode</label><div><span id="wifi_mode">--</span></div></div>
+                <div class="data-item"><label>SSID</label><div><span id="wifi_ssid">--</span></div></div>
+                <div class="data-item"><label>IP Address</label><div><span id="ip_address">--</span></div></div>
+            </div>
+            <h3>Setup New WiFi</h3>
+            <form id="wifi_form" method="POST" action="/save_wifi">
+                <input type="text" name="ssid" placeholder="New WiFi SSID" required>
+                <input type="password" name="pass" placeholder="Password">
+                <input type="submit" value="Save & Reboot">
+            </form>
+            <div class="button-group">
+                <button class="btn btn-stop" onclick="if(confirm('This will clear saved WiFi and reboot. Are you sure?')) sendAction('/reset_wifi');">Reset WiFi</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         function sendAction(path) {
@@ -99,12 +172,12 @@
                     document.getElementById("soc").innerHTML = data.soc;
                     document.getElementById("time").innerHTML = data.time_formatted;
                     document.getElementById("target_soc").innerHTML = data.target_soc;
+                    document.getElementById("max_voltage").innerHTML = (data.max_voltage/10).toFixed(1);
                     document.getElementById("max_current").innerHTML = data.max_current.toFixed(1);
                     
                     // 更新 About & OTA
                     document.getElementById("current_fw").innerHTML = data.current_fw_version;
                     document.getElementById("current_fs").innerHTML = data.filesystem_version;
-                    document.getElementById("ip_address").innerHTML = data.ip_address;
                     document.getElementById("ota_status").innerHTML = data.ota_status_message;
                     
                     var btnUpdate = document.getElementById("btn_update_start");
@@ -119,13 +192,59 @@
                     var progressBar = document.getElementById("ota_progress");
                     progressBar.style.width = data.ota_progress + "%";
                     progressBar.innerHTML = data.ota_progress + "%";
+
+                    // 更新 Network 資訊
+                    document.getElementById("wifi_mode").innerHTML = data.wifi_mode;
+                    document.getElementById("wifi_ssid").innerHTML = data.wifi_ssid;
+                    document.getElementById("ip_address").innerHTML = data.ip_address;
                 }
             };
             xhttp.open("GET", "/status.json", true);
             xhttp.send();
         }
 
-        // 處理手動上傳表單
+        var modal = document.getElementById("settingsModal");
+        var btnOpen = document.getElementById("openSettingsModal");
+        var btnClose = document.getElementById("closeSettingsModal");
+
+        // 點擊 "Settings" 按鈕時，打開視窗
+        btnOpen.onclick = function() {
+            // 在打開前，先用最新的數據填充表單
+            updateStatus(); 
+            modal.style.display = "block";
+        }
+
+        // 點擊 "x" 按鈕時，關閉視窗
+        btnClose.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // 點擊視窗外部時，關閉視窗
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // 處理設定表單提交
+        document.getElementById('settings_form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = e.target;
+            var data = new FormData(form);
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/save_settings", true);
+            xhr.onload = function(e) {
+                if (xhr.status === 200) {
+                    alert('Settings saved successfully!');
+                    modal.style.display = "none"; // 儲存成功後關閉視窗
+                } else {
+                    alert('Failed to save settings.');
+                }
+            };
+            xhr.send(data);
+        });
+
+        // 處理手動上傳韌體表單
         document.getElementById('upload_fw_form').addEventListener('submit', function(e) {
             e.preventDefault();
             var form = e.target;
@@ -135,7 +254,6 @@
             xhr.onload = function(e) {
                 if (xhr.status === 200) {
                     alert('Firmware upload successful! The device will now reboot.');
-                    // 延遲一小段時間，確保伺服器有時間處理重啟
                     setTimeout(function(){ window.location.reload(); }, 3000);
                 } else {
                     alert('Firmware upload failed. Please try again.');
@@ -144,7 +262,7 @@
             xhr.send(data);
         });
 
-        // [新增] 處理手動上傳檔案系統表單
+        // 處理手動上傳檔案系統表單
         document.getElementById('upload_fs_form').addEventListener('submit', function(e) {
             e.preventDefault();
             var form = e.target;
@@ -157,6 +275,24 @@
                     setTimeout(function(){ window.location.reload(); }, 3000);
                 } else {
                     alert('Web UI upload failed. Please try again.');
+                }
+            };
+            xhr.send(data);
+        });
+
+        // 處理 Wi-Fi 設定表單
+        document.getElementById('wifi_form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = e.target;
+            var data = new FormData(form);
+            var xhr = new XMLHttpRequest();
+            xhr.open(form.method, form.action, true);
+            xhr.onload = function(e) {
+                if (xhr.status === 200) {
+                    alert('WiFi settings saved! The device will now reboot.');
+                    setTimeout(function(){ window.location.reload(); }, 3000);
+                } else {
+                    alert('Failed to save WiFi settings.');
                 }
             };
             xhr.send(data);

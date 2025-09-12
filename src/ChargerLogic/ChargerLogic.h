@@ -12,6 +12,7 @@ void logic_handle_periodic_tasks();
 void logic_save_config(unsigned int voltage, unsigned int current, int soc);
 void logic_start_button_pressed();
 void logic_stop_button_pressed();
+void logic_save_web_settings(unsigned int current, int soc);
 
 // --- [新增] 提供給所有前端的統一數據接口 ---
 void logic_get_display_data(DisplayData& data);

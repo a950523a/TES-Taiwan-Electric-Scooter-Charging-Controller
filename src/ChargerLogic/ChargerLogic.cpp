@@ -7,7 +7,6 @@
 #include "freertos/semphr.h"
 #include "OTAManager/OTAManager.h"
 #include "Version.h"
-#include <WiFi.h>
 
 extern SemaphoreHandle_t canDataMutex;
 extern bool filesystem_version_mismatch;
@@ -94,16 +93,6 @@ void logic_get_display_data(DisplayData& data) {
     data.otaStatusMessage = ota_get_status_message();
 
     data.filesystemMismatch = filesystem_version_mismatch;
-
-    // --- [修正] 填充 IP 地址 ---
-    if (WiFi.status() == WL_CONNECTED) {
-        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
-    } else if (WiFi.getMode() == WIFI_AP) {
-        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
-    } else {
-        strncpy(data.ipAddress, "Disconnected", 15);
-    }
-    data.ipAddress[15] = '\0'; // 確保字串結尾
 }
 
 void logic_init() {
@@ -645,4 +634,18 @@ void logic_stop_button_pressed() {
     } else {
         Serial.println("Logic: Ignoring remote stop, charger is not in charging state.");
     }
+}
+
+void logic_save_web_settings(unsigned int current, int soc) {
+    // 獲取當前的設定值
+    unsigned int old_voltage = chargerMaxOutputVoltage_0_1V;
+    unsigned int old_current = chargerMaxOutputCurrent_0_1A;
+    int old_soc = userSetTargetSOC;
+
+    // 如果傳入的值不是 0，就使用新值；否則，使用舊值
+    unsigned int new_current = (current != 0) ? current : old_current;
+    int new_soc = (soc != 0) ? soc : old_soc;
+
+    // 呼叫底層的儲存函式
+    logic_save_config(old_voltage, new_current, new_soc);
 }
