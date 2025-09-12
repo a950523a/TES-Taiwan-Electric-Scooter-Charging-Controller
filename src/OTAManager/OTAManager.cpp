@@ -9,7 +9,7 @@
 #include <Update.h>
 #include <LittleFS.h>
 
-#define OTA_DEVELOPER_MODE 
+//#define OTA_DEVELOPER_MODE 
 
 #define GITHUB_USER "a950523a"
 #define GITHUB_REPO "TES-Taiwan-Electric-Scooter-Charging-Controller"
