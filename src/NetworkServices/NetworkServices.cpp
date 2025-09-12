@@ -20,6 +20,7 @@ static bool should_reboot = false;
 // --- [新增] 引用外部的 OTA 觸發函數 ---
 extern void ota_start_check();
 extern void ota_start_update();
+extern void logic_save_web_settings(unsigned int current, int soc);
 
 enum WiFiState {
     WIFI_STATE_INIT,
@@ -37,6 +38,8 @@ static void onWiFiEvent(WiFiEvent_t event);
 // --- 引用外部的 logic 層函數來觸發動作 ---
 extern void logic_start_button_pressed();
 extern void logic_stop_button_pressed();
+
+extern void check_filesystem_version();
 
 // --- Web伺服器路由設定函數 ---
 static void startWebServer() {
@@ -62,6 +65,7 @@ static void startWebServer() {
         json_doc["voltage"] = network_display_data.measuredVoltage;
         json_doc["current"] = network_display_data.measuredCurrent;
         json_doc["target_soc"] = network_display_data.targetSOC;
+        json_doc["max_voltage"] = network_display_data.maxVoltageSetting_0_1V;
         json_doc["max_current"] = (float)network_display_data.maxCurrentSetting_0_1A / 10.0;
         json_doc["time_formatted"] = time_buffer;
         json_doc["ip_address"] = network_display_data.ipAddress;
@@ -73,6 +77,8 @@ static void startWebServer() {
         json_doc["ota_progress"] = network_display_data.otaProgress;
         json_doc["ota_status_message"] = network_display_data.otaStatusMessage;
         json_doc["filesystem_version"] = network_display_data.filesystemVersion;
+        json_doc["wifi_mode"] = network_display_data.wifiMode;
+        json_doc["wifi_ssid"] = network_display_data.wifiSSID;
         
         String json_response;
         serializeJson(json_doc, json_response);
@@ -81,6 +87,69 @@ static void startWebServer() {
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(LittleFS, "/index.html", "text/html");
+    });
+
+    server.on("/save_settings", HTTP_POST, [](AsyncWebServerRequest *request){
+        unsigned int current = 0;
+        int soc = 0;
+
+        if (request->hasParam("max_current", true)) {
+            current = request->getParam("max_current", true)->value().toFloat() * 10;
+        }
+        if (request->hasParam("target_soc", true)) {
+            soc = request->getParam("target_soc", true)->value().toInt();
+        }
+
+        // 呼叫 logic 層的函式來儲存設定
+        logic_save_web_settings(current, soc);
+
+        request->send(200, "text/plain", "OK");
+    });
+
+    server.on("/wifi_setup.html", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/wifi_setup.html", "text/html");
+    });
+
+        server.on("/save_wifi", HTTP_POST, [](AsyncWebServerRequest *request){
+        String ssid = "";
+        String pass = "";
+        if (request->hasParam("ssid", true)) {
+            ssid = request->getParam("ssid", true)->value();
+        }
+        if (request->hasParam("pass", true)) {
+            pass = request->getParam("pass", true)->value();
+        }
+
+        Serial.println("NET: Saving new WiFi credentials...");
+        Serial.print("SSID: "); Serial.println(ssid);
+        Serial.print("Password: "); Serial.println(pass);
+
+        Preferences prefs;
+        prefs.begin("wifi_config", false);
+        prefs.putString("ssid", ssid);
+        prefs.putString("pass", pass);
+        prefs.end();
+
+        String response_html = R"rawliteral(
+            <!DOCTYPE html>
+            <html>
+            <head><title>Rebooting...</title></head>
+            <body>
+                <h1>Settings Saved!</h1>
+                <p>The device will now reboot and try to connect to the new WiFi network.</p>
+                <p>Please reconnect your phone/computer to your normal WiFi network and find the device's new IP address.</p>
+            </body>
+            </html>
+        )rawliteral";
+        request->send(200, "text/html", response_html);
+        
+        delay(1000);
+        ESP.restart();
+    });
+
+    server.on("/reset_wifi", HTTP_POST, [](AsyncWebServerRequest *request){
+        net_reset_wifi_credentials();
+        request->send(200, "text/plain", "OK");
     });
 
     server.on("/start_charge", HTTP_POST, [](AsyncWebServerRequest *request){
@@ -181,11 +250,25 @@ void net_init() {
 }
 
 // --- 任務處理函數 ---
-void net_handle_tasks(const DisplayData& data) {
-    memcpy(&network_display_data, &data, sizeof(DisplayData));
-    if (WiFi.getMode() == WIFI_AP) {
+void net_handle_tasks(DisplayData& data) {
+    if (WiFi.status() == WL_CONNECTED) {
+        data.wifiMode = "STA (Client)";
+        strncpy(data.wifiSSID, WiFi.SSID().c_str(), 32);
+        strncpy(data.ipAddress, WiFi.localIP().toString().c_str(), 15);
+    } else if (WiFi.getMode() == WIFI_AP) {
+        data.wifiMode = "AP (Hotspot)";
         dnsServer.processNextRequest();
+        strncpy(data.wifiSSID, WIFI_AP_SSID, 32);
+        strncpy(data.ipAddress, WiFi.softAPIP().toString().c_str(), 15);
+    } else {
+        data.wifiMode = "Connecting...";
+        strncpy(data.wifiSSID, "", 32);
+        strncpy(data.ipAddress, "N/A", 15);
     }
+    data.wifiSSID[32] = '\0';
+    data.ipAddress[15] = '\0';
+
+    memcpy(&network_display_data, &data, sizeof(DisplayData));
 
     switch (wifiState) {
         case WIFI_STATE_INIT: {
@@ -199,12 +282,16 @@ void net_handle_tasks(const DisplayData& data) {
                 Serial.print(ssid);
                 Serial.println("'...");
                 WiFi.mode(WIFI_STA);
+                LittleFS.begin();
+                check_filesystem_version();
                 WiFi.begin(ssid.c_str(), pass.c_str());
                 wifiState = WIFI_STATE_STA_CONNECTING;
                 state_timer = millis();
             } else {
                 Serial.println("WiFi: Starting AP mode.");
                 WiFi.mode(WIFI_AP);
+                LittleFS.begin();
+                check_filesystem_version();
                 WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
                 startWebServer();
                 dnsServer.start(53, "*", WiFi.softAPIP());
@@ -241,4 +328,16 @@ void net_handle_tasks(const DisplayData& data) {
         delay(1000); // 等待 Web Server 回應完成
         ESP.restart();
     }
+}
+
+void net_reset_wifi_credentials() {
+    Serial.println("NET: Resetting WiFi credentials...");
+    Preferences prefs;
+    prefs.begin("wifi_config", false);
+    prefs.remove("ssid");
+    prefs.remove("pass");
+    prefs.end();
+    Serial.println("NET: WiFi credentials cleared. Rebooting...");
+    delay(1000);
+    ESP.restart();
 }

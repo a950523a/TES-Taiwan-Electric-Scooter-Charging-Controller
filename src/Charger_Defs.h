@@ -41,6 +41,7 @@ enum UIState {
     UI_STATE_MENU_SET_CURRENT,
     UI_STATE_MENU_SET_SOC,
     UI_STATE_MENU_SAVED,
+    UI_STATE_MENU_NETWORK,
     UI_STATE_MENU_ABOUT,
     UI_STATE_MENU_UPDATE_OPTIONS
 };
@@ -77,9 +78,15 @@ struct DisplayData {
     bool updateAvailable;
     int otaProgress;
     const char* otaStatusMessage;
+    
+    // 系統狀態
     char ipAddress[16];
     bool filesystemMismatch; 
     char filesystemVersion[16]; 
+
+    // --- [新增] Wi-Fi 相關數據 ---
+    const char* wifiMode;
+    char wifiSSID[33];
 };
 
 
