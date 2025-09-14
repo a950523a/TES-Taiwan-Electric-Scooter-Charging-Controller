@@ -38,6 +38,7 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 本專案基於Arduino框架開發。請在編譯器的函式庫管理員中安裝以下函式庫：
 
 **請參照Release**
+
 **目前v2版本使用PlatformIO進行編譯及開發，PlatformIO會自行下載函示庫依賴(platformio.ini有配置好的話)**
   
 ## 安裝與使用 (Installation & Usage)
