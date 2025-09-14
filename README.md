@@ -1,10 +1,10 @@
-# TES-0D-02-01 Compatible DC Charger Controller for ESP32
+# TES-0D-02-01 Compatible DC Charger Controller for ESP32-S3
 
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-A DIY, open-source DC charger controller project for electric scooters, compatible with the TES-0D-02-01 industry standard, built upon the ESP32 platform.
+A DIY, open-source DC charger controller project for electric scooters, compatible with the TES-0D-02-01 industry standard, built upon the ESP32-S3 platform.
 
-一個基於ESP32開發的DIY開源電動機車直流充電樁控制器，相容TES-0D-02-01產業標準。
+一個基於ESP32-S3開發的DIY開源電動機車直流充電樁控制器，相容TES-0D-02-01產業標準。
 
 **禁止商業使用**
 
@@ -26,32 +26,32 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 *   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
 *   **可調輸出**: 可調最大電壓、電流、SOC。
 *   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
+*   **網頁顯示及設定**: 透過Web UI顯示充電狀態及操作。
 *   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
 
 ## 硬體需求 (Hardware Requirements)
 
-詳細的硬體材料，請參照Release中的 **物料清單** 文件。
+詳細的硬體材料，請參照 **物料清單** 文件，路徑在docs內。
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
 本專案基於Arduino框架開發。請在編譯器的函式庫管理員中安裝以下函式庫：
 
 **請參照Release**
+**目前v2版本使用PlatformIO進行編譯及開發，PlatformIO會自行下載函示庫依賴(*platformio.ini有配置好)**
   
 ## 安裝與使用 (Installation & Usage)
 
-1.  **硬體連接**: 根據電路圖（如果有的話）或程式碼中的引腳定義連接所有硬體。
-   
-    *詳細的硬體接線方法，請參考專案中的 **接線指南** 文件。
-    
+1.  **硬體連接**: 根據程式碼中的引腳定義連接所有硬體。
 2.  **函式庫安裝**: 確保已安裝所有必要的函式庫。
 3.  **程式碼配置**: 在程式碼頂部根據您的硬體配置修改引腳定義和充電樁物理極限參數。
-4.  **編譯與上傳**: 將程式碼上傳到您的ESP32開發板。
+4.  **編譯與上傳**: 將程式碼上傳到您的ESP32-S3開發板。
 5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
 
 *  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
 *  設定選單在有安裝OLED模組時才會啟用
 *  **CAN Bus模組要確認無短路才接上，否則會燒BMS!!!**
+*  **務必將線材連接牢固絕緣包覆後再進行使用，引免因意外損壞車身零件**
   
 **操作方式**
 
