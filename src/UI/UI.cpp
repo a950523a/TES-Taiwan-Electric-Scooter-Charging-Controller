@@ -194,9 +194,6 @@ void ui_handle_input(const DisplayData& data) {
                     currentUIState = UI_STATE_MENU_ABOUT;
                 }
             }
-            if (settingLongPressTrigger) {
-                currentUIState = UI_STATE_NORMAL;
-            }
             break;
         }
 
@@ -241,7 +238,7 @@ void ui_handle_input(const DisplayData& data) {
             if (downShortPressTrigger) tempSetting_Voltage -= 1;
             if (upRepeatTrigger) tempSetting_Voltage += 10;
             if (downRepeatTrigger) tempSetting_Voltage -= 10;
-            if (settingShortPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
+            if (settingLongPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Voltage = constrain(tempSetting_Voltage, HARDWARE_MIN_VOLTAGE_0_1V, HARDWARE_MAX_VOLTAGE_0_1V);
             break;
         case UI_STATE_MENU_SET_CURRENT:
@@ -249,13 +246,13 @@ void ui_handle_input(const DisplayData& data) {
             if (downShortPressTrigger) tempSetting_Current -= 1;
             if (upRepeatTrigger) tempSetting_Current += 10;
             if (downRepeatTrigger) tempSetting_Current -= 10;
-            if (settingShortPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
+            if (settingLongPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_Current = constrain(tempSetting_Current, HARDWARE_MIN_CURRENT_0_1A, HARDWARE_MAX_CURRENT_0_1A);
             break;
         case UI_STATE_MENU_SET_SOC:
             if (upShortPressTrigger || upRepeatTrigger) tempSetting_SOC += 1;
             if (downShortPressTrigger || downRepeatTrigger) tempSetting_SOC -= 1;
-            if (settingShortPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
+            if (settingLongPressTrigger) currentUIState = UI_STATE_MENU_MAIN;
             tempSetting_SOC = constrain(tempSetting_SOC, HARDWARE_MIN_SOC, HARDWARE_MAX_SOC);
             break;
         

@@ -191,7 +191,7 @@ static void perform_check() {
             statusMessage = "Firmware Update Available!";
         } else if (fs_update_needed) {
             ota_step = 1;
-            statusMessage = "Web UI Update Available!";
+            statusMessage = "File system Update Available!";
         } else {
             ota_step = 0;
             statusMessage = "No new update";
