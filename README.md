@@ -6,6 +6,8 @@ A DIY, open-source DC charger controller project for electric scooters, compatib
 
 一個基於ESP32-S3開發的DIY開源電動機車直流充電樁控制器，相容TES-0D-02-01產業標準。
 
+FB社群連結:https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT
+
 **禁止商業使用**
 
 ---
