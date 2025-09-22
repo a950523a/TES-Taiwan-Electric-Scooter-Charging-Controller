@@ -67,10 +67,17 @@
             <h2>Live Data</h2>
             <div class="data-grid">
                 <div class="data-item"><label>Voltage</label><div><span id="voltage" class="value">--</span> V</div></div>
-                <div class="data-item"><label>Current</label><div><span id="current" class="value">--</span> A</div></div>
                 <div class="data-item"><label>SOC</label><div><span id="soc" class="value">--</span> %</div></div>
+                <div class="data-item"><label>Current</label><div><span id="current" class="value">--</span> A</div></div>
+                <div class="data-item"><label>Vehicle Requested Current</label><div><span id="req_current" class="value">--</span> A</div></div>
                 <div class="data-item"><label>Time Left</label><div><span id="time" class="value">--:--</span></div></div>
             </div>
+        </div>
+        <div class="card" id="fault_card" style="display:none; background-color: #FFEBEE;">
+            <h2>Charge Stopped: FAULT</h2>
+            <p><strong>Last Valid Requested Current:</strong> <span id="fault_last_req_current">--</span> A</p>
+            <p><strong>Fault Flags (Hex):</strong> <span id="fault_flags_hex">--</span></p>
+            <div id="fault_flags_decoded"></div>
         </div>
         <div class="card">
             <h2>Controls & Settings</h2>
@@ -174,11 +181,34 @@
                     document.getElementById("target_soc").innerHTML = data.target_soc;
                     document.getElementById("max_voltage").innerHTML = (data.max_voltage/10).toFixed(1);
                     document.getElementById("max_current").innerHTML = data.max_current.toFixed(1);
+                    document.getElementById("req_current").innerHTML = data.vehicle_req_current.toFixed(1);
                     
                     // 更新 About & OTA
                     document.getElementById("current_fw").innerHTML = data.current_fw_version;
                     document.getElementById("current_fs").innerHTML = data.filesystem_version;
                     document.getElementById("ota_status").innerHTML = data.ota_status_message;
+
+                    var faultCard = document.getElementById("fault_card");
+                    if (data.is_fault) {
+                        faultCard.style.display = "block";
+                        document.getElementById("fault_last_req_current").innerHTML = data.last_valid_req_current.toFixed(1);
+                        document.getElementById("fault_flags_hex").innerHTML = "0x" + data.last_fault_flags.toString(16).toUpperCase();
+                    
+                    var decodedHtml = "<h4>Decoded Flags:</h4>";
+                    if (data.last_fault_flags > 0) {
+                        if (data.last_fault_flags & 0x01) decodedHtml += "<p>Bit 0: Supply System Error</p>";
+                        if (data.last_fault_flags & 0x02) decodedHtml += "<p>Bit 1: Battery Over-Voltage</p>";
+                        if (data.last_fault_flags & 0x04) decodedHtml += "<p>Bit 2: Battery Under-Voltage</p>";
+                        if (data.last_fault_flags & 0x08) decodedHtml += "<p>Bit 3: Battery Current Difference</p>";
+                        if (data.last_fault_flags & 0x10) decodedHtml += "<p>Bit 4: Battery High Temperature</p>";
+                        if (data.last_fault_flags & 0x20) decodedHtml += "<p>Bit 5: Battery Voltage Difference</p>";
+                    }
+
+                    document.getElementById("fault_flags_decoded").innerHTML = decodedHtml;
+
+                    } else {
+                        faultCard.style.display = "none";
+                    }
                     
                     var btnUpdate = document.getElementById("btn_update_start");
                     if (data.update_available) {

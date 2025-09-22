@@ -56,6 +56,8 @@ static void ch_sub_10_protection_and_end_flow(bool isFault);
 static void ch_sub_12_emergency_stop_procedure();
 static bool remote_start_requested = false;
 static bool remote_stop_requested = false;
+static float lastValidRequestedCurrent_latch = 0.0;
+static byte lastFaultFlags_latch = 0;
 
 enum PreChargeStep {
     STEP_INIT,
@@ -84,6 +86,17 @@ void logic_get_display_data(DisplayData& data) {
     data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
     data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
     data.filesystemMismatch = filesystem_version_mismatch;
+
+    // --- [新增] 填充新的狀態數據 ---
+    if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        data.vehicleRequestedCurrent = (float)vehicleStatus500.chargeCurrentCommand / 10.0;
+        xSemaphoreGive(canDataMutex);
+    } else {
+        data.vehicleRequestedCurrent = 0.0;
+    }
+    
+    data.lastFaultFlags = lastFaultFlags_latch;
+    data.lastValidRequestedCurrent = lastValidRequestedCurrent_latch;
 
     // --- [新增] 填充 OTA 數據 ---
     data.currentFirmwareVersion = FIRMWARE_VERSION;
@@ -131,6 +144,9 @@ void logic_init() {
     currentStateStartTime = millis();
     readAndSetCPState();
     hal_control_vp_relay(false);
+    
+    lastValidRequestedCurrent_latch = 0.0;
+    lastFaultFlags_latch = 0;
 }
 
 void logic_save_config(unsigned int voltage, unsigned int current, int soc){
@@ -537,7 +553,13 @@ static void ch_sub_04_dc_current_output_control() {
         return;
     }
     if (hal_get_charge_relay_state()) {
-        measuredCurrent = (float)status_snapshot.chargeCurrentCommand / 10.0;
+        measuredCurrent = (float)chargerMaxOutputCurrent_0_1A / 10.0;
+
+        float current_request = (float)status_snapshot.chargeCurrentCommand / 10.0;
+        if (current_request > 0) {
+            lastValidRequestedCurrent_latch = current_request;
+        }
+
     } else {
         measuredCurrent = 0.0;
     }
@@ -576,6 +598,7 @@ static void ch_sub_06_monitoring_process() {
     }
     if (status_snapshot.faultFlags != 0) {
         Serial.println(F("Logic MONITOR: Fault reported by vehicle."));
+        lastFaultFlags_latch = status_snapshot.faultFlags;
         ch_sub_10_protection_and_end_flow(true); return;
     }
     if (currentCPState != CP_STATE_ON) {

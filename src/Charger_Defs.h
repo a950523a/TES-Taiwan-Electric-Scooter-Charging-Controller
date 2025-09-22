@@ -68,9 +68,10 @@ struct DisplayData {
     unsigned int maxVoltageSetting_0_1V;
     unsigned int maxCurrentSetting_0_1A;
 
-    // CAN Bus 旗標 (未來可擴充)
-    // byte vehicleFaultFlags;
-    // byte vehicleStatusFlags;
+    // --- [新增] 車輛請求電流和故障資訊 ---
+    float vehicleRequestedCurrent; // BMS 請求的電流
+    byte lastFaultFlags;           // 停止前的最後故障旗標 (來自 0x500)
+    float lastValidRequestedCurrent; // 停止前最後一個有效的電流請求
 
     // OTA 相關數據
     const char* currentFirmwareVersion;
