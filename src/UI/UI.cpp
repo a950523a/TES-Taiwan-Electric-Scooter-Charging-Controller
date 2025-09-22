@@ -420,11 +420,18 @@ void ui_update_display(const DisplayData& data) {
                 case STATE_CHG_IDLE:
                     if (data.isFaultLatched) {
                         u8g2.setFont(u8g2_font_ncenB12_tr);
-                        strWidth = u8g2.getStrWidth("ERROR!");
-                        u8g2.drawStr((128 - strWidth) / 2, 30, "ERROR!");
+                        u8g2.drawStr(0, 12, "ERROR!");
+                        u8g2.setFont(u8g2_font_6x10_tr);
+                        sprintf(buffer, "Last Req: %.1fA", data.lastValidRequestedCurrent);
+                        u8g2.drawStr(0, 28, buffer);
+                        sprintf(buffer, "Fault Flags: 0x%02X", data.lastFaultFlags);
+                        u8g2.drawStr(0, 40, buffer);
+                        
+                        // 新增 Ready 和 Target SOC 顯示
                         u8g2.setFont(u8g2_font_ncenB08_tr);
-                        strWidth = u8g2.getStrWidth("Press START to reset");
-                        u8g2.drawStr((128 - strWidth) / 2, 50, "Press START to reset");
+                        sprintf(buffer, "Ready (SOC:%d%%)", data.targetSOC);
+                        uint16_t strWidth = u8g2.getStrWidth(buffer);
+                        u8g2.drawStr((128 - strWidth) / 2, 60, buffer);
                     } else if (data.isChargeComplete) {
                         u8g2.setFont(u8g2_font_ncenB10_tr);
                         strWidth = u8g2.getStrWidth("Charge Complete");
@@ -473,7 +480,7 @@ void ui_update_display(const DisplayData& data) {
                     }
                     u8g2.drawStr(5, 40, buffer);
                     u8g2.setFont(u8g2_font_ncenB08_tr);
-                    sprintf(buffer, "%.1fV / %.1fA", data.measuredVoltage, data.measuredCurrent);
+                    sprintf(buffer, "%.1fV/%.1fA/Req:%.1fA", data.measuredVoltage, data.measuredCurrent, data.vehicleRequestedCurrent);
                     u8g2.drawStr(5, 60, buffer);
                     break;
                 case STATE_CHG_ENDING_CHARGE_PROCESS:

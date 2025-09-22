@@ -69,6 +69,10 @@ static void startWebServer() {
         json_doc["max_current"] = (float)network_display_data.maxCurrentSetting_0_1A / 10.0;
         json_doc["time_formatted"] = time_buffer;
         json_doc["ip_address"] = network_display_data.ipAddress;
+        json_doc["vehicle_req_current"] = network_display_data.vehicleRequestedCurrent;
+        json_doc["is_fault"] = network_display_data.isFaultLatched;
+        json_doc["last_fault_flags"] = network_display_data.lastFaultFlags;
+        json_doc["last_valid_req_current"] = network_display_data.lastValidRequestedCurrent;
 
         // --- [新增] 填充 OTA 數據 ---
         json_doc["current_fw_version"] = network_display_data.currentFirmwareVersion;
