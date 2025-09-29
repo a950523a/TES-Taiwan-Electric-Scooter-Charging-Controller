@@ -232,12 +232,6 @@ void logic_run_statemachine() {
         }
 
         if (status_snapshot.statusFlags & 0x08) { 
-        Serial.println(F("Logic: Vehicle requested a normal stop BEFORE charging."));
-        ch_sub_10_protection_and_end_flow(false); 
-        return; 
-        }
-
-        if (status_snapshot.statusFlags & 0x08) { 
             Serial.println(F("Logic: Vehicle requested a normal stop BEFORE charging."));
             ch_sub_10_protection_and_end_flow(false); 
             return;
