@@ -10,6 +10,7 @@
 
 extern SemaphoreHandle_t canDataMutex;
 extern bool filesystem_version_mismatch;
+extern void ui_show_boot_screen(const char* line1, const char* line2);
 
 // --- 私有(static)變量，只在這個文件內可見 ---
 static Preferences preferences; 
@@ -110,7 +111,26 @@ void logic_get_display_data(DisplayData& data) {
 
 void logic_init() {
     preferences.begin("charger_config", false);
-    chargerMaxOutputVoltage_0_1V = preferences.getUInt("max_voltage", 1000);
+
+    ui_show_boot_screen("Please Wait", "Auto-setting Voltage...");
+    Serial.println("Auto-setting max voltage...");
+
+    delay(1500);
+    float detected_voltage = 0;
+    for (int i=0; i<5;i++){
+        detected_voltage += hal_read_power_supply_voltage();
+        delay(50);
+    } 
+    detected_voltage/=5.0;
+    if (detected_voltage > 59.0 && detected_voltage < 121.0) {
+        chargerMaxOutputVoltage_0_1V = (unsigned int)(detected_voltage * 10.0);
+        Serial.printf("Detected voltage: %.1fV. Set max voltage to: %u (0.1V units)\n", detected_voltage, chargerMaxOutputVoltage_0_1V);
+        preferences.putUInt("max_voltage", chargerMaxOutputVoltage_0_1V);
+    } else {
+        Serial.printf("Voltage detection failed (%.1fV). Using stored value.\n", detected_voltage);
+        chargerMaxOutputVoltage_0_1V = preferences.getUInt("max_voltage", 1000);
+    }
+    
     chargerMaxOutputCurrent_0_1A = preferences.getUInt("max_current", 100);
     userSetTargetSOC = preferences.getInt("target_soc", 100);
 

@@ -27,6 +27,7 @@ bool hal_get_charge_relay_state();
 // 輸入讀取
 bool hal_get_button_state(ButtonType button);
 float hal_read_voltage_sensor();
+float hal_read_power_supply_voltage();
 float hal_read_cp_voltage();
 // 注意：hal_read_current_sensor() 已被移除，因為電流是從CAN讀取或由邏輯層模擬，不屬於HAL的職責
 

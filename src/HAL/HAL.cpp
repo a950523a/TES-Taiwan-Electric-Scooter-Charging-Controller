@@ -80,6 +80,13 @@ float hal_read_voltage_sensor() {
     return abs(differential_voltage) / VOLTAGE_DIVIDER_120V_RATIO;
 }
 
+float hal_read_power_supply_voltage() {
+    int16_t adc_raw = ads.readADC_Differential_0_1();
+    float differential_voltage = ads.computeVolts(adc_raw);
+    return abs(differential_voltage) / VOLTAGE_DIVIDER_120V_RATIO;
+}
+
+
 float hal_read_cp_voltage() {
     int16_t adc_raw = ads.readADC_Differential_2_3();
     float differential_voltage = ads.computeVolts(adc_raw);

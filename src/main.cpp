@@ -117,6 +117,7 @@ void check_filesystem_version() {
 
 void setup() {
     Serial.begin(115200);
+    delay(500);
     Serial.println(F("DC Charger Controller Booting Up..."));
 
     canDataMutex = xSemaphoreCreateMutex();
@@ -138,12 +139,25 @@ void setup() {
     hal_init_adc();
     hal_init_can();
 
+    ui_init(); 
+    net_init(); 
+    check_filesystem_version();
+    ui_show_boot_screen("Please Wait", "Initializing Logic...");
     logic_init();        
-    ui_init();     
     beacon_init();
     ota_init(); 
 
+    Serial.println("Performing initial data population...");
+    if (xSemaphoreTake(displayDataMutex, portMAX_DELAY) == pdTRUE) {
+        logic_get_display_data(globalDisplayData);
+        globalDisplayData.filesystemMismatch = filesystem_version_mismatch;
+        strncpy(globalDisplayData.filesystemVersion, current_filesystem_version, 15);
+        globalDisplayData.filesystemVersion[15] = '\0';
+        net_handle_tasks(globalDisplayData); // 填充網路數據
+        xSemaphoreGive(displayDataMutex);
+    }
     Serial.println(F("System Initialized. Creating FreeRTOS tasks..."));
+    ui_show_boot_screen("TES Charger", "Starting System...");
 
     xTaskCreate(
         can_task,
