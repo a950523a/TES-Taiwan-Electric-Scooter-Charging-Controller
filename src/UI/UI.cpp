@@ -62,18 +62,9 @@ void ui_init() {
             isOledConnected = true;
             Serial.println(F("UI: OLED display initialized successfully."));
             u8g2.setFlipMode(1);
-            u8g2.clearBuffer();
-            u8g2.setFont(u8g2_font_ncenB10_tr);
-            uint16_t strWidth = u8g2.getStrWidth("TES Charger");
-            u8g2.drawStr((128 - strWidth) / 2, 25, "TES Charger");
-            u8g2.setFont(u8g2_font_ncenB08_tr);
-            strWidth = u8g2.getStrWidth("Booting...");
-            u8g2.drawStr((128 - strWidth) / 2, 45, "Booting...");
-            u8g2.setFont(u8g2_font_6x10_tr);
-            strWidth = u8g2.getStrWidth(FIRMWARE_VERSION);
-            u8g2.drawStr(128 - strWidth - 2, 62, FIRMWARE_VERSION);
-            u8g2.sendBuffer();
-            delay(2500);
+
+            ui_show_boot_screen("TES Charger", "Booting...");
+            delay(1000);
         } else {
             isOledConnected = false;
             Serial.println(F("UI: Device found, but U8g2 initialization failed."));
@@ -82,6 +73,27 @@ void ui_init() {
         isOledConnected = false;
         Serial.println(F("UI: No OLED display found."));
     }
+}
+
+void ui_show_boot_screen(const char* line1, const char* line2) {
+    if (!isOledConnected) return;
+
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_ncenB10_tr);
+    uint16_t strWidth = u8g2.getStrWidth(line1);
+    u8g2.drawStr((128 - strWidth) / 2, 25, line1);
+
+    if (line2 != nullptr) {
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+        strWidth = u8g2.getStrWidth(line2);
+        u8g2.drawStr((128 - strWidth) / 2, 45, line2);
+    }
+
+    u8g2.setFont(u8g2_font_6x10_tr);
+    strWidth = u8g2.getStrWidth(FIRMWARE_VERSION);
+    u8g2.drawStr(128 - strWidth - 2, 62, FIRMWARE_VERSION);
+    
+    u8g2.sendBuffer();
 }
 
 UIState ui_get_current_state() {
