@@ -310,13 +310,21 @@ void net_handle_tasks(DisplayData& data) {
                 wifiState = WIFI_STATE_STA_CONNECTED;
                 dnsServer.stop();
                 startWebServer();
-            } else if (millis() - state_timer > 20000) {
+            } else if (millis() - state_timer > 3000) {
                 Serial.println("WiFi: STA connection failed. Switching to AP mode.");
-                WiFi.disconnect();
-                server.end();
-                wifiState = WIFI_STATE_INIT; // 回到 INIT 重新決策
+                WiFi.disconnect(true); 
+                delay(100); 
+
+                WiFi.mode(WIFI_AP);
+                LittleFS.begin();
+                check_filesystem_version();
+                WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
+                startWebServer();
+                dnsServer.start(53, "*", WiFi.softAPIP());
+                wifiState = WIFI_STATE_AP_IDLE;
             }
             break;
+            
         case WIFI_STATE_STA_CONNECTED:
             if (WiFi.status() != WL_CONNECTED) {
                 Serial.println("WiFi: STA connection lost. Re-initializing...");
