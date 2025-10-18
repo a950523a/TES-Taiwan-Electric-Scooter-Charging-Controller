@@ -141,7 +141,6 @@ void setup() {
 
     ui_init(); 
     net_init(); 
-    check_filesystem_version();
     ui_show_boot_screen("Please Wait", "Initializing Logic...");
     logic_init();        
     beacon_init();
