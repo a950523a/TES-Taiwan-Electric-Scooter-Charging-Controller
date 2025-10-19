@@ -310,7 +310,7 @@ void net_handle_tasks(DisplayData& data) {
                 wifiState = WIFI_STATE_STA_CONNECTED;
                 dnsServer.stop();
                 startWebServer();
-            } else if (millis() - state_timer > 3000) {
+            } else if (millis() - state_timer > 5000) {
                 Serial.println("WiFi: STA connection failed. Switching to AP mode.");
                 WiFi.disconnect(true); 
                 delay(100); 
