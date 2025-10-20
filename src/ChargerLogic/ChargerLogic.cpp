@@ -122,7 +122,7 @@ void logic_init() {
         delay(50);
     } 
     detected_voltage/=5.0;
-    if (detected_voltage > 59.0 && detected_voltage < 121.0) {
+    if (detected_voltage > 60.0 && detected_voltage < 120.0) {
         chargerMaxOutputVoltage_0_1V = (unsigned int)(detected_voltage * 10.0);
         Serial.printf("Detected voltage: %.1fV. Set max voltage to: %u (0.1V units)\n", detected_voltage, chargerMaxOutputVoltage_0_1V);
         preferences.putUInt("max_voltage", chargerMaxOutputVoltage_0_1V);
