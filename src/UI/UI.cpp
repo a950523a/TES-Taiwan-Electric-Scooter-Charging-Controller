@@ -175,7 +175,7 @@ void ui_handle_input(const DisplayData& data) {
                 } else if (settingShortPressTrigger) {
                     Serial.println(F("UI: Short press detected. Cycling Target SOC."));
                     int current_soc = logic_get_target_soc_setting();
-                    int next_soc = (current_soc < 90) ? 90 : (current_soc < 100) ? 100 : 80;
+                    int next_soc = (current_soc < 95) ? 95 : (current_soc < 100) ? 100 : 80;
                     unsigned int current_v = logic_get_max_voltage_setting();
                     unsigned int current_a = logic_get_max_current_setting();
                     logic_save_config(current_v, current_a, next_soc);
