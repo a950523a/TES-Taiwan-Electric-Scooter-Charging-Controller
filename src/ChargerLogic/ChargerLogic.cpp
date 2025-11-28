@@ -69,6 +69,10 @@ enum PreChargeStep {
 };
 static PreChargeStep preChargeStep = STEP_INIT;
 
+// --- [新增] 定義電壓檢查的延遲時間和寬容度 ---
+#define VOLTAGE_CHECK_DELAY_MS 1000 // 進入充電狀態後 1 秒才開始檢查
+#define VOLTAGE_CHECK_TOLERANCE_V 0.1 // 允許測量電壓比上限高 0.1V (誤差緩衝)
+
 // =================================================================
 // =                      公開API函數實現                          =
 // =================================================================
@@ -605,6 +609,21 @@ static void ch_sub_06_monitoring_process() {
     if (logic_get_soc() >= userSetTargetSOC) {
         Serial.println(F("Logic MONITOR: Target SOC reached."));
         ch_sub_10_protection_and_end_flow(false); return;
+    }
+    if (millis() - currentStateStartTime > VOLTAGE_CHECK_DELAY_MS) {
+        
+        float vehicleVoltageLimit = (float)status_snapshot.chargeVoltageLimit / 10.0;
+
+        if (vehicleVoltageLimit > 0.1) {
+            if (measuredVoltage >= (vehicleVoltageLimit + VOLTAGE_CHECK_TOLERANCE_V)) {
+                Serial.print(F("Logic MONITOR: Charge Voltage Limit reached (")); 
+                Serial.print(vehicleVoltageLimit);
+                Serial.println(F("V). Stopping charge (Full)."));
+                
+                ch_sub_10_protection_and_end_flow(false); 
+                return;
+            }
+        }
     }
     if (isChargingTimerRunning && currentTotalTimeSeconds > 0 && remainingTimeSeconds_global == 0) {
         Serial.println(F("Logic MONITOR: Max charge time reached."));
