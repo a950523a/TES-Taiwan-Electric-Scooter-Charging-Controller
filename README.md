@@ -33,32 +33,17 @@ FB社群連結:https://www.facebook.com/groups/791962053528872/?ref=share&mibext
 
 ## 硬體需求 (Hardware Requirements)
 
-詳細的硬體材料，請參照 **物料清單** 文件，路徑在docs內。
+
 
 ## 軟體與函式庫依賴 (Software & Dependencies)
 
-本專案基於Arduino框架開發。請在編譯器的函式庫管理員中安裝以下函式庫：
 
-**請參照Release**
-
-**目前v2版本使用PlatformIO進行編譯及開發，PlatformIO會自行下載函示庫依賴(platformio.ini有配置好的話)**
   
 ## 安裝與使用 (Installation & Usage)
 
-1.  **硬體連接**: 根據程式碼中的引腳定義連接所有硬體。
-2.  **函式庫安裝**: 確保已安裝所有必要的函式庫。
-3.  **程式碼配置**: 在config.h內根據您的硬體配置修改引腳定義以及在platformio.ini配置開發板環境。
-4.  **編譯與上傳**: 將程式碼上傳到您的ESP32-S3開發板。
-5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
-
-*  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
-*  設定選單在有安裝OLED模組時才會啟用
 *  **CAN Bus模組要確認無短路才接上，否則會燒BMS!!!**
 *  **務必將線材連接牢固絕緣包覆後再進行使用，引免因意外損壞車身零件**
   
-**操作方式**
-
-在待機時，按下Setting按鈕一至兩秒鐘進入設定選單，此時按鈕轉變為短按觸發，Start 和 Stop 按鈕轉變為 上一項/增加 和 下一項/減少，Setting 按鈕轉變為 確認。
 
 ## 授權 (License)
 
