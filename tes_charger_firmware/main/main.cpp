@@ -12,8 +12,6 @@
 #include "tes_adc.h"
 #include "tes_oled.h"
 #include "network_manager.h"
-#include "tes_io_manager.h"
-#include "tes_protocol.h"
 
 // 引入 QuickJS
 #include "quickjs.h"
@@ -94,9 +92,17 @@ extern "C" void app_main(void)
     // 初始化硬體
     nvs_flash_init(); 
     init_filesystem();
-    tes_io_init_all();
+    tes_io_init(&PIN_LED_STANDBY, true);
+    tes_io_init(&PIN_LED_CHARGING, true);
+    tes_io_init(&PIN_LED_ERROR, true);
+    tes_io_init(&PIN_RELAY_MAIN, true);
+    tes_io_init(&PIN_RELAY_VP, true);
+    tes_io_init(&PIN_RELAY_LOCK, true);
+    tes_io_init(&PIN_BTN_START, false);
+    tes_io_init(&PIN_BTN_SETTING, false);
+    tes_io_init(&PIN_BTN_STOP, false);
+    tes_io_init(&PIN_BTN_EMERGENCY, false);
     tes_can_init();
-    tes_protocol_init();
     tes_i2c_init();
     tes_adc_init();
     tes_oled_init();
