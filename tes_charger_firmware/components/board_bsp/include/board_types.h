@@ -26,6 +26,13 @@ typedef enum {
     BUTTON_EMERGENCY
 } tes_button_id_t;
 
+typedef enum {
+    OLED_ROTATION_0 = 0,
+    OLED_ROTATION_90,
+    OLED_ROTATION_180,
+    OLED_ROTATION_270
+} tes_oled_rotation_t;
+
 // 定義一個 "腳位物件"
 typedef struct {
     io_type_t type;
@@ -44,6 +51,12 @@ typedef struct {
     int scl_io;
     int port_num; // I2C 控制器編號 (0 或 1)
 } tes_i2c_config_t;
+
+typedef struct {
+    int i2c_address;        // 例如 0x3C
+    tes_oled_rotation_t rotation; // 旋轉角度
+    bool external_vcc;      // 電源配置 (有些螢幕需要)
+} tes_oled_config_t;
 
 #ifdef __cplusplus
 }

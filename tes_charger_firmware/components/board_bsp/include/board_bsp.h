@@ -8,8 +8,11 @@ extern "C" {
 
 
 // --- 硬體定義 (在 board_v1.c 實作) ---
-extern const tes_io_t PIN_LED_STATUS;
 extern const tes_can_pins_t BOARD_CAN_PINS;
+extern const tes_oled_config_t BOARD_OLED_CONFIG;
+extern const tes_io_t PIN_LED_STANDBY;  // 橘燈
+extern const tes_io_t PIN_LED_CHARGING; // 綠燈
+extern const tes_io_t PIN_LED_ERROR;    // 紅燈
 
 // --- 控制函數 (在 board_bsp.c 實作) ---
 // 初始化 IO

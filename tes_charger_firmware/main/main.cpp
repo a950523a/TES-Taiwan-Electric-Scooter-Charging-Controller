@@ -92,8 +92,16 @@ extern "C" void app_main(void)
     // 初始化硬體
     nvs_flash_init(); 
     init_filesystem();
-    tes_io_init(&PIN_LED_STATUS, true);
+    tes_io_init(&PIN_LED_STANDBY, true);
+    tes_io_init(&PIN_LED_CHARGING, true);
+    tes_io_init(&PIN_LED_ERROR, true);
     tes_io_init(&PIN_RELAY_MAIN, true);
+    tes_io_init(&PIN_RELAY_VP, true);
+    tes_io_init(&PIN_RELAY_LOCK, true);
+    tes_io_init(&PIN_BTN_START, false);
+    tes_io_init(&PIN_BTN_SETTING, false);
+    tes_io_init(&PIN_BTN_STOP, false);
+    tes_io_init(&PIN_BTN_EMERGENCY, false);
     tes_can_init();
     tes_i2c_init();
     tes_adc_init();
@@ -123,6 +131,6 @@ extern "C" void app_main(void)
         // 讓 JS 引擎有機會執行 (如果有實作 Event Loop)
         js_service_loop(); 
         
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

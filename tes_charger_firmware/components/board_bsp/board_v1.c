@@ -1,11 +1,24 @@
 #include "board_types.h"
 
 // 定義板子上的 LED
-const tes_io_t PIN_LED_STATUS = {
-    .type = IO_TYPE_INTERNAL_GPIO,
-    .gpio_num = 5,      // 根據你的原理圖，橘燈是 5
-    .inverted = false,   // 假設 High 是亮，如果 Low 亮請改 true
-    .pull_mode = IO_PULL_NONE
+const tes_io_t PIN_LED_STANDBY =  { 
+    .type=IO_TYPE_INTERNAL_GPIO, 
+    .gpio_num=5, .inverted=false, 
+    .pull_mode=IO_PULL_NONE 
+};
+
+const tes_io_t PIN_LED_CHARGING = { 
+    .type=IO_TYPE_INTERNAL_GPIO, 
+    .gpio_num=6, 
+    .inverted=false, 
+    .pull_mode=IO_PULL_NONE 
+};
+
+const tes_io_t PIN_LED_ERROR =    { 
+    .type=IO_TYPE_INTERNAL_GPIO, 
+    .gpio_num=7, 
+    .inverted=false, 
+    .pull_mode=IO_PULL_NONE 
 };
 
 const tes_can_pins_t BOARD_CAN_PINS = {
@@ -68,4 +81,10 @@ const tes_io_t PIN_BTN_EMERGENCY = {
     .gpio_num = 40,
     .inverted = true,
     .pull_mode = IO_PULL_UP
+};
+
+const tes_oled_config_t BOARD_OLED_CONFIG = {
+    .i2c_address = 0x3C,
+    .rotation = OLED_ROTATION_180, // <--- 這裡設定！
+    .external_vcc = false
 };

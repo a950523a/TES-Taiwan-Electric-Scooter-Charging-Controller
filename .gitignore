@@ -1,29 +1,30 @@
-# PlatformIO Core files
-.pio/
-.vscode/
+# --- ESP-IDF (Firmware) ---
+tes_charger_firmware/build/
+tes_charger_firmware/sdkconfig
+tes_charger_firmware/sdkconfig.old
+tes_charger_firmware/dependencies.lock
+tes_charger_firmware/managed_components/
 
-# Operating System files
+# 如果你有用 VS Code，這是 IDF 插件產生的設定檔
+tes_charger_firmware/.vscode/
+tes_charger_firmware/.devcontainer/
+
+# 忽略 Flash 產生的二進位檔 (除非你特意要備份)
+tes_charger_firmware/*.bin
+tes_charger_firmware/*.elf
+tes_charger_firmware/*.map
+tes_charger_firmware/*.hex
+
+# --- Node.js / TypeScript (Software) ---
+tes_charger_software/node_modules/
+tes_charger_software/dist/       # 編譯出的 JS 不需要上傳 (如果你只想傳源碼)
+tes_charger_software/.npm/
+tes_charger_software/*.log
+
+# --- VS Code ---
+.vscode/
+*.code-workspace
+
+# --- OS System Files ---
 .DS_Store
 Thumbs.db
-Desktop.ini
-
-# Log files
-*.log
-*.log.*
-
-# Build artifacts
-*.o
-*.d
-*.elf
-*.bin
-*.hex
-*.eep
-*.map
-*.lss
-*.sym
-
-# Other
-.ionide/
-.idea/
-.cproject
-.project

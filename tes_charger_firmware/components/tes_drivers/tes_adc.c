@@ -35,7 +35,7 @@ esp_err_t tes_adc_init(void) {
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = ADS1115_ADDR,
-        .scl_speed_hz = 100000,
+        .scl_speed_hz = 400000,
     };
 
     // 2. 將裝置掛載到總線上

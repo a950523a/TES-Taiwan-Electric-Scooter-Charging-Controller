@@ -3,3 +3,5 @@ idf_component_register(
     INCLUDE_DIRS "."
     REQUIRES board_bsp tes_drivers quickjs u8g2 tes_network
 )
+
+littlefs_create_partition_image(vfs "../data" FLASH_IN_PROJECT)

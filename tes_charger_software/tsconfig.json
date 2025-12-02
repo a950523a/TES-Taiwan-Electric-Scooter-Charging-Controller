@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    // --- 核心設定 (Core) ---
+    "target": "ES2020",          // QuickJS 完整支援 ES2020
+    "module": "CommonJS",        // 輸出為標準 JS
+    "lib": ["ES2020"],           // 只引入 ES2020 標準庫 (不含 DOM, Node.js)
+    
+    // --- 輸出路徑 (Output) ---
+    "rootDir": "./src",          // 原始碼位置
+    "outDir": "./dist",          // 編譯結果位置
+    "removeComments": true,      // 移除註解 (減少上傳檔案大小)
+    "sourceMap": false,          // 嵌入式不需要 map 檔 (省空間)
+
+    // --- 類型檢查 (Checking) ---
+    "alwaysStrict": false,
+    "strict": false,              // 開啟基本嚴格檢查 (推薦)
+    "noImplicitAny": false,      // 允許使用 any (開發初期方便，若要嚴格可改 true)
+    
+    // --- 其他 (Misc) ---
+    "skipLibCheck": true,        // 加速編譯
+    "esModuleInterop": true      // 允許與 CommonJS 模組互通 (雖然我們沒用到)
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts"
+  ]
+}

@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
 #include "tes_oled.h"
+#include "network_manager.h"
 
 extern "C" {
     #include "quickjs.h"
@@ -43,11 +44,36 @@ static char* load_file(const char *path) {
 
 // tes.setRelay(state)
 static JSValue js_tes_set_relay(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-    int32_t state;
-    if (JS_ToInt32(ctx, &state, argv[0])) return JS_EXCEPTION;
+    int32_t id, state;
+    if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &state, argv[1])) return JS_EXCEPTION;
     
-    tes_io_set_level(&PIN_RELAY_MAIN, state);
+    const tes_io_t *io = NULL;
+    switch(id) {
+        case 0: io = &PIN_RELAY_MAIN; break;
+        case 1: io = &PIN_RELAY_VP; break;
+        case 2: io = &PIN_RELAY_LOCK; break;
+    }
+    
+    if (io) tes_io_set_level(io, state);
     return JS_UNDEFINED;
+}
+
+static JSValue js_tes_get_button(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    int32_t id;
+    if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+    
+    const tes_io_t *io = NULL;
+    switch(id) {
+        case 0: io = &PIN_BTN_START; break;
+        case 1: io = &PIN_BTN_SETTING; break;
+        case 2: io = &PIN_BTN_STOP; break;
+        case 3: io = &PIN_BTN_EMERGENCY; break;
+    }
+    
+    int val = 0;
+    if (io) val = tes_io_get_level(io);
+    return JS_NewBool(ctx, val); // 回傳 true/false
 }
 
 // tes.readVoltage() -> float
@@ -133,6 +159,49 @@ static JSValue js_oled_drawText(JSContext *ctx, JSValueConst this_val, int argc,
     return JS_UNDEFINED;
 }
 
+// --- LED 控制 ---
+static JSValue js_tes_set_led(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    int32_t id, state;
+    if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &state, argv[1])) return JS_EXCEPTION;
+    
+    const tes_io_t *io = NULL;
+    switch(id) {
+        case 0: io = &PIN_LED_STANDBY; break;
+        case 1: io = &PIN_LED_CHARGING; break;
+        case 2: io = &PIN_LED_ERROR; break;
+    }
+    
+    if (io) tes_io_set_level(io, state);
+    return JS_UNDEFINED;
+}
+
+// --- OLED 清除 ---
+static JSValue js_oled_clear(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    // 呼叫 OLED 驅動
+    tes_oled_clear();
+    return JS_UNDEFINED;
+}
+
+// --- OLED 更新 (刷新畫面) ---
+static JSValue js_oled_update(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    // 呼叫 OLED 驅動
+    tes_oled_update();
+    return JS_UNDEFINED;
+}
+
+// tes.system.reboot()
+static JSValue js_sys_reboot(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    esp_restart();
+    return JS_UNDEFINED;
+}
+
+// tes.system.resetWiFi()
+static JSValue js_sys_reset_wifi(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    network_reset_config(); // 呼叫我們之前寫好的函數
+    return JS_UNDEFINED;
+}
+
 // --- 初始化與註冊 ---
 void js_service_init(void) {
     JSMallocFunctions mf = {
@@ -154,24 +223,43 @@ void js_service_init(void) {
     JSValue global = JS_GetGlobalObject(ctx);
     JSValue tes = JS_NewObject(ctx);
     JSValue console = JS_NewObject(ctx);
+    JSValue oled_obj = JS_NewObject(ctx);
 
     
-    JS_SetPropertyStr(ctx, tes, "setRelay", JS_NewCFunction(ctx, js_tes_set_relay, "setRelay", 1));
+    JS_SetPropertyStr(ctx, tes, "setRelay", JS_NewCFunction(ctx, js_tes_set_relay, "setRelay", 2));
+    JS_SetPropertyStr(ctx, tes, "getButton", JS_NewCFunction(ctx, js_tes_get_button, "getButton", 1));
+    JS_SetPropertyStr(ctx, tes, "setLed", JS_NewCFunction(ctx, js_tes_set_led, "setLed", 2));
     JS_SetPropertyStr(ctx, tes, "readVoltage", JS_NewCFunction(ctx, js_tes_read_voltage, "readVoltage", 0));
     JS_SetPropertyStr(ctx, tes, "readCP", JS_NewCFunction(ctx, js_tes_read_cp, "readCP", 0));
     JS_SetPropertyStr(ctx, tes, "sendCAN", JS_NewCFunction(ctx, js_tes_send_can, "sendCAN", 2));
 
+    JS_SetPropertyStr(ctx, oled_obj, "clear", JS_NewCFunction(ctx, js_oled_clear, "clear", 0));
+    JS_SetPropertyStr(ctx, oled_obj, "drawText", JS_NewCFunction(ctx, js_oled_drawText, "drawText", 3));
+    JS_SetPropertyStr(ctx, oled_obj, "update", JS_NewCFunction(ctx, js_oled_update, "update", 0)); 
+
     JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, js_console_log, "log", 1));
-    JS_SetPropertyStr(ctx, global, "console", console);
+    JS_SetPropertyStr(ctx, tes, "oled", oled_obj);
+    JS_SetPropertyStr(ctx, tes, "console", console);
 
     JS_SetPropertyStr(ctx, global, "tes", tes);
     JS_FreeValue(ctx, global);
+
+    JSValue sys = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, sys, "reboot",    JS_NewCFunction(ctx, js_sys_reboot,     "reboot",    0));
+    JS_SetPropertyStr(ctx, sys, "resetWiFi", JS_NewCFunction(ctx, js_sys_reset_wifi, "resetWiFi", 0));
+    JS_SetPropertyStr(ctx, tes, "system", sys);
 
     ESP_LOGI(TAG, "Loading main.js...");
     
     char *file_script = load_file("/fs/main.js");
     
     if (file_script) {
+        ESP_LOGI(TAG, "File Size: %d bytes", strlen(file_script));
+    
+        // --- 新增：印出檔案內容的前 100 個字元 ---
+        printf("--- SCRIPT START ---\n");
+        printf("%.*s\n", 100, file_script); // 只印前100字避免洗版
+        printf("--- SCRIPT END ---\n");
         ESP_LOGI(TAG, "Executing /fs/main.js");
         JSValue val = JS_Eval(ctx, file_script, strlen(file_script), "main.js", JS_EVAL_TYPE_GLOBAL);
         if (JS_IsException(val)) {
@@ -199,12 +287,20 @@ void js_service_init(void) {
 }
 
 void js_service_loop(void) {
-    // 呼叫 JS 的 'loop' 函數
+    if (!ctx) return;
+
+    // 1. 取得全域物件 (Global Object)
     JSValue global = JS_GetGlobalObject(ctx);
+    
+    // 2. 嘗試從全域物件中找到名為 "loop" 的屬性
     JSValue loop_func = JS_GetPropertyStr(ctx, global, "loop");
     
+    // 3. 檢查它是不是一個函數
     if (JS_IsFunction(ctx, loop_func)) {
+        // 4. 呼叫它
         JSValue ret = JS_Call(ctx, loop_func, global, 0, NULL);
+        
+        // 5. 檢查執行錯誤
         if (JS_IsException(ret)) {
             JSValue exception_val = JS_GetException(ctx);
             const char *str = JS_ToCString(ctx, exception_val);
@@ -215,8 +311,12 @@ void js_service_loop(void) {
             JS_FreeValue(ctx, exception_val);
         }
         JS_FreeValue(ctx, ret);
+    } else {
+        // 如果找不到函數，每秒印一次警告 (避免洗版，你可以加個計數器)
+        ESP_LOGW(TAG, "Global function 'loop' not found!");
     }
     
+    // 6. 清理記憶體 (非常重要！)
     JS_FreeValue(ctx, loop_func);
     JS_FreeValue(ctx, global);
 }

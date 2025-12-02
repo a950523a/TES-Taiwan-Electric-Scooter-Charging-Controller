@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TES Charger Manager</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f4f4f9; }
+        h1 { color: #333; text-align: center; }
+        .card { background: white; border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; }
+        button:disabled { background-color: #ccc; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        input[type="file"] { margin-bottom: 10px; }
+        .label { font-weight: bold; margin-bottom: 5px; display: block; }
+    </style>
+</head>
+<body>
+    <h1>⚡ TES Charger V3</h1>
+    
+    <div class="card">
+        <h3>📶 WiFi Setup</h3>
+        <label class="label">SSID</label>
+        <input type="text" id="ssid" placeholder="Enter WiFi Name">
+        <label class="label">Password</label>
+        <input type="password" id="pass" placeholder="Enter WiFi Password">
+        <button onclick="connectWiFi()">Save & Connect</button>
+    </div>
+
+    <div class="card">
+        <h3>⚙️ Logic Update (JS)</h3>
+        <p>Upload <code>main.js</code> to update charging logic.</p>
+        <input type="file" id="js_file">
+        <button onclick="upload('/api/upload_js', 'js_file')">Upload Script</button>
+    </div>
+
+    <div class="card">
+        <h3>🛠️ Firmware Update</h3>
+        <p>Upload <code>firmware.bin</code> to update system.</p>
+        <input type="file" id="fw_file">
+        <button onclick="upload('/api/upload_fw', 'fw_file')">Update Firmware</button>
+    </div>
+
+    <script>
+    async function upload(url, inputId) {
+        const input = document.getElementById(inputId);
+        if (!input.files[0]) return alert("Please select a file first.");
+        
+        const btn = input.nextElementSibling;
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "Uploading...";
+        
+        try {
+            // 使用 Raw Binary 上傳，後端直接 fwrite 即可
+            const res = await fetch(url, {
+                method: 'POST',
+                body: input.files[0]
+            });
+            const text = await res.text();
+            alert(res.ok ? "Success: " + text : "Error: " + text);
+            if(res.ok) location.reload();
+        } catch(e) {
+            alert("Upload Failed: " + e.message);
+        }
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+
+    async function connectWiFi() {
+        const ssid = document.getElementById('ssid').value;
+        const pass = document.getElementById('pass').value;
+        if(!ssid) return alert("SSID is required");
+
+        try {
+            const res = await fetch('/api/connect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ssid, pass})
+            });
+            alert(await res.text());
+        } catch(e) { alert("Error: " + e.message); }
+    }
+    </script>
+</body>
+</html>
