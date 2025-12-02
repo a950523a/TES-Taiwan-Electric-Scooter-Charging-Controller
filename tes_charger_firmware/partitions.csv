@@ -1,0 +1,15 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     ,        0x6000,
+otadata,  data, ota,     ,        0x2000,
+phy_init, data, phy,     ,        0x1000,
+ota_0,    app,  ota_0,   ,        0x340000,
+ota_1,    app,  ota_1,   ,        0x340000,
+
+# --- 新增這兩行 ---
+# 用來存 TypeScript 編譯後的 Bytecode
+jacdac,   data, 0x80,    ,        0x40000, 
+# 設定區
+settings, data, 0x81,    ,        0x10000,
+
+# 剩下的給 vfs
+vfs,      data, spiffs,  ,        0x800000,
