@@ -4,6 +4,7 @@
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 static const char *TAG = "U8G2_HAL";
@@ -28,7 +29,7 @@ static void tes_u8g2_i2c_init(void) {
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = OLED_I2C_ADDRESS,
-        .scl_speed_hz = 400000, // OLED 可以跑 400kHz
+        .scl_speed_hz = 100000, // OLED 可以跑 400kHz
     };
 
     esp_err_t ret = i2c_master_bus_add_device(bus_handle, &dev_cfg, &oled_dev_handle);
@@ -69,14 +70,15 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void 
             buf_idx = 0;
             break;
             
+        // 在 tes_u8g2_i2c_byte_cb 的 U8X8_MSG_BYTE_END_TRANSFER 裡：
+
         case U8X8_MSG_BYTE_END_TRANSFER:
-            if (oled_dev_handle && buf_idx > 0) {
-                // 使用 ESP-IDF v5 API 發送
-                // 注意：U8g2 已經在 buffer[0] 放了 Control Byte，所以我們直接發送整個 buffer
-                i2c_master_transmit(oled_dev_handle, buffer, buf_idx, -1);
-            }
-            break;
-            
+        if (oled_dev_handle && buf_idx > 0) {
+            // 不要加鎖！直接發送， timeout 設為 100ms
+            i2c_master_transmit(oled_dev_handle, buffer, buf_idx, pdMS_TO_TICKS(1000));
+        }
+        break;
+                    
         default:
             return 0;
     }

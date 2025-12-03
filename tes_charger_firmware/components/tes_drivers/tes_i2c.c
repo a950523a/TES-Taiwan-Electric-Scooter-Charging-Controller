@@ -1,6 +1,11 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 #include "tes_i2c.h"
 #include "board_bsp.h"
 #include "esp_log.h"
+
+SemaphoreHandle_t i2c_mutex = NULL;
 
 static const char *TAG = "TES_I2C";
 
@@ -10,6 +15,8 @@ i2c_master_bus_handle_t bus_handle = NULL;
 esp_err_t tes_i2c_init(void) {
     // 如果已經初始化過，直接返回成功
     if (bus_handle != NULL) return ESP_OK;
+
+    i2c_mutex = xSemaphoreCreateMutex();
 
     i2c_master_bus_config_t i2c_mst_config = {
         .clk_source = I2C_CLK_SRC_DEFAULT,

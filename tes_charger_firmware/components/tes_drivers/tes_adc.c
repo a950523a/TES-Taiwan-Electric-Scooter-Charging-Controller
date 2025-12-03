@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include <math.h> // for fabs
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #define ADS1115_ADDR 0x48
@@ -35,7 +36,7 @@ esp_err_t tes_adc_init(void) {
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = ADS1115_ADDR,
-        .scl_speed_hz = 400000,
+        .scl_speed_hz = 100000,
     };
 
     // 2. 將裝置掛載到總線上
@@ -53,38 +54,39 @@ esp_err_t tes_adc_init(void) {
 static int16_t read_ads1115(uint16_t mux) {
     if (adc_dev_handle == NULL) return 0;
 
-    // --- 步驟 1: 寫入 Config Register (啟動轉換) ---
-    // Bit 15: OS (1=Start)
-    // Bit 14-12: MUX
-    // Bit 11-9: PGA (1=4.096V)
-    // Bit 8: MODE (1=Single-shot)
-    // Bit 7-5: DR (100=128SPS)
+    // 1. 拿鎖
+    if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        return 0; // 超時拿不到鎖，放棄
+    }
+
+    // 2. I2C 操作 (寫入 Config)
     uint16_t config = 0x8000 | mux | 0x0200 | 0x0100 | 0x0080;
-
     uint8_t write_buf[3];
-    write_buf[0] = REG_CONFIG;       // Register Address
-    write_buf[1] = (config >> 8) & 0xFF; // MSB
-    write_buf[2] = config & 0xFF;        // LSB
+    write_buf[0] = REG_CONFIG;
+    write_buf[1] = (config >> 8) & 0xFF;
+    write_buf[2] = config & 0xFF;
 
-    // 使用新 API 發送
     esp_err_t err = i2c_master_transmit(adc_dev_handle, write_buf, 3, -1);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "I2C Transmit Failed");
+        xSemaphoreGive(i2c_mutex); // --- 失敗也要釋放鎖！ ---
         return 0;
     }
 
-    // 等待轉換 (ADS1115 128SPS 約需 8ms)
     vTaskDelay(pdMS_TO_TICKS(10)); 
 
-    // --- 步驟 2: 指向 Conversion Register ---
+    // 3. I2C 操作 (指向 Conversion)
     uint8_t reg_ptr = REG_CONVERSION;
     i2c_master_transmit(adc_dev_handle, &reg_ptr, 1, -1);
     
-    // --- 步驟 3: 讀取數據 ---
+    // 4. I2C 操作 (讀取數據)
     uint8_t read_buf[2];
     i2c_master_receive(adc_dev_handle, read_buf, 2, -1);
 
-    // 組合數值 (Big Endian)
+    // 5. 釋放鎖 (一定要在 return 之前！)
+    xSemaphoreGive(i2c_mutex);
+
+    // 6. 回傳結果
     return (int16_t)((read_buf[0] << 8) | read_buf[1]);
 }
 

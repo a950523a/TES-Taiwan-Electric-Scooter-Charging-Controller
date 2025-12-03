@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
+#include "tes_i2c.h"
 
 static const char *TAG = "TES_OLED";
 
@@ -20,10 +21,20 @@ static SemaphoreHandle_t update_sem = NULL;
 // 這個任務會一直等待信號，收到信號才透過 I2C 傳送資料
 static void oled_refresh_task(void *arg) {
     while (1) {
-        // 等待 Update 信號 (永久等待)
+        // 等待信號
         if (xSemaphoreTake(update_sem, portMAX_DELAY) == pdTRUE) {
-            // 這裡是耗時操作 (I2C 傳輸)
-            u8g2_SendBuffer(&u8g2);
+            
+            // 1. 嘗試拿 I2C 鎖
+            if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                // 2. 拿到鎖了，安全發送
+                u8g2_SendBuffer(&u8g2);
+                
+                // 3. 釋放鎖
+                xSemaphoreGive(i2c_mutex);
+            } else {
+                // 拿不到鎖 (ADC 在忙)，這幀就丟掉，不要硬送
+                // 這樣就不會報錯了
+            }
         }
     }
 }
@@ -65,7 +76,7 @@ void tes_oled_init(void) {
     if (update_sem == NULL) {
         update_sem = xSemaphoreCreateBinary();
         // Stack Size 給 4096 比較保險，Priority 不需要太高
-        xTaskCreate(oled_refresh_task, "oled_task", 4096, NULL, 5, &oled_task_handle);
+        xTaskCreate(oled_refresh_task, "oled_task", 4096, NULL, 10, &oled_task_handle);
     }
     
     ESP_LOGI(TAG, "OLED Initialized (Rotation: %d)", BOARD_OLED_CONFIG.rotation);
@@ -88,14 +99,7 @@ void tes_oled_update(void) {
     }
 }
 
-// 如果 JS 想動態改方向，也可以保留這個接口
-void tes_oled_set_rotation(int angle) {
-    tes_oled_rotation_t r = OLED_ROTATION_0;
-    if (angle == 90) r = OLED_ROTATION_90;
-    else if (angle == 180) r = OLED_ROTATION_180;
-    else if (angle == 270) r = OLED_ROTATION_270;
-    
-    apply_rotation(r);
-    // 改變方向後最好刷新一次
-    tes_oled_update();
+void tes_oled_update_emergency(void) {
+    // 強制直接呼叫 U8g2 發送，不經過 Task
+    u8g2_SendBuffer(&u8g2);
 }
