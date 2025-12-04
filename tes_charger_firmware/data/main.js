@@ -3,6 +3,7 @@ let channelStates = [0, 0, 0];
 let btnLatches = [false, false, false, false];
 let allToggleState = false;
 globalThis.loop = function () {
+    tes.feedWatchdog();
     for (let i = 0; i < 3; i++) {
         let pressed = tes.getButton(i);
         if (pressed && !btnLatches[i]) {
