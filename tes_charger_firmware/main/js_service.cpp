@@ -201,17 +201,30 @@ static JSValue js_sys_reset_wifi(JSContext *ctx, JSValueConst this_val, int argc
 
 void safety_monitor_task(void *arg) {
     while (1) {
-        int64_t now = esp_timer_get_time();
+
+        int64_t now = esp_timer_get_time(); 
+
         if (now - last_js_heartbeat > JS_WATCHDOG_TIMEOUT_US) {
             ESP_LOGE(TAG, "JS Watchdog Timeout! Emergency Stop!");
+            
+            // 1. 硬件保护 (这是最重要的，必须先做)
             tes_io_set_level(&PIN_RELAY_MAIN, 0);
             tes_io_set_level(&PIN_RELAY_VP, 0);
             tes_io_set_level(&PIN_RELAY_LOCK, 0);
-            tes_oled_clear();
-            tes_oled_draw_str(0, 20, "SYSTEM ERROR");
-            tes_oled_draw_str(0, 40, "JS HANG");
-            tes_oled_update_emergency();
-            vTaskDelay(pdMS_TO_TICKS(3000));
+            tes_io_set_level(&PIN_LED_CHARGING, 0);
+            tes_io_set_level(&PIN_LED_ERROR, 1);
+            
+            // 2. 尝试抢救显示
+            // 注意：这里可能会花几百毫秒
+            tes_oled_show_emergency("SYSTEM ERROR", "JS WATCHDOG");
+            
+            // 3. 确保显示完成，给使用者一点时间看清楚
+            // 使用 esp_rom_delay_us 这种死循环延迟，避免被 FreeRTOS 调度搞乱
+            ESP_LOGE(TAG, "Rebooting in 5s...");
+            for(int i=0; i<50; i++) {
+                vTaskDelay(pdMS_TO_TICKS(100)); 
+            }
+            
             esp_restart();
         }
         vTaskDelay(pdMS_TO_TICKS(100));

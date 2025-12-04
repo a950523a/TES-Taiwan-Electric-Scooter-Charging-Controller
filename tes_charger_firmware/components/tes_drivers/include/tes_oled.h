@@ -17,7 +17,7 @@ void tes_oled_draw_str(int x, int y, const char *str);
 // 刷新畫面 (將 Buffer 送出)
 void tes_oled_update(void);
 
-void tes_oled_update_emergency(void);
+void tes_oled_show_emergency(const char *line1, const char *line2);
 
 #ifdef __cplusplus
 }
