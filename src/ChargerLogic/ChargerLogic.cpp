@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "OTAManager/OTAManager.h"
 #include "Version.h"
+#include "PowerSupplyController/PowerSupplyController.h"
 
 extern SemaphoreHandle_t canDataMutex;
 extern bool filesystem_version_mismatch;
@@ -85,12 +86,18 @@ void logic_get_display_data(DisplayData& data) {
     data.remainingSeconds = remainingTimeSeconds_global;
     data.isTimerRunning = isChargingTimerRunning;
     data.totalTimeSeconds = currentTotalTimeSeconds;
-    data.measuredVoltage = measuredVoltage;
-    data.measuredCurrent = measuredCurrent;
     data.targetSOC = userSetTargetSOC;
     data.maxVoltageSetting_0_1V = chargerMaxOutputVoltage_0_1V;
     data.maxCurrentSetting_0_1A = chargerMaxOutputCurrent_0_1A;
     data.filesystemMismatch = filesystem_version_mismatch;
+    if (psc_is_connected()) {
+        data.measuredVoltage = psc_get_voltage();
+        data.measuredCurrent = psc_get_current();
+    } else {
+        data.measuredVoltage = measuredVoltage; // ADC 讀值
+        data.measuredCurrent = measuredCurrent; // 設定值模擬
+    }
+
 
     // --- [新增] 填充新的狀態數據 ---
     if (xSemaphoreTake(canDataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
@@ -171,6 +178,11 @@ void logic_init() {
     
     lastValidRequestedCurrent_latch = 0.0;
     lastFaultFlags_latch = 0;
+    
+    if (psc_is_connected()) {
+        psc_set_current(6.0); // 重置為預設值 6A
+        Serial.println("Logic: PSC Reset Current to 6.0A");
+    }
 }
 
 void logic_save_config(unsigned int voltage, unsigned int current, int soc){
@@ -550,6 +562,11 @@ static bool ch_sub_01_battery_compatibility_check() {
     if (status_snapshot.chargeVoltageLimit > chargerMaxOutputVoltage_0_1V) return false;
     if (status_snapshot.maxChargeVoltage > 0 && status_snapshot.chargeVoltageLimit > status_snapshot.maxChargeVoltage) return false;
     chargerStatus508.faultDetectionVoltageLimit = min(status_snapshot.maxChargeVoltage, chargerMaxOutputVoltage_0_1V);
+    if (psc_is_connected()) {
+        // 設定電壓上限
+        float target_v = (float)chargerStatus508.faultDetectionVoltageLimit / 10.0;
+        psc_set_voltage(target_v);
+    }
     return true;
 }
 
@@ -571,13 +588,26 @@ static void ch_sub_04_dc_current_output_control() {
         return;
     }
     if (hal_get_charge_relay_state()) {
-        measuredCurrent = (float)chargerMaxOutputCurrent_0_1A / 10.0;
-
+        if (psc_is_connected()) {
+            // --- [新增] 自動控制邏輯 ---
+            // 1. 計算目標電流：取 BMS 請求 和 用戶設定 的最小值
+            float bms_request = (float)status_snapshot.chargeCurrentCommand / 10.0;
+            float user_limit = (float)chargerMaxOutputCurrent_0_1A / 10.0;
+            float target_current = (bms_request < user_limit) ? bms_request : user_limit;
+            
+            // 2. 發送指令
+            psc_set_current(target_current);
+            
+            // 3. 更新 measuredCurrent 用於本地邏輯 (雖然 display_data 會用 psc_get_current)
+            measuredCurrent = psc_get_current(); 
+        } else {
+            // --- [原有] 手動模式邏輯 ---
+            measuredCurrent = (float)chargerMaxOutputCurrent_0_1A / 10.0;
+        }
         float current_request = (float)status_snapshot.chargeCurrentCommand / 10.0;
         if (current_request > 0) {
             lastValidRequestedCurrent_latch = current_request;
         }
-
     } else {
         measuredCurrent = 0.0;
     }
@@ -649,6 +679,10 @@ static void ch_sub_10_protection_and_end_flow(bool isFault) {
     } else {
         chargeCompleteLatch = true;
         currentChargerState = STATE_CHG_ENDING_CHARGE_PROCESS;
+    }
+    if (psc_is_connected()) {
+        psc_set_current(6.0); // 重置為預設值 6A
+        Serial.println("Logic: PSC Reset Current to 6.0A");
     }
     currentStateStartTime = millis();
 }

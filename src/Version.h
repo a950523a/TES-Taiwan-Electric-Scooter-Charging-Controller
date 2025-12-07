@@ -3,7 +3,7 @@
 #ifndef VERSION_H
 #define VERSION_H
 
-#define FIRMWARE_VERSION "v2.4.2"
+#define FIRMWARE_VERSION "v2.5.0_Beta"
 #define FILESYSTEM_VERSION "v1.2.0"
 
 #endif // VERSION_H
