@@ -55,8 +55,9 @@
 #include "NetworkServices/NetworkServices.h"
 #include "Charger_Defs.h"
 #include "OTAManager/OTAManager.h"
-#include "Version.h" // 引用 Version.h
-#include <LittleFS.h> // 引用 LittleFS
+#include "Version.h" 
+#include <LittleFS.h> 
+#include "PowerSupplyController/PowerSupplyController.h"
 
 // --- FreeRTOS 任務函數原型 ---
 void can_task(void *pvParameters);
@@ -117,7 +118,7 @@ void check_filesystem_version() {
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    delay(1000);
     Serial.println(F("DC Charger Controller Booting Up..."));
 
     canDataMutex = xSemaphoreCreateMutex();
@@ -138,6 +139,7 @@ void setup() {
     hal_init_pins();
     hal_init_adc();
     hal_init_can();
+    psc_init();
 
     ui_init(); 
     net_init(); 
@@ -170,7 +172,7 @@ void setup() {
     xTaskCreate(
         logic_task,
         "Logic_Task",
-        2048,
+        4096,
         NULL,
         4,
         &logicTaskHandle
@@ -248,7 +250,8 @@ void logic_task(void *pvParameters) {
             
             xSemaphoreGive(displayDataMutex);
         }
-        
+
+        psc_handle_task();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
