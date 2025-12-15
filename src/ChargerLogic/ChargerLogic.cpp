@@ -178,11 +178,7 @@ void logic_init() {
     
     lastValidRequestedCurrent_latch = 0.0;
     lastFaultFlags_latch = 0;
-    
-    if (psc_is_connected()) {
-        psc_set_current(6.0); // 重置為預設值 6A
-        Serial.println("Logic: PSC Reset Current to 6.0A");
-    }
+
 }
 
 void logic_save_config(unsigned int voltage, unsigned int current, int soc){
@@ -228,7 +224,11 @@ void logic_run_statemachine() {
         faultLatch = false;
         chargeCompleteLatch = false;
         hal_control_vp_relay(true);
-        readAndSetCPState();
+        readAndSetCPState();     
+        if (psc_is_connected()) {
+            psc_set_current(5.0); // 重置為預設值 5A
+            Serial.println("Logic: PSC Reset Current to 5.0A");
+        }
         if (currentCPState == CP_STATE_OFF || currentCPState == CP_STATE_ON) {
           Serial.println(F("Logic: Start pressed. -> INITIAL_PARAM_EXCHANGE."));
           currentChargerState = STATE_CHG_INITIAL_PARAM_EXCHANGE;
@@ -681,8 +681,8 @@ static void ch_sub_10_protection_and_end_flow(bool isFault) {
         currentChargerState = STATE_CHG_ENDING_CHARGE_PROCESS;
     }
     if (psc_is_connected()) {
-        psc_set_current(6.0); // 重置為預設值 6A
-        Serial.println("Logic: PSC Reset Current to 6.0A");
+        psc_set_current(5.0); // 重置為預設值 5A
+        Serial.println("Logic: PSC Reset Current to 5.0A");
     }
     currentStateStartTime = millis();
 }
