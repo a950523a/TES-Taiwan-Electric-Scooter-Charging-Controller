@@ -1,72 +1,100 @@
 # TES-0D-02-01 Compatible DC Charger Controller for ESP32-S3
 
-[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+# ⚡ TES-EVSE Controller (TES 協議控制核心)
 
-A DIY, open-source DC charger controller project for electric scooters, compatible with the TES-0D-02-01 industry standard, built upon the ESP32-S3 platform.
+> 專為 TES-0D-02-01 標準設計的開源電動機車直流充電控制器。
+> 基於 ESP32-S3 架構，支援 Web UI 監控與 OTA 更新。
 
-一個基於ESP32-S3開發的DIY開源電動機車直流充電樁控制器，相容TES-0D-02-01產業標準。
-
-FB社群連結:https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT
-
-**禁止商業使用**
-
----
-
-## ⚠️ 安全警告 (Safety Warning) ⚠️
-
-**本專案僅為個人學習、研究和技術驗證目的而創建，並非商業級產品。**
-
-充電樁是涉及高電壓、大電流的設備，直接關係到人身安全和財產（車輛、電網）安全。本專案提供的軟體和硬體設計思路**未經過任何形式的專業安全認證**（如UL、CE、BSMI等）。
-
-**使用者在參考、複製或修改本專案時，必須自行承擔全部風險和責任。** 如果您不具備相關的專業電氣知識和技能，請勿嘗試製作或使用本設備。
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)
+[![Platform](https://img.shields.io/badge/platform-ESP32--S3-orange.svg)](https://www.espressif.com/)
+[![Framework](https://img.shields.io/badge/framework-PlatformIO-blue.svg)](https://platformio.org/)
 
 ---
 
-## 功能特點 (Features)
+## ⚠️ 免責聲明與安全警告 (Disclaimer & Safety)
 
-*   **標準相容**: 遵循TES-0D-02-01標準的CAN Bus通訊協議。
-*   **通用性設計**: 支援最高DC 120V輸出，適用於多種車輛。
-*   **可調輸出**: 可調最大電壓、電流、SOC。
-*   **狀態顯示**: 透過LED燈及OLED螢幕顯示待機、充電中、錯誤等狀態。
-*   **網頁顯示及設定**: 透過Web UI顯示充電狀態及操作。
-*   **安全保護**: 包含基礎的狀態機安全檢查和緊急停止功能。
+**本專案僅包含「控制板」的軟硬體設計，不包含功率級電源模組。**
 
-## 硬體需求 (Hardware Requirements)
+1.  **高壓危險**：本控制器需配合高壓直流電源使用，組裝與測試過程存在觸電與火災風險。
+2.  **非商業產品**：本專案為個人研究與技術驗證性質，未經 BSMI、UL 等安規認證。
+3.  **責任歸屬**：使用本專案所產生的任何後果（包括但不限於車輛損壞、電池故障、人身傷害），**使用者需自行承擔**。若不具備相關電學知識，請勿嘗試製作。
+4.  **BMS 風險**：CAN Bus 線路若接線錯誤或短路，**將導致車輛 BMS (電池管理系統) 永久性損壞**，請務必在低壓環境確認無誤後再上機。
 
-詳細的硬體材料，請參照 **物料清單** 文件，路徑在docs內。
+---
 
-## 軟體與函式庫依賴 (Software & Dependencies)
+## 🎯 專案範圍 (Scope)
 
-本專案基於Arduino框架開發。請在編譯器的函式庫管理員中安裝以下函式庫：
+本 Repository 專注於 **TES 協議控制邏輯 (Protocol Logic)** 的實作。
+*   **包含**：ESP32-S3 控制韌體、CAN Bus 通訊電路設計、狀態機邏輯。
+*   **不包含**：功率級整流器 (Rectifier)、AC/DC 電源模組的控制碼 (請依據您選用的電源模組自行適配)。
 
-**請參照Release**
+---
 
-**目前v2版本使用PlatformIO進行編譯及開發，PlatformIO會自行下載函示庫依賴(platformio.ini有配置好的話)**
-  
-## 安裝與使用 (Installation & Usage)
+## ✨ 功能特點 (Features)
 
-1.  **硬體連接**: 根據程式碼中的引腳定義連接所有硬體。
-2.  **函式庫安裝**: 確保已安裝所有必要的函式庫。
-3.  **程式碼配置**: 在config.h內根據您的硬體配置修改引腳定義以及在platformio.ini配置開發板環境。
-4.  **編譯與上傳**: 將程式碼上傳到您的ESP32-S3開發板。
-5.  **測試**: **務必在連接到實際車輛前，在低壓和受控環境下進行充分測試！**
+### 核心協議
+*   **TES 標準相容**: 完整實作 **TES-0D-02-01** 充電通訊協議。
+*   **寬範圍支援**: 協議邏輯最高支援 **120V / 100A (12kW)** 輸出能力。
+    *   *註：實際輸出能力取決於您搭配的電源模組與線徑。*
+*   **通用性**: 適用於 eMoving iE125 等支援 TES 快充標準之車輛。
 
-*  本程式I2C預設會掃描 0x3C 和 0x3D 地址。如果您的OLED地址不同，請修改 findOledDevice() 函數中的地址列表。
-*  設定選單在有安裝OLED模組時才會啟用
-*  **CAN Bus模組要確認無短路才接上，否則會燒BMS!!!**
-*  **務必將線材連接牢固絕緣包覆後再進行使用，引免因意外損壞車身零件**
-  
-**操作方式**
+### 智慧功能
+*   **Web UI**: 內建網頁伺服器，可透過手機設定電流、截止電壓、目標 SOC。
+*   **OTA 更新**: 支援無線韌體升級，方便後續功能維護。
 
-在待機時，按下Setting按鈕一至兩秒鐘進入設定選單，此時按鈕轉變為短按觸發，Start 和 Stop 按鈕轉變為 上一項/增加 和 下一項/減少，Setting 按鈕轉變為 確認。
+---
 
-## 授權 (License)
+## 🛠️ 硬體設計 (Hardware Design)
 
-本專案採用 **[創用CC 姓名標示-非商業性-相同方式分享 4.0 國際 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權條款。
+本專案硬體設計以 **通用性** 為核心，開發者可依據需求選擇實作方式。
 
-您可以自由地分享與改作本專案，惟需遵守「姓名標示」、「非商業性使用」及「相同方式分享」等條款。詳情請參閱授權協議全文。
+*   **Schematic (原理圖)**: 請參閱 `docs/PCB/` 目錄下的檔案。這是核心電路設計，包含了 MCU 接腳定義、CAN Transceiver 線路與周邊控制電路。
+*   **BOM (元件清單)**: 請參閱 `docs/` 目錄下的檔案。主要採用通用型電子元件（如 ESP32-S3 開發板、繼電器模組等），方便開發者自行取得。
+*   **Reference PCB (參考佈線)**: 目錄中亦提供了一份已驗證的 PCB 設計檔（Gerber）作為參考實作，供有需要的開發者研究佈線邏輯。
 
-Copyright (c) 2025 黃丞左(Chris Huang)
+> **實作建議**：本設計亦適合使用 **萬用板 (Perfboard)** 進行手工搭建。請依據原理圖連接對應線路即可達到相同功能。
+
+---
+
+## 💻 軟體開發 (Development)
+
+本專案使用 **PlatformIO** 進行開發。
+
+1.  **環境建置**: 安裝 VS Code + PlatformIO 外掛。
+2.  **硬體適配**:
+    *   本程式碼具備高度可配置性。若您使用自製電路板（如洞洞板），請務必在 `src/config.h` 中修改 **Pin Definitions (引腳定義)** 以符合您的實際接線。
+3.  **參數設定**:
+    *   OLED I2C 地址 (預設 0x3C / 0x3D)
+    *   電壓/電流校正參數 (ADC Calibration)
+
+---
+
+## 🕹️ 操作說明 (Operation)
+
+*   **進入設定選單**: 待機狀態下，長按 **Setting** 按鈕 1~2 秒。
+*   **選單操作**:
+    *   `Start`: 上一項 / 增加數值
+    *   `Stop`: 下一項 / 減少數值
+    *   `Setting`: 確認 / 進入
+
+---
+
+## 🤝 社群與支援 (Community)
+
+歡迎加入社群討論改裝心得、回報 Bug 或分享您的實作案例。
+
+*   **Facebook 社群**: [TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
+
+---
+
+## ⚖️ 授權 (License)
+
+本專案採用 **[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權。
+
+*   ✅ **分享與改作**：需標示原作者，並以相同條款釋出。
+*   🚫 **禁止商業使用**：**不得將本專案之設計圖檔、程式碼用於商業量產或販售營利。**
+
+Copyright (c) 2025 Chris Huang
 
 ## 影片(Video)
 https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
