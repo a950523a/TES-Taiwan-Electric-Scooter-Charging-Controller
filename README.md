@@ -1,6 +1,5 @@
 # TES-0D-02-01 Compatible DC Charger Controller for ESP32-S3
 
-# ⚡ TES-EVSE Controller (TES 協議控制核心)
 
 > 專為 TES-0D-02-01 標準設計的開源電動機車直流充電控制器。
 > 基於 ESP32-S3 架構，支援 Web UI 監控與 OTA 更新。
