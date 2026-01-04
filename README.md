@@ -99,6 +99,8 @@ Copyright (c) 2025 Chris Huang
 ## 影片(Video)
 https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
 
+https://youtu.be/vA7gSdK1YZQ?si=lSQAtU0p7vCutx1Y
+
 ## 照片(Images)
 
 *   **此為專案V2早期時所拍的照片，本人V2後期轉為自行畫PCB並且使用ESP32-S3開發**
