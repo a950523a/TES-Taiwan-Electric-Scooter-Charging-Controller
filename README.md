@@ -95,6 +95,13 @@
 
 Copyright (c) 2025 Chris Huang
 
+## 🔗 相關專案 (Related Projects)
+
+*   **[LMPower-CAN-Controller](https://github.com/a950523a/LMPower-CAN-Controller)**: 
+    聯明電源 (LM Power) 專用的 CAN Bus 控制器。
+    *   可與本專案 (`v2.5.0-beta`) 配合使用，實現高功率便攜充電方案。
+    *   提供軟啟動、電壓電流監控及 UART 自動控制功能。
+
 ## 影片(Video)
 https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
 
