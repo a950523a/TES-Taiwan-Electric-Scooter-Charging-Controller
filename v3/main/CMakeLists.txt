@@ -1,0 +1,21 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "task_can_rx.c"
+        "task_tes_sm.c"
+        "task_hal_poll.c"
+        "task_display.c"
+        "task_network.c"
+        "task_ota.c"
+        "task_monitor.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        tes_protocol
+        platform
+        hal
+        drivers
+        services
+        freertos
+        esp_timer
+)

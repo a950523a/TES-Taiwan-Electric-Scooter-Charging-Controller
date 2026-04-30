@@ -1,0 +1,19 @@
+idf_component_register(
+    SRCS
+        "event_bus.c"
+        "config_svc.c"
+        "display_svc.c"
+        "network_svc.c"
+        "ota_svc.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        tes_protocol
+        hal
+        drivers
+        nvs_flash
+        esp_wifi
+        esp_http_server
+        esp_https_ota
+        freertos
+)
