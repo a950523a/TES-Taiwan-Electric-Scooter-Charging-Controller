@@ -1,0 +1,15 @@
+idf_component_register(
+    SRCS
+        "can_driver.c"
+        "adc_driver.c"
+        "psu_driver.c"
+        "display_driver.c"
+        "led_driver.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        hal
+        platform
+        tes_protocol
+        driver
+)

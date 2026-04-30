@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\docs/794654335-TES-0D-02-01電動機車固定式交流及直流傳導式供電系統-電動機車直流供電裝置與電動機車間充電控制用數位通訊.pdf\" -)"
+    ]
+  }
+}
