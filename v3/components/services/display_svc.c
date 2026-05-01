@@ -130,20 +130,35 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_BEACON);
 }
 
-static void value_increment(int item)
+// delta > 0 = up, delta < 0 = down
+// fine  step: |delta|=1  → 0.1 V / 0.1 A / 1 %
+// coarse step: |delta|=10 → 1 V   / 1 A   / 5 %
+static void value_step(int item, int delta)
 {
     switch ((menu_item_id_t)item) {
-    case MENU_ITEM_MAX_VOLTAGE:
-        if (s_edit_voltage < 1200) s_edit_voltage += 10;
+    case MENU_ITEM_MAX_VOLTAGE: {
+        int v = (int)s_edit_voltage + delta;
+        if (v < 400)  v = 400;
+        if (v > 1200) v = 1200;
+        s_edit_voltage = (uint16_t)v;
         break;
-    case MENU_ITEM_MAX_CURRENT:
-        if (s_edit_current < 1000) s_edit_current += 10;
+    }
+    case MENU_ITEM_MAX_CURRENT: {
+        int a = (int)s_edit_current + delta;
+        if (a < 10)   a = 10;
+        if (a > 1000) a = 1000;
+        s_edit_current = (uint16_t)a;
         break;
-    case MENU_ITEM_TARGET_SOC:
-        // 20–100 in 5% steps
-        if (s_edit_soc < 100) s_edit_soc = (int8_t)(s_edit_soc + 5);
-        if (s_edit_soc > 100) s_edit_soc = 100;
+    }
+    case MENU_ITEM_TARGET_SOC: {
+        // coarse |delta|=10 → 5 %; fine |delta|=1 → 1 %
+        int soc_d = (delta >= 10) ? 5 : (delta <= -10) ? -5 : delta;
+        int s = (int)s_edit_soc + soc_d;
+        if (s < 20)  s = 20;
+        if (s > 100) s = 100;
+        s_edit_soc = (int8_t)s;
         break;
+    }
     case MENU_ITEM_BEACON:
         s_edit_beacon = !s_edit_beacon;
         break;
@@ -152,24 +167,22 @@ static void value_increment(int item)
     }
 }
 
-static void value_decrement(int item)
+// Quick SOC presets cycled by short SETTING press on status screen
+static void cycle_quick_soc(void)
 {
-    switch ((menu_item_id_t)item) {
-    case MENU_ITEM_MAX_VOLTAGE:
-        if (s_edit_voltage > 400) s_edit_voltage -= 10;
-        break;
-    case MENU_ITEM_MAX_CURRENT:
-        if (s_edit_current > 10) s_edit_current -= 10;
-        break;
-    case MENU_ITEM_TARGET_SOC:
-        if (s_edit_soc > 20) s_edit_soc = (int8_t)(s_edit_soc - 5);
-        break;
-    case MENU_ITEM_BEACON:
-        s_edit_beacon = !s_edit_beacon;
-        break;
-    default:
-        break;
+    static const int8_t presets[] = {80, 95, 100};
+    const int n = (int)(sizeof(presets) / sizeof(presets[0]));
+    const charger_config_t *cfg = config_svc_get();
+    int8_t cur  = cfg->target_soc;
+    int8_t next = presets[0];
+    for (int i = 0; i < n; i++) {
+        if (cur == presets[i]) {
+            next = presets[(i + 1) % n];
+            break;
+        }
     }
+    config_svc_set_charging(cfg->max_voltage_01v, cfg->max_current_01a, next);
+    ESP_LOGI(TAG, "quick SOC -> %d%%", next);
 }
 
 // ── Status screen render ──────────────────────────────────────────────────────
@@ -204,7 +217,7 @@ static void render_status(const tes_snapshot_t *snap)
              snap->output_voltage, snap->output_current);
     display_driver_draw_str(0, 28, buf);
 
-    snprintf(buf, sizeof(buf), "SOC:%3d%%", snap->soc);
+    snprintf(buf, sizeof(buf), "SOC:%d/%d%%", snap->soc, (int)snap->target_soc);
     display_driver_draw_str(0, 42, buf);
 
     uint32_t rem_min = snap->timer_running
@@ -224,8 +237,8 @@ static void render_status(const tes_snapshot_t *snap)
             snprintf(buf, sizeof(buf), "REQ: --V --A");
         }
         display_driver_draw_str(0, 56, buf);
-        snprintf(buf, sizeof(buf), "MENU:SET");
-        display_driver_draw_str(80, 56, buf);
+        snprintf(buf, sizeof(buf), "S:SOC L:CFG");
+        display_driver_draw_str(68, 56, buf);
     }
 
     display_driver_flush();
@@ -292,9 +305,16 @@ void display_svc_init(void)
 void display_svc_button(uint8_t evt)
 {
     if (s_screen == DISP_SCREEN_STATUS) {
-        // Only SETTING opens the menu from the status screen
-        if (evt == EVT_BUTTON_SETTING)
+        switch (evt) {
+        case EVT_BUTTON_SETTING:      // short press → cycle quick SOC preset
+            cycle_quick_soc();
+            break;
+        case EVT_BUTTON_SETTING_LONG: // long press → open settings menu
             menu_open();
+            break;
+        default:
+            break;
+        }
         return;
     }
 
@@ -333,15 +353,11 @@ void display_svc_button(uint8_t evt)
         }
     } else { // MENU_MODE_EDIT
         switch (evt) {
-        case EVT_BUTTON_START:   // increment
-            value_increment(s_cursor);
-            break;
-        case EVT_BUTTON_STOP:    // decrement
-            value_decrement(s_cursor);
-            break;
-        case EVT_BUTTON_SETTING: // confirm edit, back to nav
-            s_mode = MENU_MODE_NAV;
-            break;
+        case EVT_BUTTON_START:      value_step(s_cursor, +1);  break; // fine   +0.1
+        case EVT_BUTTON_STOP:       value_step(s_cursor, -1);  break; // fine   -0.1
+        case EVT_BUTTON_START_LONG: value_step(s_cursor, +10); break; // coarse +1
+        case EVT_BUTTON_STOP_LONG:  value_step(s_cursor, -10); break; // coarse -1
+        case EVT_BUTTON_SETTING:    s_mode = MENU_MODE_NAV;    break; // confirm, back to nav
         default:
             break;
         }
