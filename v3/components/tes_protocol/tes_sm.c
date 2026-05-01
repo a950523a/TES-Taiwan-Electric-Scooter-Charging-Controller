@@ -86,15 +86,15 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         out->vp_relay     = false;
-        sm->fault_latched          = false;
         sm->vehicle_ready          = false;
         sm->timer_running          = false;
         sm->precharge_step         = PRECHARGE_STEP_INIT;
         sm->params_509.remaining_time_min = 0xFFFF;
 
         if (in->start_requested || sm->remote_start) {
-            sm->remote_start       = false;
-            sm->fault_latched      = false;
+            sm->remote_start            = false;
+            sm->fault_latched           = false;
+            sm->last_fault_flags        = 0;
             sm->charge_complete_latched = false;  // only clear on new start
             out->vp_relay          = true;
             if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
@@ -280,10 +280,12 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         out->vp_relay     = false;
-        if (in->tick_ms - sm->state_start_ms > 5000u) {
-            sm->state = TES_STATE_IDLE;
-            sm->status_508.fault_flags              = 0;
-            sm->params_509.remaining_time_min       = 0xFFFF;
+        // 緊急停止需手動復歸（設定選單 Reset Fault），不自動超時
+        if (in->fault_clear_requested || sm->remote_fault_clear) {
+            sm->remote_fault_clear            = false;
+            sm->state                         = TES_STATE_IDLE;
+            sm->status_508.fault_flags        = 0;
+            sm->params_509.remaining_time_min = 0xFFFF;
         }
         break;
 
@@ -345,8 +347,9 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
     return snap;
 }
 
-void tes_sm_request_start(tes_sm_t *sm)  { sm->remote_start = true; }
-void tes_sm_request_stop (tes_sm_t *sm)  { sm->remote_stop  = true; }
+void tes_sm_request_start       (tes_sm_t *sm) { sm->remote_start       = true; }
+void tes_sm_request_stop        (tes_sm_t *sm) { sm->remote_stop        = true; }
+void tes_sm_request_fault_clear (tes_sm_t *sm) { sm->remote_fault_clear = true; }
 
 // ─── 私有函數實作 ─────────────────────────────────────────────────────────────
 
@@ -416,7 +419,16 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
 {
     const tes_vehicle_status_t *vs = &in->vehicle_status;
 
+    // CAN 許可撤銷（bit0 消失）
     if (!(vs->status_flags & 0x01)) {
+        enter_ending(sm, out); return;
+    }
+    // 車端正常停止請求（bit3）
+    if (vs->status_flags & 0x08) {
+        enter_ending(sm, out); return;
+    }
+    // 車端停止請求（bit2）
+    if (vs->status_flags & 0x04) {
         enter_ending(sm, out); return;
     }
     if (in->stop_requested || sm->remote_stop) {
@@ -454,6 +466,8 @@ static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out)
     out->relay_on      = false;
     out->coupler_lock  = false;
     if (sm->status_508.fault_flags == 0) sm->status_508.fault_flags = 0x01;
+    // 保存故障碼供顯示（若呼叫端已設定則保留，否則使用 CAN 故障旗標）
+    if (sm->last_fault_flags == 0) sm->last_fault_flags = sm->status_508.fault_flags;
     out->set_psu_current    = true;
     out->psu_current_target = 5.0f; // PSU 電流重置
 }
@@ -479,6 +493,7 @@ static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out)
     out->psu_current_target = 0.0f;
 
     sm->status_508.fault_flags   |= 0x01;
+    sm->last_fault_flags          = sm->status_508.fault_flags; // 保存緊急故障碼
     sm->status_508.status_flags  |= 0x01;
     out->tx_charger_status  = true;
     out->tx_emergency       = true;

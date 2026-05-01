@@ -15,7 +15,11 @@
       "PowerShell(Get-PnpDevice *)",
       "PowerShell([System.IO.Ports.SerialPort]::GetPortNames\\(\\))",
       "PowerShell(Get-WMIObject *)",
-      "PowerShell(Get-Process *)"
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\esp\\\\v5.5.1\\\\esp-idf\\\\components\" -Name | Where-Object { $_ -match \"mdns|dns\" })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\v3\\\\build\\\\esp-idf\\\\services\" -Recurse | Select-Object Name | Where-Object { $_.Name -match \"index|html\" })",
+      "PowerShell(New-Item *)",
+      "Bash(grep -i -E \"\\\\.\\(cpp|h\\)$\")"
     ]
   }
 }

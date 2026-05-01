@@ -113,12 +113,17 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 
 ### Button Routing
 
-| Button | Menu closed | Menu open |
-|--------|-------------|-----------|
-| START | `g_btn_event_queue` -> TES SM (start charging) | `g_display_btn_queue` -> menu scroll up / value increment |
-| STOP | `g_btn_event_queue` -> TES SM (stop charging) | `g_display_btn_queue` -> menu scroll down / value decrement |
-| SETTING | `g_display_btn_queue` -> opens menu | `g_display_btn_queue` -> confirm / back |
-| EMERGENCY | `g_emergency_stop` atomic_bool (always, never gated) | same |
+Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP only).
+
+| Button | Press type | Menu closed | Menu open (NAV) | Menu open (EDIT) |
+|--------|------------|-------------|-----------------|------------------|
+| START | short | `g_btn_event_queue` → TES SM (start) | scroll up | fine +0.1 (V/A/1%) |
+| START | long/repeat | — | — | coarse +1 (V/A/5%) auto-repeat |
+| STOP | short | `g_btn_event_queue` → TES SM (stop) | scroll down | fine −0.1 |
+| STOP | long/repeat | — | — | coarse −1 auto-repeat |
+| SETTING | short | cycle quick SOC preset (80→95→100→80) | confirm / enter edit | confirm edit, back to NAV |
+| SETTING | long | open settings menu | — | — |
+| EMERGENCY | short | `g_emergency_stop` atomic_bool (always, never gated) | same | same |
 
 ### Key Design Decisions vs V2
 
@@ -180,7 +185,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: Hardware tested with real vehicle (2026-05-01), full charge cycle IDLE→PARAM_EXCHANGE→PRE_CHARGE→CHARGING confirmed working
+### Current Status: Network + Web UI complete (2026-05-01). Full charge cycle + REST API + embedded web page all working.
 
 ### Implementation Progress
 
@@ -199,14 +204,17 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 11 | `services/event_bus` -- FreeRTOS queue-based | DONE |
 | 12 | `services/config_svc` -- NVS with RAM cache, namespace "tes_cfg" | DONE |
 | 13 | `services/display_svc` -- status screen + settings menu | DONE |
-| 14 | `services/network_svc` -- WiFi + HTTP skeleton | DONE (captive portal TODO) |
+| 14 | `services/network_svc` -- WiFi STA/AP + REST API + mDNS + embedded web UI | DONE |
 | 15 | `services/ota_svc` -- esp_https_ota | DONE |
 | 16 | `main/` tasks -- all 7 tasks, full button routing | DONE |
 | 17 | `idf.py build` zero errors | DONE |
 | 18 | Hardware flash + TES charging flow test | DONE |
 | 19 | u8g2 integration + full OLED display | DONE |
 | 20 | SETTING button + display menu | DONE |
-| 21 | `network_svc` captive portal + REST /config /start /stop | TODO |
+| 21 | REST API -- GET /status, GET /config, POST /config, POST /start, POST /stop | DONE |
+| 22 | AP mode (no SSID → "TES-Charger" open AP) + mDNS `tes-charger.local` | DONE |
+| 23 | Embedded web UI -- single-page app, 1s live polling, dark theme | DONE |
+| 24 | OTA URL trigger | TODO |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -224,29 +232,37 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Emergency stop | atomic_bool, checked every 10ms tick, bypasses queue and menu gate |
 | Config NVS | Load-once RAM cache; fixes V2's NVS-open-every-50ms bug |
 | OLED status screen | State name, voltage/current, SOC, elapsed time, target config |
-| OLED settings menu | Max Voltage / Max Current / Target SOC / LuxBeacon / Save / Cancel |
-| SETTING button | Opens menu; START/STOP navigate; SETTING confirms/backs |
+| OLED settings menu | Max Voltage / Max Current / Target SOC / LuxBeacon / WiFi Info / Save / Cancel |
+| SETTING button | Long press opens menu; short press cycles SOC (80→95→100→80) |
+| WiFi / REST API | AP mode when unconfigured; STA mode when SSID set; full REST API |
+| Web UI | Embedded SPA at `GET /`, live 1s polling, start/stop/config controls |
+| mDNS | `tes-charger.local` registered after STA connects |
 
 #### Known differences vs V2 for hardware testing
 
 | Item | V2 | V3 current |
 |------|-----|------------|
-| WiFi / REST API | AsyncWebServer + WiFiManager | WiFi connects, no REST endpoints or captive portal yet |
 | OTA | GitHub release pull | Skeleton only, needs URL trigger |
 | BLE | Partial implementation | Not implemented in V3 |
 
 ### Settings Menu
 
-6 items, accessible via SETTING button from status screen:
+7 items, accessible by **long-pressing SETTING** from the status screen.
+**Short-pressing SETTING** on the status screen cycles the quick SOC preset: 80 % → 95 % → 100 % → 80 % (saves to NVS immediately).
 
-| Item | Range | Step |
-|------|-------|------|
-| Max Voltage | 40 V -- 100 V | 1 V |
-| Max Current | 1 A -- 20 A | 1 A |
-| Target SOC | 20 % -- 100 % | 5 % |
-| LuxBeacon | ON / OFF | toggle |
-| Save & Exit | writes to NVS | -- |
-| Cancel | discard changes | -- |
+| Item | Range | Short press step | Long press step |
+|------|-------|-----------------|-----------------|
+| Max Voltage | 40.0 V -- 120.0 V | ±0.1 V | ±1 V (auto-repeat) |
+| Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
+| Target SOC | 20 % -- 100 % | ±1 % | ±5 % (auto-repeat) |
+| LuxBeacon | ON / OFF | toggle | toggle |
+| WiFi Info | read-only display | — | — |
+| Save & Exit | writes to NVS | — | — |
+| Cancel | discard changes | — | — |
+
+WiFi Info shows: `AP: 192.168.4.1` (AP mode) / `IP: x.x.x.x` (STA connected) / `WiFi: ---` (disconnected).
+
+OLED status screen shows `SOC:現在/目標%` (e.g. `SOC:72/95%`).
 
 ### PSU UART Protocol Notes (discovered during hardware testing 2026-05-01)
 
@@ -262,6 +278,36 @@ The PSU sends two types of frames on UART:
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
 - ENDING → EMERGENCY transition: vehicle (eMoving iE125) sends 0x5F0 emergency after normal charge end; SM handles it via 5s EMERGENCY→IDLE timeout which is functionally correct but sets `fault_latched=true` (LED shows fault briefly after each charge cycle)
 
+### Network & Web UI
+
+**WiFi modes:**
+- No SSID in NVS → AP mode, SSID `TES-Charger` (open), IP `192.168.4.1`
+- SSID configured → STA mode, auto-reconnect, mDNS `tes-charger.local` after got-IP
+
+**REST API (port 80, CORS *):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Embedded web UI (HTML/CSS/JS, ~9 KB) |
+| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, timer, fault, wifi, ip |
+| GET | `/config` | JSON config: max_voltage, max_current, target_soc, wifi_ssid, beacon |
+| POST | `/config` | Partial update JSON body (any subset of fields); WiFi changes require reboot |
+| POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
+| POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
+
+**Initial WiFi setup** (AP mode): connect to `TES-Charger`, open `http://192.168.4.1`, use web UI Settings or:
+```bash
+curl -X POST http://192.168.4.1/config \
+  -H "Content-Type: application/json" \
+  -d '{"wifi_ssid":"MySSID","wifi_pass":"password"}'
+```
+Reboot to connect to the configured AP. After connecting, use `http://tes-charger.local`.
+
+**CMake notes for embedded web UI:**
+- HTML is embedded via `EMBED_TXTFILES "web/index.html"` in `services/CMakeLists.txt`
+- Symbol name uses **filename only** (not path): `_binary_index_html_start` / `_binary_index_html_end`
+- mDNS uses managed component `espressif/mdns` declared in `services/idf_component.yml`; CMakeLists REQUIRES entry is `espressif__mdns` (double underscore)
+
 ### File Structure
 
 ```
@@ -276,7 +322,9 @@ v3/
 |   +-- u8g2/                   git submodule (olikraus/u8g2); run `git submodule update --init`
 |   +-- u8g2_idf/               CMakeLists.txt only -- wires u8g2/csrc into ESP-IDF build
 |   +-- drivers/                can/adc/psu/display/led -- all complete
-|   +-- services/               event_bus/config_svc/display_svc complete; network/ota skeleton
+|   +-- services/               all services complete
+|   |   +-- web/index.html      embedded web UI (EMBED_TXTFILES in services/CMakeLists.txt)
+|   |   +-- idf_component.yml   declares espressif/mdns managed component
 +-- main/
     +-- globals.h               IPC objects (queues, snapshot mutex, atomic, volatile ADC, menu flag)
     +-- main.c                  HAL/driver/service init + task spawn
@@ -284,7 +332,9 @@ v3/
     +-- task_tes_sm.c           tes_sm_tick + execute_outputs + snapshot update
     +-- task_hal_poll.c         button debounce + interleaved ADC + PSU poll + menu routing
     +-- task_display.c          50ms: drain g_display_btn_queue + display_svc_tick
-    +-- task_network.c          100ms stub
+    +-- task_network.c          100ms WiFi status poller
     +-- task_ota.c              event_bus subscriber
     +-- task_monitor.c          10s heap report
+    +-- idf_component.yml       also declares espressif/mdns (added by idf.py add-dependency)
+    +-- web/index.html          copy of services/web/index.html (kept for reference)
 ```

@@ -102,6 +102,10 @@ void task_tes_sm(void *arg)
             } else if (btn_evt == EVT_BUTTON_STOP) {
                 inputs.stop_requested = true;
                 ESP_LOGI(TAG, "STOP button received");
+            } else if (btn_evt == EVT_FAULT_CLEAR) {
+                inputs.fault_clear_requested = true;
+                atomic_store(&g_emergency_stop, false); // 解除硬體緊急鎖存
+                ESP_LOGI(TAG, "FAULT_CLEAR received");
             }
         }
 
@@ -122,8 +126,10 @@ void task_tes_sm(void *arg)
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);
 
-        inputs.start_requested = false;
-        inputs.stop_requested  = false;
+        inputs.start_requested       = false;
+        inputs.stop_requested        = false;
+        inputs.fault_clear_requested = false;
+        inputs.vehicle_emergency     = false; // 每 tick 重置：只反映本 tick 收到的 0x5F0 幀
 
         tes_snapshot_t snap = tes_sm_get_snapshot(&s_sm);
         if (xSemaphoreTake(g_snapshot_mutex, 0) == pdTRUE) {
