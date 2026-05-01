@@ -34,6 +34,12 @@ void psu_driver_poll(void)
                 s_status.current         = a;
                 s_status.connected       = true;
                 s_last_valid_ticks       = s_poll_ticks;
+            } else if (strncmp(s_rx_buf, "CMD_ACK:", 8) == 0) {
+                // PSU acknowledges SET commands — counts as alive, no V/I data
+                if (!s_status.connected)
+                    ESP_LOGI(TAG, "PSU connected (CMD_ACK)");
+                s_status.connected = true;
+                s_last_valid_ticks = s_poll_ticks;
             } else {
                 ESP_LOGW(TAG, "bad frame: %s", s_rx_buf);
             }

@@ -96,8 +96,13 @@ void task_tes_sm(void *arg)
 
         uint8_t btn_evt;
         while (xQueueReceive(g_btn_event_queue, &btn_evt, 0) == pdTRUE) {
-            if (btn_evt == EVT_BUTTON_START)     inputs.start_requested = true;
-            else if (btn_evt == EVT_BUTTON_STOP) inputs.stop_requested  = true;
+            if (btn_evt == EVT_BUTTON_START) {
+                inputs.start_requested = true;
+                ESP_LOGI(TAG, "START button received");
+            } else if (btn_evt == EVT_BUTTON_STOP) {
+                inputs.stop_requested = true;
+                ESP_LOGI(TAG, "STOP button received");
+            }
         }
 
         drain_can_rx_queue(&inputs);
@@ -128,6 +133,14 @@ void task_tes_sm(void *arg)
 
         static tes_state_t s_last_state = TES_STATE_IDLE;
         if (snap.state != s_last_state) {
+            static const char *state_names[] = {
+                "IDLE","PARAM_EXCHANGE","PRE_CHARGE","CHARGING",
+                "ENDING","FINALIZE","FAULT","EMERGENCY"
+            };
+            const char *name = (snap.state < 8) ? state_names[snap.state] : "?";
+            ESP_LOGI(TAG, "state: %s -> %s  psu_conn=%d cp_v=%.2f",
+                     state_names[s_last_state], name,
+                     inputs.psu_connected, inputs.cp_voltage);
             s_last_state = snap.state;
             charger_event_t evt = { .type = EVT_TES_STATE_CHANGED,
                                     .timestamp_ms = inputs.tick_ms };
