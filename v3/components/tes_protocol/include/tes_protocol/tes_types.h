@@ -111,7 +111,8 @@ typedef struct {
     uint8_t       soc;                   // 0-100 %
     float         output_voltage;        // V（PSU 回報或 ADC 量測）
     float         output_current;        // A
-    float         vehicle_req_current;   // A（BMS 請求）
+    float         vehicle_req_voltage;   // V（BMS 充電電壓上限，0x500 charge_voltage_limit）
+    float         vehicle_req_current;   // A（BMS 請求電流，0x500 charge_current_cmd）
     bool          timer_running;
     uint32_t      elapsed_seconds;
     uint32_t      total_seconds;

@@ -134,12 +134,10 @@ static void value_increment(int item)
 {
     switch ((menu_item_id_t)item) {
     case MENU_ITEM_MAX_VOLTAGE:
-        // 40V–100V in 1V steps (40–100 in units of 10)
-        if (s_edit_voltage < 1000) s_edit_voltage += 10;
+        if (s_edit_voltage < 1200) s_edit_voltage += 10;
         break;
     case MENU_ITEM_MAX_CURRENT:
-        // 1A–20A in 1A steps (10–200 in units of 10)
-        if (s_edit_current < 200) s_edit_current += 10;
+        if (s_edit_current < 1000) s_edit_current += 10;
         break;
     case MENU_ITEM_TARGET_SOC:
         // 20–100 in 5% steps
@@ -209,8 +207,9 @@ static void render_status(const tes_snapshot_t *snap)
     snprintf(buf, sizeof(buf), "SOC:%3d%%", snap->soc);
     display_driver_draw_str(0, 42, buf);
 
-    uint32_t elapsed = snap->elapsed_seconds;
-    snprintf(buf, sizeof(buf), "%02lu:%02lu", elapsed / 60, elapsed % 60);
+    uint32_t rem_min = snap->timer_running
+        ? (snap->remaining_seconds + 30) / 60 : 0;
+    snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
     display_driver_draw_str(80, 42, buf);
 
     display_driver_font_small();
@@ -218,9 +217,12 @@ static void render_status(const tes_snapshot_t *snap)
         snprintf(buf, sizeof(buf), "ERR:0x%02X", snap->last_fault_flags);
         display_driver_draw_str(0, 56, buf);
     } else {
-        const charger_config_t *cfg = config_svc_get();
-        snprintf(buf, sizeof(buf), "TGT:%uV %uA",
-                 cfg->max_voltage_01v / 10, cfg->max_current_01a / 10);
+        if (snap->vehicle_req_voltage > 0.5f || snap->vehicle_req_current > 0.1f) {
+            snprintf(buf, sizeof(buf), "REQ:%.0fV %.0fA",
+                     snap->vehicle_req_voltage, snap->vehicle_req_current);
+        } else {
+            snprintf(buf, sizeof(buf), "REQ: --V --A");
+        }
         display_driver_draw_str(0, 56, buf);
         snprintf(buf, sizeof(buf), "MENU:SET");
         display_driver_draw_str(80, 56, buf);

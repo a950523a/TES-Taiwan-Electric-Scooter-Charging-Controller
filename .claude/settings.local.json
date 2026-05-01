@@ -11,7 +11,11 @@
       "Bash(cp -r /c/Users/user/Documents/GitHub/LianMing-PSU-Controller/components/u8g2 /c/Users/user/Documents/GitHub/TES-Taiwan-Electric-Scooter-Charging-Controller/v3/components/u8g2)",
       "Bash(echo \"Copy exit code: $?\")",
       "PowerShell([System.IO.Ports.SerialPort]::GetPortNames\\(\\) | Sort-Object)",
-      "Bash(git -C \"/c/Users/user/Documents/GitHub/TES-Taiwan-Electric-Scooter-Charging-Controller\" status --short)"
+      "Bash(git -C \"/c/Users/user/Documents/GitHub/TES-Taiwan-Electric-Scooter-Charging-Controller\" status --short)",
+      "PowerShell(Get-PnpDevice *)",
+      "PowerShell([System.IO.Ports.SerialPort]::GetPortNames\\(\\))",
+      "PowerShell(Get-WMIObject *)",
+      "PowerShell(Get-Process *)"
     ]
   }
 }

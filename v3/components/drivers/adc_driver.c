@@ -16,7 +16,7 @@ static const char *TAG = "adc_driver";
 #define ADS_CFG_MUX_01    (0b000u << 12)  // differential AIN0-AIN1
 #define ADS_CFG_MUX_23    (0b011u << 12)  // differential AIN2-AIN3
 #define ADS_CFG_PGA_4V    (0b001u << 9)   // ±4.096V → LSB = 125µV
-#define ADS_CFG_MODE_CONT (0u << 8)
+#define ADS_CFG_MODE_SINGLE (1u << 8)
 #define ADS_CFG_DR_128    (0b100u << 5)
 #define ADS_CFG_COMP_DIS  (0b11u << 0)
 
@@ -42,7 +42,7 @@ static int16_t ads_read_conversion(void)
 static float ads_read_differential(uint16_t mux_bits)
 {
     uint16_t cfg = ADS_CFG_OS | mux_bits | ADS_CFG_PGA_4V |
-                   ADS_CFG_MODE_CONT | ADS_CFG_DR_128 | ADS_CFG_COMP_DIS;
+                   ADS_CFG_MODE_SINGLE | ADS_CFG_DR_128 | ADS_CFG_COMP_DIS;
     ads_write_config(cfg);
     vTaskDelay(pdMS_TO_TICKS(9));  // 128SPS → ~8ms per sample
     int16_t raw = ads_read_conversion();

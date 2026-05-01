@@ -87,7 +87,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->coupler_lock = false;
         out->vp_relay     = false;
         sm->fault_latched          = false;
-        sm->charge_complete_latched = false;
         sm->vehicle_ready          = false;
         sm->timer_running          = false;
         sm->precharge_step         = PRECHARGE_STEP_INIT;
@@ -96,7 +95,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         if (in->start_requested || sm->remote_start) {
             sm->remote_start       = false;
             sm->fault_latched      = false;
-            sm->charge_complete_latched = false;
+            sm->charge_complete_latched = false;  // only clear on new start
             out->vp_relay          = true;
             if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
@@ -209,6 +208,15 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->coupler_lock = true;
         out->vp_relay     = true;
 
+        // 每 tick 更新車輛請求值（供 display 用，與 PSU 連線狀態無關）
+        {
+            float bms_req = (float)in->vehicle_status.charge_current_cmd / 10.0f;
+            if (bms_req > 0.0f)
+                sm->last_valid_req_current = bms_req;
+            if (in->vehicle_status.charge_voltage_limit > 0)
+                sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
+        }
+
         // PSU 電流控制：取 BMS 請求和用戶上限的最小值
         if (in->psu_connected) {
             float bms_req    = (float)in->vehicle_status.charge_current_cmd / 10.0f;
@@ -216,9 +224,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             float target     = (bms_req < user_limit) ? bms_req : user_limit;
             out->set_psu_current    = true;
             out->psu_current_target = target;
-            if (bms_req > 0.0f) {
-                sm->last_valid_req_current = bms_req;
-            }
         }
 
         run_monitoring(sm, in, out);
@@ -291,6 +296,18 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // 週期性 CAN 廣播（協議要求 100ms，僅在 PARAM_EXCHANGE 以後）
     if (sm->state >= TES_STATE_PARAM_EXCHANGE && sm->state < TES_STATE_FAULT) {
         prepare_periodic_tx(sm, in, out);
+        // Latch vehicle voltage limit for snapshot (0x500 field)
+        if (in->vehicle_status.charge_voltage_limit > 0)
+            sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
+    }
+
+    // Live voltage/current: always update every tick for display (regardless of state)
+    if (in->psu_connected) {
+        sm->live_voltage_01v = (uint16_t)(in->psu_voltage   * 10.0f);
+        sm->live_current_01a = (uint16_t)(in->psu_current   * 10.0f);
+    } else {
+        sm->live_voltage_01v = (uint16_t)(in->measured_voltage * 10.0f);
+        sm->live_current_01a = out->relay_on ? sm->cfg.max_current_01a : 0;
     }
 }
 
@@ -301,8 +318,9 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
     snap.fault_latched          = sm->fault_latched;
     snap.charge_complete        = sm->charge_complete_latched;
     snap.soc                    = sm->soc;
-    snap.output_voltage         = sm->params_509.actual_voltage / 10.0f;
-    snap.output_current         = sm->params_509.actual_current / 10.0f;
+    snap.output_voltage         = sm->live_voltage_01v / 10.0f;
+    snap.output_current         = sm->live_current_01a / 10.0f;
+    snap.vehicle_req_voltage    = sm->last_vehicle_voltage_01v / 10.0f;
     snap.vehicle_req_current    = sm->last_valid_req_current;
     snap.timer_running          = sm->timer_running;
     snap.elapsed_seconds        = sm->elapsed_seconds;
@@ -373,7 +391,8 @@ static void prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_
         sm->params_509.actual_current = (uint16_t)(in->psu_current * 10.0f);
     } else {
         sm->params_509.actual_voltage = (uint16_t)(in->measured_voltage * 10.0f);
-        sm->params_509.actual_current = 0;
+        sm->params_509.actual_current = out->relay_on
+            ? sm->cfg.max_current_01a : 0;
     }
 
     uint32_t rem = (sm->total_seconds > sm->elapsed_seconds)
