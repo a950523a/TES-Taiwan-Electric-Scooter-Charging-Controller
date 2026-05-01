@@ -1,20 +1,18 @@
-# =============================================================================
-# TES Charger V3 — ESP32-S3 N16R8 default sdkconfig
-# Flash: 16MB DIO 80MHz  |  PSRAM: 8MB OPI  |  Target: ESP32-S3
-# =============================================================================
+# TES Charger V3 - ESP32-S3 N16R8 default sdkconfig
+# Flash: 16MB DIO 80MHz | PSRAM: 8MB OPI | Target: ESP32-S3
 
-# ── Flash ─────────────────────────────────────────────────────────────────────
+# --- Flash ---
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE="dio"
 CONFIG_ESPTOOLPY_FLASHFREQ="80m"
 CONFIG_ESPTOOLPY_BAUD=921600
 
-# ── Partition table ───────────────────────────────────────────────────────────
+# --- Partition table ---
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_16MB.csv"
 
-# ── PSRAM (OPI 8MB on N16R8) ──────────────────────────────────────────────────
+# --- PSRAM (OPI 8MB on N16R8) ---
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
@@ -22,27 +20,27 @@ CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
 CONFIG_SPIRAM_RODATA=y
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 
-# ── USB CDC console (replaces UART0, matches V2 ARDUINO_USB_CDC_ON_BOOT) ─────
+# --- USB CDC console ---
 CONFIG_ESP_CONSOLE_USB_CDC=y
 
-# ── FreeRTOS ──────────────────────────────────────────────────────────────────
+# --- FreeRTOS ---
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# --- Logging ---
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 CONFIG_LOG_COLORS=y
 
-# ── WiFi ──────────────────────────────────────────────────────────────────────
+# --- WiFi ---
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
 
-# ── TWAI (CAN bus) ────────────────────────────────────────────────────────────
+# --- TWAI (CAN bus) ---
 CONFIG_TWAI_ERRATA_FIX_LISTEN_ONLY_DOM=y
 
-# ── Heap ──────────────────────────────────────────────────────────────────────
+# --- Heap ---
 CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS=n
 
-# ── App version ───────────────────────────────────────────────────────────────
+# --- App version ---
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
 CONFIG_APP_PROJECT_VER="3.0.0-dev"

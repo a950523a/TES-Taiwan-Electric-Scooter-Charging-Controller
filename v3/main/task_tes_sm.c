@@ -25,11 +25,15 @@ static void drain_can_rx_queue(tes_sm_inputs_t *in)
     can_frame_t frame;
     while (xQueueReceive(g_can_rx_queue, &frame, 0) == pdTRUE) {
         switch (frame.id) {
-        case 0x500: tes_decode_vehicle_status(&in->vehicle_status, frame.data);  break;
-        case 0x501: tes_decode_vehicle_params(&in->vehicle_params, frame.data);  break;
+        case 0x500:
+            tes_codec_decode_vehicle_status(frame.data, frame.dlc, &in->vehicle_status);
+            break;
+        case 0x501:
+            tes_codec_decode_vehicle_params(frame.data, frame.dlc, &in->vehicle_params);
+            break;
         case 0x5F0: {
             tes_vehicle_emergency_t em;
-            tes_decode_vehicle_emergency(&em, frame.data);
+            tes_codec_decode_vehicle_emergency(frame.data, frame.dlc, &em);
             in->vehicle_emergency = (em.error_request_flags & 0x01) != 0;
             break;
         }
@@ -49,17 +53,17 @@ static void execute_outputs(const tes_sm_outputs_t *out)
 
     if (out->tx_charger_status) {
         can_frame_t f = { .id = 0x508, .dlc = 8 };
-        tes_encode_charger_status(f.data, &out->status_508);
+        tes_codec_encode_charger_status(&out->status_508, f.data);
         can_driver_send(&f, 0);
     }
     if (out->tx_charger_params) {
         can_frame_t f = { .id = 0x509, .dlc = 8 };
-        tes_encode_charger_params(f.data, &out->params_509);
+        tes_codec_encode_charger_params(&out->params_509, f.data);
         can_driver_send(&f, 0);
     }
     if (out->tx_emergency) {
         can_frame_t f = { .id = 0x5F8, .dlc = 8 };
-        tes_encode_charger_emergency(f.data, &out->emergency_5f8);
+        tes_codec_encode_charger_emergency(&out->emergency_5f8, f.data);
         can_driver_send(&f, 0);
     }
 }
@@ -71,9 +75,9 @@ void task_tes_sm(void *arg)
 
     const charger_config_t *cfg = config_svc_get();
     tes_sm_config_t sm_cfg = {
-        .max_voltage_01v  = cfg->max_voltage_01v,
-        .max_current_01a  = cfg->max_current_01a,
-        .target_soc       = cfg->target_soc,
+        .max_voltage_01v   = cfg->max_voltage_01v,
+        .max_current_01a   = cfg->max_current_01a,
+        .target_soc        = cfg->target_soc,
         .manufacturer_code = 0x0001,
     };
     tes_sm_init(&s_sm, &sm_cfg);
@@ -87,53 +91,41 @@ void task_tes_sm(void *arg)
     while (1) {
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TICK_MS));
 
-        // Gather inputs
-        inputs.tick_ms            = platform_tick_ms();
+        inputs.tick_ms             = platform_tick_ms();
         inputs.emergency_requested = atomic_load(&g_emergency_stop);
 
-        // Drain button queue
         uint8_t btn_evt;
         while (xQueueReceive(g_btn_event_queue, &btn_evt, 0) == pdTRUE) {
             if (btn_evt == EVT_BUTTON_START)     inputs.start_requested = true;
             else if (btn_evt == EVT_BUTTON_STOP) inputs.stop_requested  = true;
         }
 
-        // Drain CAN RX frames
         drain_can_rx_queue(&inputs);
 
-        // ADC readings (written by task_hal_poll, single writer so no mutex needed)
         inputs.cp_voltage       = g_adc_cp_voltage;
         inputs.measured_voltage = g_adc_output_voltage;
 
-        // PSU status
         psu_status_t psu = psu_driver_get_status();
         inputs.psu_connected = psu.connected;
         inputs.psu_voltage   = psu.voltage;
         inputs.psu_current   = psu.current;
 
-        // Config (may change at runtime via network_svc)
         inputs.max_voltage_01v = cfg->max_voltage_01v;
         inputs.max_current_01a = cfg->max_current_01a;
         inputs.target_soc      = cfg->target_soc;
 
-        // Tick state machine
         tes_sm_tick(&s_sm, &inputs, &outputs);
-
-        // Execute hardware outputs
         execute_outputs(&outputs);
 
-        // Reset one-shot flags
         inputs.start_requested = false;
         inputs.stop_requested  = false;
 
-        // Update snapshot
         tes_snapshot_t snap = tes_sm_get_snapshot(&s_sm);
         if (xSemaphoreTake(g_snapshot_mutex, 0) == pdTRUE) {
             g_snapshot = snap;
             xSemaphoreGive(g_snapshot_mutex);
         }
 
-        // Publish events if state changed
         static tes_state_t s_last_state = TES_STATE_IDLE;
         if (snap.state != s_last_state) {
             s_last_state = snap.state;

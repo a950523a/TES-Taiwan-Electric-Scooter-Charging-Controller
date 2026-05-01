@@ -18,6 +18,7 @@ void display_driver_font_large  (void);  // 10-12pt
 void display_driver_font_bold   (void);  // 7x13B
 
 // 繪圖
+void     display_driver_set_color  (uint8_t color);            // 0=clear 1=set 2=XOR
 void     display_driver_draw_str   (int x, int y, const char *str);
 void     display_driver_draw_hline (int x, int y, int w);
 void     display_driver_draw_box   (int x, int y, int w, int h);

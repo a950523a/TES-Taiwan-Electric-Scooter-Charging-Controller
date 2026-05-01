@@ -8,8 +8,10 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     REQUIRES
-        hal
+        charger_hal
         platform
         tes_protocol
         driver
+        freertos
+        u8g2_idf
 )

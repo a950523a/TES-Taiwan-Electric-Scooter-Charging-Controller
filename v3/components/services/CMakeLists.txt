@@ -9,7 +9,7 @@ idf_component_register(
         "include"
     REQUIRES
         tes_protocol
-        hal
+        charger_hal
         drivers
         nvs_flash
         esp_wifi

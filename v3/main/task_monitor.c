@@ -19,13 +19,7 @@ void task_monitor(void *arg)
         ESP_LOGI(TAG, "heap free=%u min=%u psram=%u",
                  (unsigned)free_heap, (unsigned)min_heap, (unsigned)free_psram);
 
-        // Log per-task stack watermarks
-        TaskStatus_t tasks[12];
-        UBaseType_t n = uxTaskGetSystemState(tasks, 12, NULL);
-        for (UBaseType_t i = 0; i < n; i++) {
-            ESP_LOGI(TAG, "  %-12s stack_hwm=%u",
-                     tasks[i].pcTaskName,
-                     (unsigned)tasks[i].usStackHighWaterMark);
-        }
+        // Stack watermarks via uxTaskGetStackHighWaterMark per known task handle
+        // uxTaskGetSystemState requires CONFIG_FREERTOS_USE_TRACE_FACILITY — not enabled by default
     }
 }

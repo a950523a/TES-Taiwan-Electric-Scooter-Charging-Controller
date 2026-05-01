@@ -25,6 +25,8 @@ tes_snapshot_t   g_snapshot;
 SemaphoreHandle_t g_snapshot_mutex;
 atomic_bool      g_emergency_stop;
 QueueHandle_t    g_btn_event_queue;
+QueueHandle_t    g_display_btn_queue;
+volatile bool    g_menu_open = false;
 
 // ── Task forward declarations ────────────────────────────────────────────────
 
@@ -46,7 +48,7 @@ void app_main(void)
     ESP_ERROR_CHECK(hal_nvs_init());
     hal_gpio_init();
     ESP_ERROR_CHECK(hal_i2c_init());
-    ESP_ERROR_CHECK(hal_uart_init());
+    ESP_ERROR_CHECK(hal_uart_psu_init());
 
     // Driver init
     ESP_ERROR_CHECK(can_driver_init());
@@ -61,9 +63,10 @@ void app_main(void)
     ESP_ERROR_CHECK(network_svc_init());
 
     // IPC objects
-    g_can_rx_queue    = xQueueCreate(16, sizeof(can_frame_t));
-    g_snapshot_mutex  = xSemaphoreCreateMutex();
-    g_btn_event_queue = xQueueCreate(8, sizeof(uint8_t));
+    g_can_rx_queue      = xQueueCreate(16, sizeof(can_frame_t));
+    g_snapshot_mutex    = xSemaphoreCreateMutex();
+    g_btn_event_queue   = xQueueCreate(8, sizeof(uint8_t));
+    g_display_btn_queue = xQueueCreate(8, sizeof(uint8_t));
     atomic_init(&g_emergency_stop, false);
 
     // Spawn tasks (priority 15 = highest used here)
@@ -73,7 +76,7 @@ void app_main(void)
     xTaskCreate(task_display,  "display",  4096,  NULL,  4, NULL);
     xTaskCreate(task_network,  "network",  12288, NULL,  3, NULL);
     xTaskCreate(task_ota,      "ota",      16384, NULL,  2, NULL);
-    xTaskCreate(task_monitor,  "monitor",  2048,  NULL,  1, NULL);
+    xTaskCreate(task_monitor,  "monitor",  4096,  NULL,  1, NULL);
 
     network_svc_start();
 

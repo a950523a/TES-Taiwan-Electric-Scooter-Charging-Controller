@@ -1,5 +1,6 @@
 #pragma once
 #include <esp_err.h>
+#include <stdbool.h>
 
 // OTA update service (ESP-IDF esp_https_ota).
 // Triggered via REST POST /ota with JSON {"url": "..."}.
