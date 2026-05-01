@@ -180,7 +180,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: Hardware flashed (2026-04-30), OLED confirmed working, awaiting vehicle CAN test
+### Current Status: Hardware tested with real vehicle (2026-05-01), full charge cycle IDLE→PARAM_EXCHANGE→PRE_CHARGE→CHARGING confirmed working
 
 ### Implementation Progress
 
@@ -203,7 +203,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 15 | `services/ota_svc` -- esp_https_ota | DONE |
 | 16 | `main/` tasks -- all 7 tasks, full button routing | DONE |
 | 17 | `idf.py build` zero errors | DONE |
-| 18 | Hardware flash + TES charging flow test | TODO |
+| 18 | Hardware flash + TES charging flow test | DONE |
 | 19 | u8g2 integration + full OLED display | DONE |
 | 20 | SETTING button + display menu | DONE |
 | 21 | `network_svc` captive portal + REST /config /start /stop | TODO |
@@ -214,9 +214,9 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 | Feature | Notes |
 |---------|-------|
-| TES state machine | All 8 states, correct transitions, CP debounce, timer |
+| TES state machine | All 8 states, correct transitions, CP debounce, timer -- verified with eMoving iE125 |
 | CAN codec | 0x500/501/5F0 decode, 0x508/509/5F8 encode, same byte order as V2 |
-| PSU UART control | "V=xx.x,I=xx.x" protocol, SET:V / SET:I; 3s disconnect timeout |
+| PSU UART control | `V=xx.x,I=xx.x` + `CMD_ACK:` frames handled; ADC fallback when PSU in standby |
 | Relay / coupler lock / VP relay | GPIO direct control, each tick outputs desired steady state |
 | ADS1115 ADC | Differential AIN0-1 (voltage), AIN2-3 (CP), same divider ratios |
 | LuxBeacon LED pattern | Same SOC pulse-count encoding as V2 LuxBeacon.cpp |
@@ -248,10 +248,19 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Save & Exit | writes to NVS | -- |
 | Cancel | discard changes | -- |
 
+### PSU UART Protocol Notes (discovered during hardware testing 2026-05-01)
+
+The PSU sends two types of frames on UART:
+- **`V=xx.x,I=xx.x`** -- actual measured output voltage/current; only sent when PSU is actively outputting power
+- **`CMD_ACK:SET_V:xx.x` / `CMD_ACK:SET_I:xx.x`** -- acknowledgement of SET commands; sent in standby/idle and when a SET command is received
+
+`psu_driver.c` handles both: `V=I` frames update `psu_voltage`/`psu_current`; `CMD_ACK:` frames only mark PSU as connected (no V/I data). When `psu_voltage == 0` (PSU standby), the SM falls back to ADC measured voltage for both OLED display and 0x509 CAN output. This prevents the vehicle from seeing 0V/0A and aborting charging.
+
 ### Known Technical Debt (correct behaviour, not clean design)
 
 - `TES_STATE_ENDING`: `relay_open_delay_ms` is a local static inside the case block; should move to `tes_sm_t` struct to make SM fully re-entrant
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
+- ENDING → EMERGENCY transition: vehicle (eMoving iE125) sends 0x5F0 emergency after normal charge end; SM handles it via 5s EMERGENCY→IDLE timeout which is functionally correct but sets `fault_latched=true` (LED shows fault briefly after each charge cycle)
 
 ### File Structure
 

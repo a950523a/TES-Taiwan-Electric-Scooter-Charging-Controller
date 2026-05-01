@@ -218,12 +218,16 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         }
 
         // PSU 電流控制：取 BMS 請求和用戶上限的最小值
+        // 只在 BMS 有送有效電流請求時才更新，避免 bms_req=0 把 PSU 電流清零
         if (in->psu_connected) {
-            float bms_req    = (float)in->vehicle_status.charge_current_cmd / 10.0f;
-            float user_limit = (float)in->max_current_01a / 10.0f;
-            float target     = (bms_req < user_limit) ? bms_req : user_limit;
-            out->set_psu_current    = true;
-            out->psu_current_target = target;
+            float bms_req = (float)in->vehicle_status.charge_current_cmd / 10.0f;
+            if (bms_req > 0.0f) {
+                float user_limit = (float)in->max_current_01a / 10.0f;
+                float target     = (bms_req < user_limit) ? bms_req : user_limit;
+                sm->last_valid_req_current  = bms_req;
+                out->set_psu_current    = true;
+                out->psu_current_target = target;
+            }
         }
 
         run_monitoring(sm, in, out);
@@ -301,8 +305,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
     }
 
-    // Live voltage/current: always update every tick for display (regardless of state)
-    if (in->psu_connected) {
+    // Live voltage/current: prefer PSU measured; fallback to ADC when PSU not reporting V/I
+    if (in->psu_connected && in->psu_voltage > 0.0f) {
         sm->live_voltage_01v = (uint16_t)(in->psu_voltage   * 10.0f);
         sm->live_current_01a = (uint16_t)(in->psu_current   * 10.0f);
     } else {
@@ -386,7 +390,8 @@ static void prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_
     sm->last_periodic_ms = in->tick_ms;
 
     // 更新 0x509 即時數值
-    if (in->psu_connected) {
+    // 優先使用 PSU 回報值；若 PSU 只送 CMD_ACK（psu_voltage==0），fallback 到 ADC
+    if (in->psu_connected && in->psu_voltage > 0.0f) {
         sm->params_509.actual_voltage = (uint16_t)(in->psu_voltage * 10.0f);
         sm->params_509.actual_current = (uint16_t)(in->psu_current * 10.0f);
     } else {
