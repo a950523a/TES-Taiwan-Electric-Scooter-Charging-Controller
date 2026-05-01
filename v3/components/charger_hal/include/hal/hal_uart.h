@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 // PSU UART（與 V2 PowerSupplyController 相同腳位）
-#define HAL_UART_PSU_PORT   UART_NUM_0
+#define HAL_UART_PSU_PORT   UART_NUM_1
 #define PIN_UART_PSU_RX     GPIO_NUM_44
 #define PIN_UART_PSU_TX     GPIO_NUM_43
 #define HAL_UART_PSU_BAUD   115200

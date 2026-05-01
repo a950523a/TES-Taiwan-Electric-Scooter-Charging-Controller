@@ -72,7 +72,7 @@ void app_main(void)
     // Spawn tasks (priority 15 = highest used here)
     xTaskCreate(task_can_rx,   "can_rx",   2048,  NULL, 15, NULL);
     xTaskCreate(task_tes_sm,   "tes_sm",   4096,  NULL, 12, NULL);
-    xTaskCreate(task_hal_poll, "hal_poll", 2048,  NULL, 10, NULL);
+    xTaskCreate(task_hal_poll, "hal_poll", 4096,  NULL, 10, NULL);
     xTaskCreate(task_display,  "display",  4096,  NULL,  4, NULL);
     xTaskCreate(task_network,  "network",  12288, NULL,  3, NULL);
     xTaskCreate(task_ota,      "ota",      16384, NULL,  2, NULL);

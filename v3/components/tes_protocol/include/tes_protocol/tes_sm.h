@@ -95,9 +95,12 @@ typedef struct {
     uint8_t    cp_error_count;
 
     // 快照用 latch 數據
-    float   last_valid_req_current;
-    uint8_t last_fault_flags;
-    uint8_t soc;                     // 最後收到的 BMS SOC
+    float    last_valid_req_current;
+    uint16_t last_vehicle_voltage_01v;   // 最後收到的 charge_voltage_limit（0x500）
+    uint16_t live_voltage_01v;           // 每 tick 更新：PSU 電壓或 ADC 量測（供 display 用）
+    uint16_t live_current_01a;           // 每 tick 更新：PSU 電流或設定值
+    uint8_t  last_fault_flags;
+    uint8_t  soc;                        // 最後收到的 BMS SOC
 
     // remote control flags（由 network / web 設定，tick 內讀取後清除）
     bool remote_start;

@@ -9,9 +9,9 @@
 // Each decimal digit → N short pulses (0 → 10 pulses).
 // Digits separated by 300ms gap; sequence separated by 1000ms gap.
 
-#define PULSE_ON_TICKS    2    // 2 × 50ms = 100ms on
-#define PULSE_OFF_TICKS   2    // 2 × 50ms = 100ms off
-#define DIGIT_GAP_TICKS   6    // 6 × 50ms = 300ms gap between digits
+#define PULSE_ON_TICKS    4    // 4 × 50ms = 200ms on
+#define PULSE_OFF_TICKS   4    // 4 × 50ms = 200ms off
+#define DIGIT_GAP_TICKS   8    // 8 × 50ms = 400ms gap between digits
 #define SEQ_GAP_TICKS     20   // 20 × 50ms = 1000ms gap between sequences
 
 typedef enum {
@@ -38,11 +38,11 @@ static struct {
     bool         blink_on;
 } s;
 
-static void lux_build_pattern(int soc)
+// Load digits from SOC without touching phase/timing (called mid-run to refresh SOC).
+static void lux_load_digits(int soc)
 {
     if (soc < 0)   soc = 0;
     if (soc > 100) soc = 100;
-
     s.num_digits = 0;
     if (soc >= 100) {
         s.digits[s.num_digits++] = 1;
@@ -59,6 +59,12 @@ static void lux_build_pattern(int soc)
     }
     s.digit_idx   = 0;
     s.pulses_left = s.digits[0];
+}
+
+// Full init: load digits and start the inter-sequence gap.
+static void lux_build_pattern(int soc)
+{
+    lux_load_digits(soc);
     s.lux_phase   = LUX_SEQ_GAP;
     s.phase_ticks = SEQ_GAP_TICKS;
 }
@@ -84,8 +90,10 @@ void led_driver_set_state(led_state_t state)
 
 void led_driver_set_beacon_enable(bool enabled)
 {
+    bool was_enabled = s.beacon_enabled;
     s.beacon_enabled = enabled;
-    if (enabled && s.state == LED_STATE_CHARGING) {
+    // Only init pattern on false→true transition; led_driver_tick handles LUX_IDLE on entry.
+    if (enabled && !was_enabled && s.state == LED_STATE_CHARGING) {
         lux_build_pattern(s.beacon_soc);
     }
 }
@@ -93,9 +101,7 @@ void led_driver_set_beacon_enable(bool enabled)
 void led_driver_set_beacon_soc(int soc)
 {
     s.beacon_soc = soc;
-    if (s.beacon_enabled && s.state == LED_STATE_CHARGING) {
-        lux_build_pattern(soc);
-    }
+    // Pattern refreshes with new SOC at the start of each sequence in led_driver_tick().
 }
 
 void led_driver_tick(void)
@@ -118,6 +124,11 @@ void led_driver_tick(void)
             if (s.phase_ticks <= 0) {
                 switch (s.lux_phase) {
                 case LUX_SEQ_GAP:
+                    lux_load_digits(s.beacon_soc);  // refresh SOC at sequence start
+                    s.lux_phase   = LUX_PULSE_ON;
+                    s.phase_ticks = PULSE_ON_TICKS;
+                    hal_gpio_led_charging_set(true);
+                    break;
                 case LUX_DIGIT_GAP:
                     s.lux_phase   = LUX_PULSE_ON;
                     s.phase_ticks = PULSE_ON_TICKS;
@@ -143,8 +154,6 @@ void led_driver_tick(void)
                         } else {
                             s.lux_phase   = LUX_SEQ_GAP;
                             s.phase_ticks = SEQ_GAP_TICKS;
-                            s.digit_idx   = 0;
-                            s.pulses_left = s.digits[0];
                         }
                     }
                     break;
