@@ -13,7 +13,7 @@ idf_component_register(
     REQUIRES
         tes_protocol
         platform
-        hal
+        charger_hal
         drivers
         services
         freertos

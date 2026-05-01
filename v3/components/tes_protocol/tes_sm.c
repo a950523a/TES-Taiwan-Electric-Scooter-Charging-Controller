@@ -109,6 +109,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         break;
 
     case TES_STATE_PARAM_EXCHANGE:
+        // VP 繼電器在整個協商期間保持開啟
+        out->vp_relay = true;
         // 等待車端 CAN 許可（0x500 statusFlags bit0 = 1）
         if (!sm->vehicle_ready && (in->vehicle_status.status_flags & 0x01)) {
             sm->vehicle_ready = true;
@@ -117,6 +119,9 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             if (check_battery_compatibility(sm, in)) {
                 sm->state          = TES_STATE_PRE_CHARGE;
                 sm->state_start_ms = in->tick_ms;
+                // PSU 電壓設為與車端協商後的上限
+                out->set_psu_voltage    = true;
+                out->psu_voltage_target = (float)sm->status_508.fault_detect_voltage / 10.0f;
             } else {
                 sm->status_508.fault_flags |= 0x04;
                 enter_fault(sm, out);
@@ -146,6 +151,10 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             }
             break;
         }
+
+        // 電磁鎖和 VP 繼電器在整個預充電期間保持
+        out->vp_relay     = true;
+        out->coupler_lock = (sm->precharge_step >= PRECHARGE_STEP_CONTACTOR_WAIT);
 
         switch (sm->precharge_step) {
         case PRECHARGE_STEP_INIT:
