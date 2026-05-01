@@ -22,6 +22,7 @@ typedef enum {
     EVT_WIFI_CHANGED,
     EVT_OTA_PROGRESS,
     EVT_OTA_COMPLETE,
+    EVT_FAULT_CLEAR,
 } event_type_t;
 
 typedef struct {

@@ -5,6 +5,7 @@
 
 #include "services/display_svc.h"
 #include "services/config_svc.h"
+#include "services/network_svc.h"
 #include "drivers/display_driver.h"
 #include "drivers/led_driver.h"
 #include "tes_protocol/tes_sm.h"
@@ -21,6 +22,7 @@ static const char *TAG = "display_svc";
 extern tes_snapshot_t    g_snapshot;
 extern SemaphoreHandle_t g_snapshot_mutex;
 extern volatile bool     g_menu_open;
+extern QueueHandle_t     g_btn_event_queue;
 
 // ── Screen state ──────────────────────────────────────────────────────────────
 
@@ -33,6 +35,8 @@ typedef enum {
     MENU_ITEM_MAX_CURRENT,
     MENU_ITEM_TARGET_SOC,
     MENU_ITEM_BEACON,
+    MENU_ITEM_WIFI_INFO,
+    MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
     MENU_ITEM_SAVE,
     MENU_ITEM_CANCEL,
     MENU_ITEM_COUNT
@@ -110,6 +114,20 @@ static void item_label(int item, char *buf, size_t bufsz)
         snprintf(buf, bufsz, "LuxBeacon: %s",
                  s_edit_beacon ? "ON" : "OFF");
         break;
+    case MENU_ITEM_WIFI_INFO: {
+        char ip[20];
+        network_svc_get_ip_str(ip, sizeof(ip));
+        if (network_svc_is_ap_mode())
+            snprintf(buf, bufsz, "AP: %s", ip);
+        else if (ip[0] != '\0')
+            snprintf(buf, bufsz, "IP: %s", ip);
+        else
+            snprintf(buf, bufsz, "WiFi: ---");
+        break;
+    }
+    case MENU_ITEM_RESET_FAULT:
+        snprintf(buf, bufsz, "Reset Fault");
+        break;
     case MENU_ITEM_SAVE:
         snprintf(buf, bufsz, "Save & Exit");
         break;
@@ -128,6 +146,7 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_MAX_CURRENT ||
             item == MENU_ITEM_TARGET_SOC  ||
             item == MENU_ITEM_BEACON);
+    // MENU_ITEM_WIFI_INFO is display-only
 }
 
 // delta > 0 = up, delta < 0 = down
@@ -207,6 +226,24 @@ static void render_status(const tes_snapshot_t *snap)
     char buf[24];
     display_driver_clear();
     display_driver_set_color(1);
+
+    // 故障復歸後停在 IDLE：顯示故障碼畫面直到使用者按 START 重試
+    if (snap->state == TES_STATE_IDLE && snap->fault_latched) {
+        display_driver_font_bold();
+        display_driver_draw_str(0, 12, "FAULT STOP");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        snprintf(buf, sizeof(buf), "Code:0x%02X", snap->last_fault_flags);
+        display_driver_draw_str(0, 30, buf);
+        if (snap->last_valid_req_current > 0.1f) {
+            snprintf(buf, sizeof(buf), "Req:%.1fA", snap->last_valid_req_current);
+            display_driver_draw_str(0, 44, buf);
+        }
+        display_driver_font_small();
+        display_driver_draw_str(0, 58, "START:retry  L:menu");
+        display_driver_flush();
+        return;
+    }
 
     display_driver_font_bold();
     display_driver_draw_str(0, 12, state_name(snap->state));
@@ -343,6 +380,11 @@ void display_svc_button(uint8_t evt)
                 menu_close();
             } else if (s_cursor == MENU_ITEM_CANCEL) {
                 menu_close();
+            } else if (s_cursor == MENU_ITEM_RESET_FAULT) {
+                uint8_t evt = (uint8_t)EVT_FAULT_CLEAR;
+                xQueueSend(g_btn_event_queue, &evt, 0);
+                ESP_LOGI(TAG, "fault clear sent");
+                menu_close();
             } else if (item_is_editable(s_cursor)) {
                 s_mode = MENU_MODE_EDIT;
             }
@@ -385,7 +427,9 @@ void display_svc_tick(void)
         led = LED_STATE_FAULT;
         break;
     default:
-        led = snap.charge_complete ? LED_STATE_COMPLETE : LED_STATE_STANDBY;
+        if (snap.fault_latched)        led = LED_STATE_FAULT;
+        else if (snap.charge_complete) led = LED_STATE_COMPLETE;
+        else                           led = LED_STATE_STANDBY;
         break;
     }
     led_driver_set_state(led);

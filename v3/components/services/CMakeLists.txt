@@ -7,6 +7,8 @@ idf_component_register(
         "ota_svc.c"
     INCLUDE_DIRS
         "include"
+    EMBED_TXTFILES
+        "web/index.html"
     REQUIRES
         tes_protocol
         charger_hal
@@ -15,5 +17,7 @@ idf_component_register(
         esp_wifi
         esp_http_server
         esp_https_ota
+        json
+        espressif__mdns
         freertos
 )

@@ -35,6 +35,7 @@ typedef struct {
     bool start_requested;
     bool stop_requested;
     bool emergency_requested;       // 硬體緊急按鈕，不經 queue
+    bool fault_clear_requested;     // 手動復歸緊急停止（設定選單觸發）
 } tes_sm_inputs_t;
 
 // ─── 狀態機輸出（由 task_tes_sm 在 tick 後執行）──────────────────────────────
@@ -105,6 +106,7 @@ typedef struct {
     // remote control flags（由 network / web 設定，tick 內讀取後清除）
     bool remote_start;
     bool remote_stop;
+    bool remote_fault_clear;    // 手動復歸緊急停止（network/web 觸發）
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────
@@ -114,5 +116,6 @@ void           tes_sm_tick        (tes_sm_t *sm, const tes_sm_inputs_t *in, tes_
 tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm);
 
 // 遠端控制（由 network_svc / display_svc 呼叫，thread-safe by atomic flag）
-void tes_sm_request_start (tes_sm_t *sm);
-void tes_sm_request_stop  (tes_sm_t *sm);
+void tes_sm_request_start       (tes_sm_t *sm);
+void tes_sm_request_stop        (tes_sm_t *sm);
+void tes_sm_request_fault_clear (tes_sm_t *sm); // 手動復歸緊急停止
