@@ -20,6 +20,51 @@
 #define AUTO_VOLT_MIN_V      40.0f
 #define AUTO_VOLT_MAX_V     120.0f
 
+// ── Boot logo (auto-voltage settle screen) ───────────────────────────────────
+// Turtle mark on left (cx=30, cy=36), "Auto Setting Voltage..." on right.
+// Shell: double circle ring. Lightning bolt inside. Head, 4 flippers, tail.
+
+static void draw_auto_volt_screen(void)
+{
+    if (!display_driver_is_ok()) return;
+    display_driver_clear();
+    display_driver_set_color(1);
+
+    // Shell — double ring
+    display_driver_draw_circle(30, 36, 17);
+    display_driver_draw_circle(30, 36, 13);
+
+    // Head (filled disc)
+    display_driver_draw_disc(30, 10, 5);
+
+    // Neck
+    display_driver_draw_line(30, 15, 30, 19);
+    display_driver_draw_line(29, 15, 29, 19);
+
+    // Flippers (filled triangles)
+    display_driver_draw_triangle(13, 25,  0, 17,  2, 29);  // upper-left
+    display_driver_draw_triangle(13, 47,  0, 39,  2, 51);  // lower-left
+    display_driver_draw_triangle(47, 25, 60, 17, 58, 29);  // upper-right
+    display_driver_draw_triangle(47, 47, 60, 39, 58, 51);  // lower-right
+
+    // Tail
+    display_driver_draw_triangle(30, 54, 25, 63, 35, 63);
+
+    // Lightning bolt — two filled triangles forming a Z-zigzag
+    // Upper part: top-right → middle-left → middle step
+    display_driver_draw_triangle(35, 24, 27, 35, 31, 35);
+    // Lower part: middle step → bottom
+    display_driver_draw_triangle(27, 35, 31, 35, 23, 46);
+
+    // Text (right side)
+    display_driver_font_bold();
+    display_driver_draw_str(65, 20, "Auto");
+    display_driver_draw_str(65, 36, "Setting");
+    display_driver_draw_str(65, 52, "Voltage...");
+
+    display_driver_flush();
+}
+
 static const char *TAG = "main";
 
 // ── Global definitions ───────────────────────────────────────────────────────
@@ -68,6 +113,7 @@ void app_main(void)
     // Auto-voltage: 等待 ADC 穩定後讀一次電壓，更新 max_voltage（僅 RAM）
     if (config_svc_get()->auto_voltage) {
         ESP_LOGI(TAG, "auto-voltage: waiting %dms for ADC to settle", AUTO_VOLT_SETTLE_MS);
+        draw_auto_volt_screen();
         vTaskDelay(pdMS_TO_TICKS(AUTO_VOLT_SETTLE_MS));
         float v = adc_driver_read_voltage();
         if (v >= AUTO_VOLT_MIN_V && v <= AUTO_VOLT_MAX_V) {

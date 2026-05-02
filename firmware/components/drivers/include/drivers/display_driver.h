@@ -20,8 +20,12 @@ void display_driver_font_bold   (void);  // 7x13B
 // 繪圖
 void     display_driver_set_color  (uint8_t color);            // 0=clear 1=set 2=XOR
 void     display_driver_draw_str   (int x, int y, const char *str);
-void     display_driver_draw_hline (int x, int y, int w);
-void     display_driver_draw_box   (int x, int y, int w, int h);
-void     display_driver_draw_frame (int x, int y, int w, int h);
-uint16_t display_driver_str_width  (const char *str);
-void     display_driver_draw_glyph (int x, int y, uint16_t glyph);
+void     display_driver_draw_hline   (int x, int y, int w);
+void     display_driver_draw_box     (int x, int y, int w, int h);
+void     display_driver_draw_frame   (int x, int y, int w, int h);
+void     display_driver_draw_circle  (int x, int y, int r);
+void     display_driver_draw_disc    (int x, int y, int r);
+void     display_driver_draw_line    (int x1, int y1, int x2, int y2);
+void     display_driver_draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2);
+uint16_t display_driver_str_width    (const char *str);
+void     display_driver_draw_glyph   (int x, int y, uint16_t glyph);
