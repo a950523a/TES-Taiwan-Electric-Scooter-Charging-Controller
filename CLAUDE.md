@@ -171,7 +171,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: OTA + GitHub Actions complete (2026-05-02). V3 is feature-complete and ready for first release. Push tag `v3.x.x` to trigger automated build and release.
+### Current Status: Stop-mode + Auto-voltage features added (2026-05-02). V3 is feature-complete. Push tag `v3.x.x` to trigger automated build and release.
 
 ### Implementation Progress
 
@@ -204,6 +204,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 25 | 5F0 post-charge emergency auto-recovery (5s timeout + `emergency_hw_triggered` tracking) | DONE |
 | 26 | GitHub Actions matrix build + Release (`tes_charger.bin` + `tes_charger_flash.bin`) | DONE |
 | 27 | GitHub Pages 首次燒錄工具 (`docs/index.html` + `docs/manifest.json`, ESP Web Tools) | DONE |
+| 28 | Auto-voltage: ADC 開機一次讀取 + 1s 延遲 + 龜 logo 畫面 + OLED 選單 + Web UI 開關 | DONE |
+| 29 | Stop mode: SOC / 電壓二選一停止 + OLED 選單 + REST API + Web UI radio + NVS 保存 | DONE |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -221,7 +223,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Emergency stop | atomic_bool, checked every 10ms tick, bypasses queue and menu gate |
 | Config NVS | Load-once RAM cache; fixes V2's NVS-open-every-50ms bug |
 | OLED status screen | State name, voltage/current, SOC, elapsed time, target config |
-| OLED settings menu | Max Voltage / Max Current / Target SOC / LuxBeacon / WiFi Info / Save / Cancel |
+| OLED settings menu | Auto Volt / Max Voltage / Max Current / Target SOC / Stop Mode / Stop Voltage / LuxBeacon / WiFi Info / Reset Fault / Save / Cancel |
 | SETTING button | Long press opens menu; short press cycles SOC (80→95→100→80) |
 | WiFi / REST API | AP mode when unconfigured; STA mode when SSID set; full REST API |
 | Web UI | Embedded SPA at `GET /`, live 1s polling, start/stop/config controls |
@@ -236,16 +238,20 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ### Settings Menu
 
-7 items, accessible by **long-pressing SETTING** from the status screen.
+11 items, accessible by **long-pressing SETTING** from the status screen.
 **Short-pressing SETTING** on the status screen cycles the quick SOC preset: 80 % → 95 % → 100 % → 80 % (saves to NVS immediately).
 
 | Item | Range | Short press step | Long press step |
 |------|-------|-----------------|-----------------|
-| Max Voltage | 40.0 V -- 120.0 V | ±0.1 V | ±1 V (auto-repeat) |
+| Auto Volt | ON / OFF | toggle | toggle |
+| Max Voltage | 40.0 V -- 120.0 V (顯示為 "V Cap" when Auto ON) | ±0.1 V | ±1 V (auto-repeat) |
 | Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
 | Target SOC | 20 % -- 100 % | ±1 % | ±5 % (auto-repeat) |
+| Stop Mode | SOC / Volt | toggle | toggle |
+| Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時有效） | ±0.1 V | ±1 V (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
+| Reset Fault | 手動復歸緊急停止 | confirm | — |
 | Save & Exit | writes to NVS | — | — |
 | Cancel | discard changes | — | — |
 
@@ -260,6 +266,30 @@ The PSU sends two types of frames on UART:
 - **`CMD_ACK:SET_V:xx.x` / `CMD_ACK:SET_I:xx.x`** -- acknowledgement of SET commands; sent in standby/idle and when a SET command is received
 
 `psu_driver.c` handles both: `V=I` frames update `psu_voltage`/`psu_current`; `CMD_ACK:` frames only mark PSU as connected (no V/I data). When `psu_voltage == 0` (PSU standby), the SM falls back to ADC measured voltage for both OLED display and 0x509 CAN output. This prevents the vehicle from seeing 0V/0A and aborting charging.
+
+### Auto-Voltage Feature (ADDED 2026-05-02)
+
+When `auto_voltage = true` in config:
+1. `app_main` draws the boot logo (turtle mark + "Auto Setting Voltage...") on the OLED
+2. Waits `AUTO_VOLT_SETTLE_MS = 1000 ms` for the ADC to stabilise
+3. Reads `adc_driver_read_voltage()` once; if 40–120 V, calls `config_svc_override_voltage()` (RAM only — NVS not written)
+4. Continues normal startup; the overridden value flows into the SM via `inputs.max_voltage_01v` every tick
+
+NVS key `auto_v` (bool). Controllable via OLED menu item "Auto Volt" and web UI checkbox.
+
+### Stop Mode Feature (ADDED 2026-05-02)
+
+Two mutually-exclusive charging termination conditions (selected by user):
+
+| Mode | `stop_mode_t` value | Condition |
+|------|---------------------|-----------|
+| SOC (default) | `STOP_MODE_SOC = 0` | `BMS SOC >= target_soc` |
+| Voltage | `STOP_MODE_VOLTAGE = 1` | `output_voltage >= stop_voltage_01v / 10.0f` |
+
+- Voltage source: PSU reported voltage; ADC fallback if PSU not reporting
+- NVS keys: `stop_m` (uint32 0/1), `stop_v` (uint32, 0.1V/bit, default 1000 = 100.0V)
+- SM check in `run_monitoring()` in `tes_sm.c`
+- Configurable via OLED menu (Stop Mode + Stop Voltage items), REST API, web UI
 
 ### Known Technical Debt (correct behaviour, not clean design)
 
@@ -303,7 +333,7 @@ eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
 |--------|------|-------------|
 | GET | `/` | Embedded web UI (HTML/CSS/JS, ~9 KB) |
 | GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, timer, fault, wifi, ip |
-| GET | `/config` | JSON config: max_voltage, max_current, target_soc, wifi_ssid, beacon |
+| GET | `/config` | JSON config: auto_voltage, max_voltage, max_current, target_soc, stop_mode, stop_voltage, wifi_ssid, beacon |
 | POST | `/config` | Partial update JSON body (any subset of fields); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |

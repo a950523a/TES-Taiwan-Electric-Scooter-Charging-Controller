@@ -162,12 +162,14 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     const charger_config_t *cfg = config_svc_get();
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddBoolToObject  (root, "auto_voltage", cfg->auto_voltage);
-    cJSON_AddNumberToObject(root, "max_voltage",  (double)cfg->max_voltage_01v / 10.0);
-    cJSON_AddNumberToObject(root, "max_current",  (double)cfg->max_current_01a / 10.0);
-    cJSON_AddNumberToObject(root, "target_soc",   cfg->target_soc);
-    cJSON_AddStringToObject(root, "wifi_ssid",    cfg->wifi_ssid);
-    cJSON_AddBoolToObject  (root, "beacon",       cfg->beacon_unlocked);
+    cJSON_AddBoolToObject  (root, "auto_voltage",   cfg->auto_voltage);
+    cJSON_AddNumberToObject(root, "max_voltage",    (double)cfg->max_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
+    cJSON_AddNumberToObject(root, "target_soc",     cfg->target_soc);
+    cJSON_AddNumberToObject(root, "stop_mode",      (int)cfg->stop_mode);
+    cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg->stop_voltage_01v / 10.0);
+    cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
+    cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -229,13 +231,16 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     new_ssid[sizeof(new_ssid) - 1] = '\0';
     strncpy(new_pass, cur->wifi_pass, sizeof(new_pass) - 1);
     new_pass[sizeof(new_pass) - 1] = '\0';
-    bool new_beacon        = cur->beacon_unlocked;
-    bool new_auto_voltage  = cur->auto_voltage;
+    bool new_beacon         = cur->beacon_unlocked;
+    bool new_auto_voltage   = cur->auto_voltage;
+    uint8_t  new_stop_mode     = (uint8_t)cur->stop_mode;
+    uint16_t new_stop_voltage  = cur->stop_voltage_01v;
 
-    bool charging_changed    = false;
-    bool wifi_changed        = false;
-    bool beacon_changed      = false;
+    bool charging_changed     = false;
+    bool wifi_changed         = false;
+    bool beacon_changed       = false;
     bool auto_voltage_changed = false;
+    bool stop_changed         = false;
 
     cJSON *item;
 
@@ -276,13 +281,24 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         new_auto_voltage = cJSON_IsTrue(item);
         auto_voltage_changed = true;
     }
+    item = cJSON_GetObjectItem(root, "stop_mode");
+    if (cJSON_IsNumber(item)) {
+        int m = item->valueint;
+        if (m >= 0 && m <= 1) { new_stop_mode = (uint8_t)m; stop_changed = true; }
+    }
+    item = cJSON_GetObjectItem(root, "stop_voltage");
+    if (cJSON_IsNumber(item)) {
+        int v = (int)(item->valuedouble * 10.0 + 0.5);
+        if (v >= 400 && v <= 1200) { new_stop_voltage = (uint16_t)v; stop_changed = true; }
+    }
 
     cJSON_Delete(root);
 
-    if (charging_changed)    config_svc_set_charging(new_voltage, new_current, new_soc);
-    if (wifi_changed)        config_svc_set_wifi(new_ssid, new_pass);
-    if (beacon_changed)      config_svc_set_beacon(new_beacon);
+    if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
+    if (wifi_changed)         config_svc_set_wifi(new_ssid, new_pass);
+    if (beacon_changed)       config_svc_set_beacon(new_beacon);
     if (auto_voltage_changed) config_svc_set_auto_voltage(new_auto_voltage);
+    if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage);
 
     if (wifi_changed)
         ESP_LOGI(TAG, "WiFi credentials updated — reboot to connect");

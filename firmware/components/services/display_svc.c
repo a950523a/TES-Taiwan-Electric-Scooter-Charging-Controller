@@ -35,6 +35,8 @@ typedef enum {
     MENU_ITEM_MAX_VOLTAGE,
     MENU_ITEM_MAX_CURRENT,
     MENU_ITEM_TARGET_SOC,
+    MENU_ITEM_STOP_MODE,     // 停止條件：SOC / Voltage
+    MENU_ITEM_STOP_VOLTAGE,  // 停止電壓（stop_mode=VOLTAGE 時有效）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
@@ -53,11 +55,13 @@ static int          s_cursor     = 0;
 static int          s_scroll_top = 0;
 
 // Working copies of config while menu is open (saved only on "Save & Exit")
-static bool     s_edit_auto_voltage;
-static uint16_t s_edit_voltage;
-static uint16_t s_edit_current;
-static int8_t   s_edit_soc;
-static bool     s_edit_beacon;
+static bool        s_edit_auto_voltage;
+static uint16_t    s_edit_voltage;
+static uint16_t    s_edit_current;
+static int8_t      s_edit_soc;
+static stop_mode_t s_edit_stop_mode;
+static uint16_t    s_edit_stop_voltage;
+static bool        s_edit_beacon;
 
 #define MAX_VISIBLE_ROWS  4
 #define HEADER_H         16    // pixels reserved for header + separator
@@ -69,11 +73,13 @@ static bool     s_edit_beacon;
 static void menu_open(void)
 {
     const charger_config_t *cfg = config_svc_get();
-    s_edit_auto_voltage = cfg->auto_voltage;
-    s_edit_voltage      = cfg->max_voltage_01v;
-    s_edit_current      = cfg->max_current_01a;
-    s_edit_soc          = cfg->target_soc;
-    s_edit_beacon       = cfg->beacon_unlocked;
+    s_edit_auto_voltage  = cfg->auto_voltage;
+    s_edit_voltage       = cfg->max_voltage_01v;
+    s_edit_current       = cfg->max_current_01a;
+    s_edit_soc           = cfg->target_soc;
+    s_edit_stop_mode     = cfg->stop_mode;
+    s_edit_stop_voltage  = cfg->stop_voltage_01v;
+    s_edit_beacon        = cfg->beacon_unlocked;
     s_cursor       = 0;
     s_scroll_top   = 0;
     s_mode         = MENU_MODE_NAV;
@@ -93,12 +99,15 @@ static void menu_save(void)
 {
     config_svc_set_auto_voltage(s_edit_auto_voltage);
     config_svc_set_charging(s_edit_voltage, s_edit_current, s_edit_soc);
+    config_svc_set_stop(s_edit_stop_mode, s_edit_stop_voltage);
     config_svc_set_beacon(s_edit_beacon);
-    ESP_LOGI(TAG, "saved: auto_v=%d %u.%uV %u.%uA SOC=%d beacon=%d",
+    ESP_LOGI(TAG, "saved: auto_v=%d %u.%uV %u.%uA SOC=%d stop=%d stpV=%u.%u beacon=%d",
              (int)s_edit_auto_voltage,
              s_edit_voltage / 10, s_edit_voltage % 10,
              s_edit_current / 10, s_edit_current % 10,
-             s_edit_soc, (int)s_edit_beacon);
+             s_edit_soc, (int)s_edit_stop_mode,
+             s_edit_stop_voltage / 10, s_edit_stop_voltage % 10,
+             (int)s_edit_beacon);
 }
 
 static void item_label(int item, char *buf, size_t bufsz)
@@ -122,6 +131,14 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_TARGET_SOC:
         snprintf(buf, bufsz, "Target SOC: %d%%", s_edit_soc);
+        break;
+    case MENU_ITEM_STOP_MODE:
+        snprintf(buf, bufsz, "Stop: %s",
+                 s_edit_stop_mode == STOP_MODE_VOLTAGE ? "Volt" : "SOC");
+        break;
+    case MENU_ITEM_STOP_VOLTAGE:
+        snprintf(buf, bufsz, "Stop V: %u.%uV",
+                 s_edit_stop_voltage / 10, s_edit_stop_voltage % 10);
         break;
     case MENU_ITEM_BEACON:
         snprintf(buf, bufsz, "LuxBeacon: %s",
@@ -155,10 +172,12 @@ static void item_label(int item, char *buf, size_t bufsz)
 
 static bool item_is_editable(int item)
 {
-    return (item == MENU_ITEM_AUTO_VOLTAGE ||
-            item == MENU_ITEM_MAX_VOLTAGE  ||
-            item == MENU_ITEM_MAX_CURRENT  ||
-            item == MENU_ITEM_TARGET_SOC   ||
+    return (item == MENU_ITEM_AUTO_VOLTAGE  ||
+            item == MENU_ITEM_MAX_VOLTAGE   ||
+            item == MENU_ITEM_MAX_CURRENT   ||
+            item == MENU_ITEM_TARGET_SOC    ||
+            item == MENU_ITEM_STOP_MODE     ||
+            item == MENU_ITEM_STOP_VOLTAGE  ||
             item == MENU_ITEM_BEACON);
     // MENU_ITEM_WIFI_INFO is display-only
 }
@@ -195,6 +214,17 @@ static void value_step(int item, int delta)
     case MENU_ITEM_AUTO_VOLTAGE:
         s_edit_auto_voltage = !s_edit_auto_voltage;
         break;
+    case MENU_ITEM_STOP_MODE:
+        s_edit_stop_mode = (s_edit_stop_mode == STOP_MODE_SOC)
+                           ? STOP_MODE_VOLTAGE : STOP_MODE_SOC;
+        break;
+    case MENU_ITEM_STOP_VOLTAGE: {
+        int v = (int)s_edit_stop_voltage + delta;
+        if (v < 400)  v = 400;
+        if (v > 1200) v = 1200;
+        s_edit_stop_voltage = (uint16_t)v;
+        break;
+    }
     case MENU_ITEM_BEACON:
         s_edit_beacon = !s_edit_beacon;
         break;
