@@ -41,15 +41,15 @@ jobs:
           esp_idf_version: ${{ matrix.idf_version }}
           target: ${{ matrix.target }}
           command: idf.py build && idf.py merge-bin -o build/tes_charger_flash.bin
-          path: v3
+          path: firmware
 
       # variant 目前只有一種，直接用通用檔名；
       # 未來多 variant 時改為 tes_charger_${{ matrix.variant }}.bin
       - name: Stage release assets
         run: |
           mkdir -p release
-          cp v3/build/tes_charger.bin       release/tes_charger.bin
-          cp v3/build/tes_charger_flash.bin release/tes_charger_flash.bin
+          cp firmware/build/tes_charger.bin       release/tes_charger.bin
+          cp firmware/build/tes_charger_flash.bin release/tes_charger_flash.bin
 
       - name: Upload build artifacts (每次 push 都保留)
         uses: actions/upload-artifact@v4

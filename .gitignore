@@ -31,14 +31,14 @@ Desktop.ini
 # Claude Code local settings
 .claude/settings.local.json
 
-# ESP-IDF V3 build outputs
-v3/build/
-v3/sdkconfig
-v3/sdkconfig.old
+# ESP-IDF firmware build outputs
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
 
 # ESP-IDF managed components (downloaded at build time)
-v3/managed_components/
-v3/dependencies.lock
+firmware/managed_components/
+firmware/dependencies.lock
 
 # Temporary scripts
-v3/read_serial.py
+firmware/read_serial.py
