@@ -4,6 +4,7 @@
 #include "esp_https_ota.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
+#include "esp_ota_ops.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
@@ -11,10 +12,15 @@
 
 static const char *TAG = "ota_svc";
 
-static volatile ota_state_t s_state    = OTA_STATE_IDLE;
-static volatile int         s_progress = 0;
-static char                 s_url[256];
-static char                 s_error[128];
+static volatile ota_state_t      s_state      = OTA_STATE_IDLE;
+static volatile int              s_progress   = 0;
+static char                      s_url[256];
+static char                      s_error[128];
+
+static esp_ota_handle_t          s_ota_handle = 0;
+static const esp_partition_t    *s_ota_part   = NULL;
+static size_t                    s_upload_total = 0;
+static size_t                    s_upload_done  = 0;
 
 static void ota_task(void *arg)
 {
@@ -104,3 +110,89 @@ esp_err_t ota_svc_start(const char *url)
 ota_state_t ota_svc_get_state(void)    { return s_state;    }
 int         ota_svc_progress_pct(void) { return s_progress; }
 const char *ota_svc_get_error(void)    { return s_error;    }
+
+// ── Manual upload OTA ──────────────────────────────────────────────────────────
+
+esp_err_t ota_svc_upload_begin(size_t total_size)
+{
+    if (s_state == OTA_STATE_RUNNING) return ESP_ERR_INVALID_STATE;
+
+    s_ota_part = esp_ota_get_next_update_partition(NULL);
+    if (!s_ota_part) {
+        snprintf(s_error, sizeof(s_error), "no OTA partition");
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = esp_ota_begin(s_ota_part, OTA_WITH_SEQUENTIAL_WRITES, &s_ota_handle);
+    if (err != ESP_OK) {
+        snprintf(s_error, sizeof(s_error), "begin: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    s_upload_total = total_size;
+    s_upload_done  = 0;
+    s_progress     = 0;
+    s_error[0]     = '\0';
+    s_state        = OTA_STATE_RUNNING;
+    ESP_LOGI(TAG, "upload begin, total=%u bytes", (unsigned)total_size);
+    return ESP_OK;
+}
+
+esp_err_t ota_svc_upload_write(const void *data, size_t len)
+{
+    esp_err_t err = esp_ota_write(s_ota_handle, data, len);
+    if (err != ESP_OK) {
+        snprintf(s_error, sizeof(s_error), "write: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", s_error);
+        esp_ota_abort(s_ota_handle);
+        s_ota_handle = 0;
+        s_state      = OTA_STATE_ERROR;
+        return err;
+    }
+    s_upload_done += len;
+    if (s_upload_total > 0)
+        s_progress = (int)((s_upload_done * 100) / s_upload_total);
+    charger_event_t evt = { .type = EVT_OTA_PROGRESS };
+    evt.payload[0] = (uint8_t)s_progress;
+    event_bus_publish(&evt);
+    return ESP_OK;
+}
+
+void ota_svc_upload_abort(void)
+{
+    if (s_ota_handle != 0) {
+        esp_ota_abort(s_ota_handle);
+        s_ota_handle = 0;
+    }
+    s_state = OTA_STATE_IDLE;
+    snprintf(s_error, sizeof(s_error), "upload aborted");
+    ESP_LOGW(TAG, "upload aborted");
+}
+
+esp_err_t ota_svc_upload_end(void)
+{
+    esp_err_t err = esp_ota_end(s_ota_handle);
+    s_ota_handle = 0;
+    if (err != ESP_OK) {
+        snprintf(s_error, sizeof(s_error), "end: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", s_error);
+        s_state = OTA_STATE_ERROR;
+        return err;
+    }
+
+    err = esp_ota_set_boot_partition(s_ota_part);
+    if (err != ESP_OK) {
+        snprintf(s_error, sizeof(s_error), "set boot: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", s_error);
+        s_state = OTA_STATE_ERROR;
+        return err;
+    }
+
+    s_progress = 100;
+    ESP_LOGI(TAG, "upload complete — rebooting");
+    charger_event_t evt = { .type = EVT_OTA_COMPLETE };
+    event_bus_publish(&evt);
+    vTaskDelay(pdMS_TO_TICKS(1500));
+    esp_restart();
+    return ESP_OK;
+}
