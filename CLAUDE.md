@@ -6,30 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ESP32-S3 firmware for a DC charging controller compatible with the **TES-0D-02-01** standard used by Taiwan electric scooters (e.g., eMoving iE125). The controller bridges an external PSU to a vehicle's BMS via CAN bus, with a web UI, OLED display, and OTA updates.
 
-- **V2** (`src/`): PlatformIO / Arduino framework -- current production firmware (v2.5.0-Beta)
-- **V3** (`v3/`): ESP-IDF native -- active refactor; target is feature parity with V2 in pure C99
+Firmware lives in `firmware/` (ESP-IDF, pure C99). V2 PlatformIO code has been removed.
 
 License: CC BY-NC-SA 4.0 (non-commercial).
 
 ---
 
-## V2 Build (PlatformIO / Arduino)
+## Build (ESP-IDF)
 
 ```bash
-pio run                          # build
-pio run --target upload          # flash firmware
-pio run --target uploadfs        # flash LittleFS (web UI data/)
-pio device monitor               # serial monitor 115200 baud
-```
-
-No unit tests (`test/` is empty).
-
----
-
-## V3 Build (ESP-IDF)
-
-```bash
-cd v3
+cd firmware
 idf.py set-target esp32s3
 idf.py build
 idf.py -p <PORT> flash monitor
@@ -46,7 +32,7 @@ python "$env:IDF_PATH\tools\idf.py" build
 ```
 Note: ESP-IDF cmake (3.30.2) must come before STM32CubeCLT cmake in PATH.
 
-**u8g2 dependency:** Tracked as a **git submodule** at `v3/components/u8g2/` (points to olikraus/u8g2 on GitHub; source files are NOT committed to this repo). A thin ESP-IDF wrapper at `v3/components/u8g2_idf/CMakeLists.txt` is committed and wires the submodule's `csrc/` into the build. On a fresh clone run:
+**u8g2 dependency:** Tracked as a **git submodule** at `firmware/components/u8g2/` (points to olikraus/u8g2 on GitHub; source files are NOT committed to this repo). A thin ESP-IDF wrapper at `firmware/components/u8g2_idf/CMakeLists.txt` is committed and wires the submodule's `csrc/` into the build. On a fresh clone run:
 ```bash
 git submodule update --init
 ```
@@ -290,7 +276,7 @@ The PSU sends two types of frames on UART:
      - `tes_charger.bin` → Web UI OTA 更新用
      - `tes_charger_flash.bin` → GitHub Pages 首次燒錄用
 
-**新增硬體變體**：在 `build-v3.yml` 的 `matrix.include` 加一行，並在 `v3/` 為新硬體建立對應 Kconfig/driver。
+**新增硬體變體**：在 `build-v3.yml` 的 `matrix.include` 加一行，並在 `firmware/` 為新硬體建立對應 Kconfig/driver。
 
 ### OTA 更新流程
 
@@ -338,7 +324,7 @@ Reboot to connect to the configured AP. After connecting, use `http://tes-charge
 ### File Structure
 
 ```
-v3/
+firmware/
 +-- CMakeLists.txt
 +-- sdkconfig.defaults          (ASCII only -- Windows cp950 restriction)
 +-- partitions_16MB.csv
