@@ -7,7 +7,9 @@
 #include "services/network_svc.h"
 #include "services/config_svc.h"
 #include "services/event_bus.h"
+#include "services/ota_svc.h"
 #include "tes_protocol/tes_types.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -122,6 +124,17 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "fault_flags",       snap.last_fault_flags);
     cJSON_AddBoolToObject  (root, "wifi_connected",    s_connected);
     cJSON_AddStringToObject(root, "ip",                s_ip_str);
+
+    // OTA 狀態
+    ota_state_t ota_st = ota_svc_get_state();
+    cJSON_AddBoolToObject  (root, "ota_running",  ota_st == OTA_STATE_RUNNING);
+    cJSON_AddNumberToObject(root, "ota_progress", ota_svc_progress_pct());
+    if (ota_st == OTA_STATE_ERROR)
+        cJSON_AddStringToObject(root, "ota_error", ota_svc_get_error());
+
+    // 韌體版本
+    const esp_app_desc_t *app = esp_app_get_description();
+    cJSON_AddStringToObject(root, "firmware_version", app->version);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -307,6 +320,47 @@ static const httpd_uri_t s_uri_post_stop = {
     .uri = "/stop", .method = HTTP_POST, .handler = handle_post_stop
 };
 
+// ── POST /ota ─────────────────────────────────────────────────────────────────
+// Body (optional): {"url": "https://..."}  — 省略則使用預設 GitHub Releases URL
+
+static esp_err_t handle_post_ota(httpd_req_t *req)
+{
+    char url[256] = "";
+
+    if (req->content_len > 0 && req->content_len <= MAX_BODY) {
+        char body[MAX_BODY + 1];
+        int len = httpd_req_recv(req, body, req->content_len);
+        if (len > 0) {
+            body[len] = '\0';
+            cJSON *root = cJSON_Parse(body);
+            if (root) {
+                cJSON *item = cJSON_GetObjectItem(root, "url");
+                if (cJSON_IsString(item) && item->valuestring)
+                    strncpy(url, item->valuestring, sizeof(url) - 1);
+                cJSON_Delete(root);
+            }
+        }
+    }
+
+    esp_err_t err = ota_svc_start(url);
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    if (err == ESP_OK) {
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+    } else if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
+        return ESP_FAIL;
+    } else {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA start failed");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_ota = {
+    .uri = "/ota", .method = HTTP_POST, .handler = handle_post_ota
+};
+
 // ── WiFi event handler ────────────────────────────────────────────────────────
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
@@ -348,7 +402,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size       = 8192;
-    cfg.max_uri_handlers = 10;
+    cfg.max_uri_handlers = 12;
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "HTTP server start failed");
@@ -361,6 +415,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_config);
     httpd_register_uri_handler(s_server, &s_uri_post_start);
     httpd_register_uri_handler(s_server, &s_uri_post_stop);
+    httpd_register_uri_handler(s_server, &s_uri_post_ota);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
 

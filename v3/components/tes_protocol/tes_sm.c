@@ -72,10 +72,16 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     }
 
     // 緊急停止：最高優先，任何狀態都處理
-    if (in->emergency_requested || in->vehicle_emergency) {
-        if (sm->state != TES_STATE_EMERGENCY) {
-            enter_emergency(sm, out);
-            sm->state_start_ms = in->tick_ms;
+    // 車端 0x5F0 在 IDLE 充電完成後忽略，防止自動恢復後立刻重入
+    {
+        bool vehicle_emerg = in->vehicle_emergency &&
+                             !(sm->state == TES_STATE_IDLE && sm->charge_complete_latched);
+        if (in->emergency_requested || vehicle_emerg) {
+            if (sm->state != TES_STATE_EMERGENCY) {
+                sm->emergency_hw_triggered = in->emergency_requested;
+                enter_emergency(sm, out);
+                sm->state_start_ms = in->tick_ms;
+            }
         }
     }
 
@@ -280,9 +286,17 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         out->vp_relay     = false;
-        // 緊急停止需手動復歸（設定選單 Reset Fault），不自動超時
+        // 手動復歸（硬體按鈕或遠端）
         if (in->fault_clear_requested || sm->remote_fault_clear) {
             sm->remote_fault_clear            = false;
+            sm->fault_latched                 = false;
+            sm->state                         = TES_STATE_IDLE;
+            sm->status_508.fault_flags        = 0;
+            sm->params_509.remaining_time_min = 0xFFFF;
+        } else if (!sm->emergency_hw_triggered &&
+                   in->tick_ms - sm->state_start_ms > 5000u) {
+            // 車端 0x5F0 觸發（正常充電結束後車端常見行為）：5秒後自動回 IDLE
+            sm->fault_latched                 = false;
             sm->state                         = TES_STATE_IDLE;
             sm->status_508.fault_flags        = 0;
             sm->params_509.remaining_time_min = 0xFFFF;
