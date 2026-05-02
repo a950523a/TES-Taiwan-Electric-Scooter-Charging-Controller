@@ -34,9 +34,9 @@ typedef enum {
     MENU_ITEM_AUTO_VOLTAGE = 0,
     MENU_ITEM_MAX_VOLTAGE,
     MENU_ITEM_MAX_CURRENT,
-    MENU_ITEM_TARGET_SOC,
     MENU_ITEM_STOP_MODE,     // 停止條件：SOC / Voltage
-    MENU_ITEM_STOP_VOLTAGE,  // 停止電壓（stop_mode=VOLTAGE 時有效）
+    MENU_ITEM_TARGET_SOC,    // 停止條件值（stop_mode=SOC 時顯示）
+    MENU_ITEM_STOP_VOLTAGE,  // 停止條件值（stop_mode=VOLTAGE 時顯示）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
@@ -72,6 +72,8 @@ static int s_visible_count = 0;
 #define ROW_TEXT_OFS      6    // text baseline offset from row top
 
 // ── Menu helpers ──────────────────────────────────────────────────────────────
+
+static void build_visible_list(void);  // forward declaration
 
 static void menu_open(void)
 {
@@ -334,13 +336,25 @@ static void render_status(const tes_snapshot_t *snap)
     display_driver_draw_str(0, 12, state_name(snap->state));
     display_driver_draw_hline(0, 15, 128);
 
-    display_driver_font_medium();
-    snprintf(buf, sizeof(buf), "%.1fV  %.1fA",
-             snap->output_voltage, snap->output_current);
-    display_driver_draw_str(0, 28, buf);
+    const charger_config_t *cfg = config_svc_get();
 
-    snprintf(buf, sizeof(buf), "SOC:%d/%d%%", snap->soc, (int)snap->target_soc);
-    display_driver_draw_str(0, 42, buf);
+    display_driver_font_medium();
+    if (cfg->stop_mode == STOP_MODE_VOLTAGE) {
+        float stop_v = cfg->stop_voltage_01v / 10.0f;
+        snprintf(buf, sizeof(buf), "%.1fV/%.1fV",
+                 snap->output_voltage, stop_v);
+        display_driver_draw_str(0, 28, buf);
+
+        snprintf(buf, sizeof(buf), "SOC:%d%%", snap->soc);
+        display_driver_draw_str(0, 42, buf);
+    } else {
+        snprintf(buf, sizeof(buf), "%.1fV  %.1fA",
+                 snap->output_voltage, snap->output_current);
+        display_driver_draw_str(0, 28, buf);
+
+        snprintf(buf, sizeof(buf), "SOC:%d/%d%%", snap->soc, (int)snap->target_soc);
+        display_driver_draw_str(0, 42, buf);
+    }
 
     uint32_t rem_min = snap->timer_running
         ? (snap->remaining_seconds + 30) / 60 : 0;
