@@ -12,6 +12,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_SSID    "wifi_ssid"
 #define NVS_KEY_PASS    "wifi_pass"
 #define NVS_KEY_BEACON  "beacon"
+#define NVS_KEY_AUTO_V  "auto_v"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -43,9 +44,12 @@ esp_err_t config_svc_init(void)
     bool beacon;
     s_cfg.beacon_unlocked = (hal_nvs_get_bool(NVS_NS, NVS_KEY_BEACON, &beacon) == ESP_OK) && beacon;
 
-    ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d",
+    bool auto_v;
+    s_cfg.auto_voltage = (hal_nvs_get_bool(NVS_NS, NVS_KEY_AUTO_V, &auto_v) == ESP_OK) && auto_v;
+
+    ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d",
              s_cfg.max_voltage_01v, s_cfg.max_current_01a,
-             s_cfg.target_soc, (int)s_cfg.beacon_unlocked);
+             s_cfg.target_soc, (int)s_cfg.beacon_unlocked, (int)s_cfg.auto_voltage);
     return ESP_OK;
 }
 
@@ -78,4 +82,10 @@ esp_err_t config_svc_set_beacon(bool unlocked)
 {
     s_cfg.beacon_unlocked = unlocked;
     return hal_nvs_set_bool(NVS_NS, NVS_KEY_BEACON, unlocked);
+}
+
+esp_err_t config_svc_set_auto_voltage(bool enabled)
+{
+    s_cfg.auto_voltage = enabled;
+    return hal_nvs_set_bool(NVS_NS, NVS_KEY_AUTO_V, enabled);
 }

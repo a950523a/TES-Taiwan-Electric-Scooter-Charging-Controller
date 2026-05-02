@@ -123,7 +123,11 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 <!-- 設定 -->
 <div class="card">
   <section-title>⚙ 設定</section-title>
-  <label class="lbl2">最大電壓 (V)</label>
+  <div class="chk-row">
+    <input type="checkbox" id="cav" onchange="updateAutoVoltUI()">
+    <span>自動設定充電電壓（依 BMS 回報）</span>
+  </div>
+  <label class="lbl2" id="cv-lbl">最大電壓 (V)</label>
   <input type="number" id="cv" step="0.1" min="40" max="120">
   <label class="lbl2">最大電流 (A)</label>
   <input type="number" id="ca" step="0.1" min="1" max="100">
@@ -229,19 +233,27 @@ async function poll(){
   }catch(e){}
 }
 
+function updateAutoVoltUI(){
+  const on=document.getElementById('cav').checked;
+  document.getElementById('cv-lbl').textContent=on?'電壓安全上限 (V)':'最大電壓 (V)';
+}
+
 async function loadCfg(){
   try{
     const d=await(await fetch('/config')).json();
+    document.getElementById('cav').checked=d.auto_voltage;
     document.getElementById('cv').value=d.max_voltage;
     document.getElementById('ca').value=d.max_current;
     document.getElementById('cs').value=d.target_soc;
     document.getElementById('ci').value=d.wifi_ssid;
     document.getElementById('cb').checked=d.beacon;
+    updateAutoVoltUI();
   }catch(e){}
 }
 
 async function save(){
   const b={
+    auto_voltage:document.getElementById('cav').checked,
     max_voltage:parseFloat(document.getElementById('cv').value),
     max_current:parseFloat(document.getElementById('ca').value),
     target_soc:parseInt(document.getElementById('cs').value),

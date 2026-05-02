@@ -384,20 +384,25 @@ static cp_state_t update_cp_state(tes_sm_t *sm, float cp_v)
 
 static bool check_battery_compatibility(tes_sm_t *sm, const tes_sm_inputs_t *in)
 {
-    const tes_vehicle_status_t *vs = &in->vehicle_status;
-    if (vs->charge_voltage_limit > in->max_voltage_01v) return false;
-    if (vs->max_charge_voltage > 0 &&
-        vs->charge_voltage_limit > vs->max_charge_voltage) return false;
+    const tes_vehicle_status_t *vs  = &in->vehicle_status;
+    const tes_vehicle_params_t *vp  = &in->vehicle_params;
+    uint16_t bms_max = vp->max_charge_voltage;  // from 0x501
 
-    uint16_t limit = vs->max_charge_voltage < in->max_voltage_01v
-                     ? vs->max_charge_voltage : in->max_voltage_01v;
-    sm->status_508.fault_detect_voltage = limit;
-
-    if (in->psu_connected) {
-        // 通知 PSU 電壓上限（由 task 執行，這裡只設旗標）
-        // 實際上 tes_sm_outputs_t 沒有電壓設定 flag... 在 PARAM_EXCHANGE 不需要
-        // PSU 電壓在 logic_init 裡已設好，這裡不再重設
+    if (in->auto_voltage && bms_max > 0) {
+        // 自動模式：以 BMS 回報的最大充電電壓為目標，max_voltage_01v 作為安全上限
+        uint16_t target = (bms_max < in->max_voltage_01v) ? bms_max : in->max_voltage_01v;
+        sm->status_508.available_voltage    = target;
+        sm->status_508.fault_detect_voltage = target;
+        return true;
     }
+
+    // 手動模式：以用戶設定的 max_voltage_01v 為上限
+    if (vs->charge_voltage_limit > in->max_voltage_01v) return false;
+    if (bms_max > 0 && vs->charge_voltage_limit > bms_max) return false;
+
+    uint16_t limit = (bms_max > 0 && bms_max < in->max_voltage_01v)
+                     ? bms_max : in->max_voltage_01v;
+    sm->status_508.fault_detect_voltage = limit;
     return true;
 }
 
