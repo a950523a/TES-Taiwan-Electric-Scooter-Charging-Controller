@@ -130,6 +130,26 @@ uint16_t display_driver_str_width(const char *s)
     return (uint16_t)u8g2_GetStrWidth(&s_u8g2, s);
 }
 
+void display_driver_draw_circle(int x, int y, int r)
+{
+    u8g2_DrawCircle(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)r, U8G2_DRAW_ALL);
+}
+
+void display_driver_draw_disc(int x, int y, int r)
+{
+    u8g2_DrawDisc(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)r, U8G2_DRAW_ALL);
+}
+
+void display_driver_draw_line(int x1, int y1, int x2, int y2)
+{
+    u8g2_DrawLine(&s_u8g2, (u8g2_uint_t)x1, (u8g2_uint_t)y1, (u8g2_uint_t)x2, (u8g2_uint_t)y2);
+}
+
+void display_driver_draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2)
+{
+    u8g2_DrawTriangle(&s_u8g2, x0, y0, x1, y1, x2, y2);
+}
+
 void display_driver_draw_glyph(int x, int y, uint16_t g)
 {
     u8g2_DrawGlyph(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, g);
