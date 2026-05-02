@@ -112,11 +112,16 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <div id="ota-msg"></div>
   <div class="ota-prog-wrap" id="ota-pw">
     <div class="prog-label">
-      <span>下載進度</span><span id="ota-pct">0%</span>
+      <span>進度</span><span id="ota-pct">0%</span>
     </div>
     <progress class="ota-prog-bar" id="ota-pb" value="0" max="100"></progress>
   </div>
   <button class="b-ota" id="ota-btn" onclick="startOta()">⬆ 更新至最新韌體</button>
+  <div style="margin-top:12px;border-top:1px solid #333;padding-top:10px">
+    <label class="lbl2">手動上傳韌體 (.bin)</label>
+    <input type="file" id="ota-file" accept=".bin" style="color:#ccc;font-size:.85em;width:100%;padding:4px 0;box-sizing:border-box">
+    <button class="b-ota" id="ota-up-btn" onclick="uploadFirmware()" style="margin-top:6px">📤&nbsp;上傳韌體</button>
+  </div>
   <div class="ver" id="fw-ver"></div>
 </div>
 
@@ -223,6 +228,7 @@ async function poll(){
 
     // OTA 狀態
     const btn=document.getElementById('ota-btn');
+    const upBtn=document.getElementById('ota-up-btn');
     const pw=document.getElementById('ota-pw');
     const om=document.getElementById('ota-msg');
     if(d.ota_running){
@@ -231,20 +237,20 @@ async function poll(){
       document.getElementById('ota-pct').textContent=d.ota_progress+'%';
       om.className='';
       om.textContent='更新中，請勿斷電…';
-      btn.disabled=true;
+      btn.disabled=true;upBtn.disabled=true;
     } else if(d.ota_error){
       pw.style.display='none';
       om.className='err';
       om.textContent='✗ '+d.ota_error;
-      btn.disabled=false;
+      btn.disabled=false;upBtn.disabled=false;
     } else {
       if(document.getElementById('ota-pb').value==100){
         om.className='ok';
         om.textContent='✓ 更新完成，重新啟動中…';
-        btn.disabled=true;
+        btn.disabled=true;upBtn.disabled=true;
       } else {
         pw.style.display='none';
-        btn.disabled=false;
+        btn.disabled=false;upBtn.disabled=false;
       }
     }
   }catch(e){}
@@ -310,15 +316,47 @@ async function act(url){
 
 async function startOta(){
   const btn=document.getElementById('ota-btn');
+  const upBtn=document.getElementById('ota-up-btn');
   const om=document.getElementById('ota-msg');
   if(!confirm('確定要更新韌體嗎？更新期間請勿斷電。'))return;
-  btn.disabled=true;
+  btn.disabled=true;upBtn.disabled=true;
   om.className='';
   om.textContent='連線中…';
   try{
     const r=await(await fetch('/ota',{method:'POST'})).json();
-    if(!r.ok){om.className='err';om.textContent='✗ 無法啟動更新';btn.disabled=false;}
-  }catch(e){om.className='err';om.textContent='✗ 連線錯誤';btn.disabled=false;}
+    if(!r.ok){om.className='err';om.textContent='✗ 無法啟動更新';btn.disabled=false;upBtn.disabled=false;}
+  }catch(e){om.className='err';om.textContent='✗ 連線錯誤';btn.disabled=false;upBtn.disabled=false;}
+}
+
+async function uploadFirmware(){
+  const file=document.getElementById('ota-file').files[0];
+  if(!file){alert('請先選擇 .bin 檔案');return;}
+  const om=document.getElementById('ota-msg');
+  const pw=document.getElementById('ota-pw');
+  const btn=document.getElementById('ota-btn');
+  const upBtn=document.getElementById('ota-up-btn');
+  btn.disabled=true;upBtn.disabled=true;
+  pw.style.display='block';
+  document.getElementById('ota-pb').value=0;
+  document.getElementById('ota-pct').textContent='0%';
+  om.className='';om.textContent='上傳中，請勿斷電…';
+  try{
+    const r=await fetch('/ota/upload',{
+      method:'POST',
+      headers:{'Content-Type':'application/octet-stream'},
+      body:file
+    });
+    const d=await r.json();
+    if(d.ok){
+      om.className='ok';om.textContent='✓ 上傳完成，重新啟動中…';
+    }else{
+      om.className='err';om.textContent='✗ 上傳失敗';
+      btn.disabled=false;upBtn.disabled=false;
+    }
+  }catch(e){
+    om.className='err';om.textContent='✗ 連線錯誤';
+    btn.disabled=false;upBtn.disabled=false;
+  }
 }
 
 loadCfg();

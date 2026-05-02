@@ -386,6 +386,61 @@ static const httpd_uri_t s_uri_post_ota = {
     .uri = "/ota", .method = HTTP_POST, .handler = handle_post_ota
 };
 
+// ── POST /ota/upload ──────────────────────────────────────────────────────────
+// Body: raw firmware binary (application/octet-stream), Content-Length required
+
+#define OTA_UPLOAD_BUF 4096
+
+static esp_err_t handle_post_ota_upload(httpd_req_t *req)
+{
+    if (ota_svc_get_state() == OTA_STATE_RUNNING) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
+        return ESP_FAIL;
+    }
+    if (req->content_len == 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "empty body");
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = ota_svc_upload_begin((size_t)req->content_len);
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
+        return ESP_FAIL;
+    } else if (err != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+        return ESP_FAIL;
+    }
+
+    static char buf[OTA_UPLOAD_BUF];
+    int remaining = (int)req->content_len;
+    while (remaining > 0) {
+        int to_recv = remaining < OTA_UPLOAD_BUF ? remaining : OTA_UPLOAD_BUF;
+        int received = httpd_req_recv(req, buf, (size_t)to_recv);
+        if (received <= 0) {
+            ota_svc_upload_abort();
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
+            return ESP_FAIL;
+        }
+        err = ota_svc_upload_write(buf, (size_t)received);
+        if (err != ESP_OK) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA write failed");
+            return ESP_FAIL;
+        }
+        remaining -= received;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+
+    ota_svc_upload_end(); // validates, sets boot partition, reboots
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_ota_upload = {
+    .uri = "/ota/upload", .method = HTTP_POST, .handler = handle_post_ota_upload
+};
+
 // ── WiFi event handler ────────────────────────────────────────────────────────
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
@@ -426,8 +481,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
 static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
-    cfg.stack_size       = 8192;
-    cfg.max_uri_handlers = 12;
+    cfg.stack_size        = 8192;
+    cfg.max_uri_handlers  = 12;
+    cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "HTTP server start failed");
@@ -441,6 +497,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_start);
     httpd_register_uri_handler(s_server, &s_uri_post_stop);
     httpd_register_uri_handler(s_server, &s_uri_post_ota);
+    httpd_register_uri_handler(s_server, &s_uri_post_ota_upload);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
 
