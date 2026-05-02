@@ -64,6 +64,7 @@ jobs:
         with:
           name: TES Charger ${{ github.ref_name }}
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             release/tes_charger.bin
             release/tes_charger_flash.bin
