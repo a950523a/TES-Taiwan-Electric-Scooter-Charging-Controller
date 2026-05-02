@@ -171,7 +171,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: OTA upload + UI improvements added (2026-05-02). V3 is feature-complete. Push tag `v3.x.x` to trigger automated build and release.
+### Current Status: v3.0.0 released (2026-05-02). V3 is feature-complete and stable.
 
 ### Implementation Progress
 
@@ -209,6 +209,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 30 | Stop mode UI: OLED 選單依模式只顯示 Target SOC 或 Stop Voltage；Web UI 同步隱藏另一欄 | DONE |
 | 31 | OTA 手動上傳：`POST /ota/upload` + Web UI 檔案選擇器；進度透過 `/status` polling 顯示 | DONE |
 | 32 | OLED 狀態畫面：Volt 模式顯示即時/目標電壓，SOC 模式顯示 SOC 現在/目標 | DONE |
+| 33 | Web UI 停止條件選單排序：充電停止條件 radio 移至 Target SOC / Stop Voltage 之前（與 OLED 一致） | DONE |
+| 34 | GitHub Pages 燒錄工具 CORS 修正：manifest 改相對路徑 `./tes_charger_flash.bin`；Actions 部署 binary，Pages source 設為 GitHub Actions | DONE |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -303,15 +305,22 @@ Two mutually-exclusive charging termination conditions (selected by user):
 
 ### Release 流程
 
-1. 確認程式碼正確後 push tag：`git tag v3.0.0 && git push origin v3.0.0`
+1. 確認程式碼正確後 push tag：`git tag v3.x.x && git push origin v3.x.x`
 2. GitHub Actions (`.github/workflows/build-v3.yml`) 自動：
    - 用 ESP-IDF v5.5.1 編譯 V3
    - 生成合併 binary (`idf.py merge-bin`)
-   - 建立 GitHub Release，附上：
+   - 建立 GitHub Release（stable tag），附上：
      - `tes_charger.bin` → Web UI OTA 更新用
      - `tes_charger_flash.bin` → GitHub Pages 首次燒錄用
+   - 部署 GitHub Pages（含最新 `tes_charger_flash.bin`）
 
-**新增硬體變體**：在 `build-v3.yml` 的 `matrix.include` 加一行，並在 `firmware/` 為新硬體建立對應 Kconfig/driver。
+**GitHub Pages 燒錄工具注意事項：**
+- `docs/manifest.json` 使用相對路徑 `./tes_charger_flash.bin`；binary 由 Actions 打包進 Pages，不存入 git
+- Pages source 必須設為 **GitHub Actions**（repo Settings → Pages → Source）
+- Push main 或 stable tag 時 Actions 自動重新部署 Pages（含最新 binary）
+- `docs/index.html` 載入 `esp-web-tools@10` 使用 jsDelivr CDN（`cdn.jsdelivr.net`）
+
+**新增硬體變體**：在 `build-v3.yml` 的 `matrix.include` 加一行，並在 `firmware/` 為新硬體建立對應 Kconfig/driver。只有 `variant == 'esp32s3-ssd1306'` 負責上傳 Pages artifact（避免 matrix 多次上傳衝突）。
 
 ### OTA 更新流程
 
