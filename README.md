@@ -1,115 +1,165 @@
-# TES-0D-02-01 Compatible DC Charger Controller for ESP32-S3
+# TES-0D-02-01 DC Charger Controller
 
-
-> 專為 TES-0D-02-01 標準設計的開源電動機車直流充電控制器。
-> 基於 ESP32-S3 架構，支援 Web UI 監控與 OTA 更新。
+> 專為 TES-0D-02-01 標準設計的開源電動機車直流充電控制器。  
+> 基於 ESP32-S3，使用 ESP-IDF 原生開發，支援 Web UI 監控、REST API 及 OTA 無線更新。
 
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)
 [![Platform](https://img.shields.io/badge/platform-ESP32--S3-orange.svg)](https://www.espressif.com/)
-[![Framework](https://img.shields.io/badge/framework-PlatformIO-blue.svg)](https://platformio.org/)
+[![Framework](https://img.shields.io/badge/framework-ESP--IDF%20v5.5-blue.svg)](https://docs.espressif.com/projects/esp-idf/)
+[![CI](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/actions/workflows/build-v3.yml/badge.svg)](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/actions/workflows/build-v3.yml)
 
 ---
 
-## ⚠️ 免責聲明與安全警告 (Disclaimer & Safety)
+## ⚠️ 免責聲明與安全警告
 
 **本專案僅包含「控制板」的軟硬體設計，不包含功率級電源模組。**
 
-1.  **高壓危險**：本控制器需配合高壓直流電源使用，組裝與測試過程存在觸電與火災風險。
-2.  **非商業產品**：本專案為個人研究與技術驗證性質，未經 BSMI、UL 等安規認證。
-3.  **責任歸屬**：使用本專案所產生的任何後果（包括但不限於車輛損壞、電池故障、人身傷害），**使用者需自行承擔**。若不具備相關電學知識，請勿嘗試製作。
-4.  **BMS 風險**：CAN Bus 線路若接線錯誤或短路，**將導致車輛 BMS (電池管理系統) 永久性損壞**，請務必在低壓環境確認無誤後再上機。
+1. **高壓危險**：本控制器需配合高壓直流電源使用，組裝與測試過程存在觸電與火災風險。
+2. **非商業產品**：本專案為個人研究與技術驗證性質，未經 BSMI、UL 等安規認證。
+3. **責任歸屬**：使用本專案所產生的任何後果（包括但不限於車輛損壞、電池故障、人身傷害），**使用者需自行承擔**。若不具備相關電學知識，請勿嘗試製作。
+4. **BMS 風險**：CAN Bus 線路若接線錯誤或短路，**將導致車輛 BMS 永久性損壞**，請務必在低壓環境確認無誤後再上機。
 
 ---
 
-## 🎯 專案範圍 (Scope)
+## 🎯 專案範圍
 
-本 Repository 專注於 **TES 協議控制邏輯 (Protocol Logic)** 的實作。
-*   **包含**：ESP32-S3 控制韌體、CAN Bus 通訊電路設計、狀態機邏輯。
-*   **不包含**：功率級整流器 (Rectifier)、AC/DC 電源模組的控制碼 (請依據您選用的電源模組自行適配)。
+本 Repository 專注於 **TES 協議控制邏輯** 的實作。
+
+- **包含**：ESP32-S3 控制韌體、CAN Bus 通訊、狀態機邏輯、Web UI、OTA 更新
+- **不包含**：功率級整流器、AC/DC 電源模組的控制碼（請依據選用的電源模組自行適配）
 
 ---
 
-## ✨ 功能特點 (Features)
+## ✨ 功能特點
 
 ### 核心協議
-*   **TES 標準相容**: 完整實作 **TES-0D-02-01** 充電通訊協議。
-*   **寬範圍支援**: 協議邏輯最高支援 **120V / 100A (12kW)** 輸出能力。
-    *   *註：實際輸出能力取決於您搭配的電源模組與線徑。*
-*   **通用性**: 適用於 eMoving iE125 等支援 TES 快充標準之車輛。
+- **TES 標準相容**：完整實作 TES-0D-02-01 充電通訊協議（0x500/501/508/509/5F0/5F8）
+- **寬範圍支援**：最高支援 120V / 100A (12 kW)
+- **通用性**：適用於 eMoving iE125 等支援 TES 快充標準之車輛
 
 ### 智慧功能
-*   **Web UI**: 內建網頁伺服器，可透過手機設定電流、截止電壓、目標 SOC。
-*   **OTA 更新**: 支援無線韌體升級，方便後續功能維護。
+- **Web UI**：內建單頁應用，1 秒即時更新電壓、電流、SOC、剩餘時間
+- **REST API**：`GET /status`、`POST /start`、`POST /stop`、`POST /ota`
+- **mDNS**：連接 WiFi 後可用 `http://tes-charger.local` 直接存取
+- **OTA 無線更新**：Web UI 一鍵從 GitHub Releases 拉取最新韌體，自動重刷
+- **OLED 狀態顯示**：SSD1306 128×64，顯示充電狀態、電壓電流、SOC、剩餘時間
+- **設定選單**：長按 SETTING 進入，可調最大電壓、電流、目標 SOC、WiFi 設定
+- **LuxBeacon**：LED SOC 脈衝燈號編碼
+
+### 架構特點（V3 重構）
+- **純 C99 狀態機**（`tes_protocol/`）：零平台依賴，可移植至 STM32 或 PC 單元測試
+- **HAL 抽象層**：硬體相關程式碼全部隔離在 `charger_hal/` 和 `drivers/`
+- **GitHub Actions CI/CD**：推送 tag 自動編譯並建立 Release
 
 ---
 
-## 🛠️ 硬體設計 (Hardware Design)
+## 🚀 安裝韌體
 
-本專案硬體設計以 **通用性** 為核心，開發者可依據需求選擇實作方式。
+### 方法一：瀏覽器一鍵燒錄（推薦，無需安裝任何工具）
 
-*   **Schematic (原理圖)**: 請參閱 `docs/PCB/` 目錄下的檔案。這是核心電路設計，包含了 MCU 接腳定義、CAN Transceiver 線路與周邊控制電路。
-*   **BOM (元件清單)**: 請參閱 `docs/` 目錄下的檔案。主要採用通用型電子元件（如 ESP32-S3 開發板、繼電器模組等），方便開發者自行取得。
-*   **Reference PCB (參考佈線)**: 目錄中亦提供了一份已驗證的 PCB 設計檔（Gerber）作為參考實作，供有需要的開發者研究佈線邏輯。
+使用 Chrome 或 Edge，前往 👉 **[GitHub Pages 燒錄工具](https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/)**
 
-> **實作建議**：本設計亦適合使用 **萬用板 (Perfboard)** 進行手工搭建。請依據原理圖連接對應線路即可達到相同功能。
+USB 連接主板，點「開始安裝」，全程自動完成（約 30–60 秒）。
 
----
+### 方法二：命令列燒錄
 
-## 💻 軟體開發 (Development)
+從 [Releases](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/releases/latest) 下載 `tes_charger_flash.bin`：
 
-本專案使用 **PlatformIO** 進行開發。
+```bash
+esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 tes_charger_flash.bin
+```
 
-1.  **環境建置**: 安裝 VS Code + PlatformIO 外掛。
-2.  **硬體適配**:
-    *   本程式碼具備高度可配置性。若您使用自製電路板（如洞洞板），請務必在 `src/config.h` 中修改 **Pin Definitions (引腳定義)** 以符合您的實際接線。
-3.  **參數設定**:
-    *   OLED I2C 地址 (預設 0x3C / 0x3D)
-    *   電壓/電流校正參數 (ADC Calibration)
+### 方法三：OTA 更新（已有 V3 韌體）
+
+連線至設備 Web UI → 點「更新至最新韌體」→ 自動從 GitHub Releases 下載並重刷。
 
 ---
 
-## 🕹️ 操作說明 (Operation)
+## 📶 初次設定 WiFi
 
-*   **進入設定選單**: 待機狀態下，長按 **Setting** 按鈕 1~2 秒。
-*   **選單操作**:
-    *   `Start`: 上一項 / 增加數值
-    *   `Stop`: 下一項 / 減少數值
-    *   `Setting`: 確認 / 進入
+燒錄完成後：
 
----
-
-## 🤝 社群與支援 (Community)
-
-歡迎加入社群討論改裝心得、回報 Bug 或分享您的實作案例。
-
-*   **Facebook 社群**: [TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
+1. 用手機或電腦連接 WiFi：`TES-Charger`（無密碼）
+2. 瀏覽器開啟 `http://192.168.4.1`
+3. 在「設定」填入家用 WiFi SSID 與密碼 → 儲存
+4. 重啟後自動連接，之後使用 `http://tes-charger.local`
 
 ---
 
-## ⚖️ 授權 (License)
+## 🕹️ 操作說明
+
+| 按鈕 | 待機 | 選單導覽 | 選單編輯 |
+|------|------|----------|----------|
+| START | 開始充電 | 上一項 | 微調 +0.1 / 長按 +1 |
+| STOP | 停止充電 | 下一項 | 微調 −0.1 / 長按 −1 |
+| SETTING 短按 | 循環 SOC 預設 (80→95→100%) | 確認 / 進入編輯 | 確認，回到導覽 |
+| SETTING 長按 | 開啟設定選單 | — | — |
+| EMERGENCY | 緊急停止（任何狀態有效） | 同左 | 同左 |
+
+---
+
+## 🛠️ 硬體設計
+
+- **原理圖 / PCB**：`docs/PCB/` 目錄
+- **BOM**：`docs/BOM_V2/` 目錄
+- **主要元件**：ESP32-S3 N16R8、ADS1115、SSD1306 OLED、CAN Transceiver、繼電器模組
+
+硬體設計以通用性為核心，亦適合使用萬用板手工搭建。
+
+---
+
+## 💻 開發環境（ESP-IDF）
+
+```powershell
+# 設定環境（Windows）
+$env:IDF_PATH = "C:\Users\<user>\esp\v5.5.1\esp-idf"
+# 詳見 CLAUDE.md 完整 PATH 設定
+
+# 編譯
+cd v3
+idf.py build
+
+# 燒錄
+idf.py -p <PORT> flash monitor
+```
+
+詳細架構說明、任務設計、IPC 機制請參閱 [CLAUDE.md](CLAUDE.md)。
+
+---
+
+## 🤝 社群與支援
+
+- **Facebook 社群**：[TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
+- **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)
+
+---
+
+## ⚖️ 授權
 
 本專案採用 **[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權。
 
-*   ✅ **分享與改作**：需標示原作者，並以相同條款釋出。
-*   🚫 **禁止商業使用**：**不得將本專案之設計圖檔、程式碼用於商業量產或販售營利。**
+- ✅ 分享與改作：需標示原作者，並以相同條款釋出
+- 🚫 禁止商業使用：不得將本專案之設計圖檔、程式碼用於商業量產或販售營利
 
 Copyright (c) 2025 Chris Huang
 
-## 🔗 相關專案 (Related Projects)
+---
 
-*   **[LianMing-PSU-Controller](https://github.com/a950523a/LianMing-PSU-Controller)**: 
-    聯明電源 (LM Power) 專用的 CAN Bus 控制器。
-    *   可與本專案 (`v2.5.0-beta`) 配合使用，實現高功率便攜充電方案。
-    *   提供軟啟動、電壓電流監控及 UART 自動控制功能。
+## 🔗 相關專案
 
-## 影片(Video)
+- **[LianMing-PSU-Controller](https://github.com/a950523a/LianMing-PSU-Controller)**：聯明電源 CAN Bus 控制器，可與本專案配合使用實現高功率便攜充電方案
+
+---
+
+## 影片
+
 https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
 
 https://youtu.be/vA7gSdK1YZQ?si=lSQAtU0p7vCutx1Y
 
-## 照片(Images)
+## 照片
 
-*   **此為專案V2早期時所拍的照片，本人V2後期轉為自行畫PCB並且使用ESP32-S3開發**
+> 此為專案 V2 早期時所拍的照片，V2 後期轉為自行畫 PCB 並使用 ESP32-S3 開發。
 
 ![](docs/images/20250804_205003.jpg)
 ![](docs/images/20250804_205006.jpg)
