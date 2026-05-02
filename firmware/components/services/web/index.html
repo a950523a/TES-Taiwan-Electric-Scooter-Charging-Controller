@@ -136,10 +136,6 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <input type="number" id="cv" step="0.1" min="40" max="120">
   <label class="lbl2">最大電流 (A)</label>
   <input type="number" id="ca" step="0.1" min="1" max="100">
-  <div id="soc-row">
-    <label class="lbl2">目標 SOC (%)</label>
-    <input type="number" id="cs" step="1" min="20" max="100">
-  </div>
   <label class="lbl2">充電停止條件</label>
   <div class="chk-row" style="gap:16px;flex-wrap:wrap">
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -150,6 +146,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       <input type="radio" name="stop_mode" id="sm1" value="1" onchange="updateStopModeUI()" style="accent-color:#48f">
       <span>依電壓停止</span>
     </label>
+  </div>
+  <div id="soc-row">
+    <label class="lbl2">目標 SOC (%)</label>
+    <input type="number" id="cs" step="1" min="20" max="100">
   </div>
   <div id="stop-volt-row" style="display:none">
     <label class="lbl2">充電停止電壓 (V)</label>
