@@ -119,21 +119,9 @@ void task_tes_sm(void *arg)
         inputs.psu_voltage   = psu.voltage;
         inputs.psu_current   = psu.current;
 
+        inputs.max_voltage_01v = cfg->max_voltage_01v;
         inputs.max_current_01a = cfg->max_current_01a;
         inputs.target_soc      = cfg->target_soc;
-
-        // Auto-voltage: 在 IDLE 時以 ADC 量測值自動更新 max_voltage
-        // 條件：PSU 已連線 + ADC 讀到合理範圍電壓（40–120V）
-        if (cfg->auto_voltage && s_sm.state == TES_STATE_IDLE) {
-            float adc_v = g_adc_output_voltage;
-            if (adc_v >= 40.0f && adc_v <= 120.0f) {
-                inputs.max_voltage_01v = (uint16_t)(adc_v * 10.0f + 0.5f);
-            } else {
-                inputs.max_voltage_01v = cfg->max_voltage_01v;
-            }
-        } else {
-            inputs.max_voltage_01v = cfg->max_voltage_01v;
-        }
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);
