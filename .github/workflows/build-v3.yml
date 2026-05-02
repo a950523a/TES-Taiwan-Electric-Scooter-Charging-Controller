@@ -40,7 +40,7 @@ jobs:
         with:
           esp_idf_version: ${{ matrix.idf_version }}
           target: ${{ matrix.target }}
-          command: idf.py build && idf.py merge-bin -o build/tes_charger_flash.bin
+          command: idf.py build && idf.py merge-bin -o tes_charger_flash.bin
           path: firmware
 
       # variant 目前只有一種，直接用通用檔名；
