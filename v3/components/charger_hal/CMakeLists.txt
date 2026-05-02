@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "hal_gpio.c"
+        "hal_i2c.c"
+        "hal_uart.c"
+        "hal_nvs.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        driver
+        nvs_flash
+        platform
+)

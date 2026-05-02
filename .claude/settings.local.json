@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\docs/794654335-TES-0D-02-01電動機車固定式交流及直流傳導式供電系統-電動機車直流供電裝置與電動機車間充電控制用數位通訊.pdf\" -)",
+      "Bash(idf.py --version)",
+      "Read(//c/Users/user/esp//**)",
+      "Read(//c/Users/user/.espressif//**)",
+      "Read(//c/Users/user/**)",
+      "Bash(/c/Users/user/.espressif/python_env/idf5.5_py3.11_env/Scripts/python.exe --version)",
+      "Bash(IDF_PATH=/c/Users/user/esp/v5.5.1/esp-idf IDF_PYTHON_ENV_PATH=/c/Users/user/.espressif/python_env/idf5.5_py3.11_env PATH=\"/c/Users/user/.espressif/python_env/idf5.5_py3.11_env/Scripts:$PATH\" /c/Users/user/.espressif/python_env/idf5.5_py3.11_env/Scripts/python.exe *)",
+      "Bash(cp -r /c/Users/user/Documents/GitHub/LianMing-PSU-Controller/components/u8g2 /c/Users/user/Documents/GitHub/TES-Taiwan-Electric-Scooter-Charging-Controller/v3/components/u8g2)",
+      "Bash(echo \"Copy exit code: $?\")",
+      "PowerShell([System.IO.Ports.SerialPort]::GetPortNames\\(\\) | Sort-Object)",
+      "Bash(git -C \"/c/Users/user/Documents/GitHub/TES-Taiwan-Electric-Scooter-Charging-Controller\" status --short)",
+      "PowerShell(Get-PnpDevice *)",
+      "PowerShell([System.IO.Ports.SerialPort]::GetPortNames\\(\\))",
+      "PowerShell(Get-WMIObject *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\esp\\\\v5.5.1\\\\esp-idf\\\\components\" -Name | Where-Object { $_ -match \"mdns|dns\" })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\v3\\\\build\\\\esp-idf\\\\services\" -Recurse | Select-Object Name | Where-Object { $_.Name -match \"index|html\" })",
+      "PowerShell(New-Item *)",
+      "Bash(grep -i -E \"\\\\.\\(cpp|h\\)$\")"
+    ]
+  }
+}

@@ -11,7 +11,7 @@ Desktop.ini
 *.log
 *.log.*
 
-# Build artifacts
+# Build artifacts (glob patterns for PlatformIO)
 *.o
 *.d
 *.elf
@@ -22,8 +22,23 @@ Desktop.ini
 *.lss
 *.sym
 
-# Other
+# Other IDE files
 .ionide/
 .idea/
 .cproject
 .project
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# ESP-IDF V3 build outputs
+v3/build/
+v3/sdkconfig
+v3/sdkconfig.old
+
+# ESP-IDF managed components (downloaded at build time)
+v3/managed_components/
+v3/dependencies.lock
+
+# Temporary scripts
+v3/read_serial.py
