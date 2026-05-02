@@ -443,8 +443,16 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         sm->remote_stop = false;
         enter_ending(sm, out); return;
     }
-    if (sm->soc >= (uint8_t)sm->cfg.target_soc) {
-        enter_ending(sm, out); return;
+    if (in->stop_mode == STOP_MODE_VOLTAGE) {
+        float v_out = (in->psu_connected && in->psu_voltage > 0.0f)
+                      ? in->psu_voltage : in->measured_voltage;
+        if (v_out >= (float)in->stop_voltage_01v / 10.0f) {
+            enter_ending(sm, out); return;
+        }
+    } else {
+        if (sm->soc >= (uint8_t)sm->cfg.target_soc) {
+            enter_ending(sm, out); return;
+        }
     }
     if (in->tick_ms - sm->state_start_ms > VOLTAGE_CHECK_DELAY_MS) {
         float v_limit = (float)vs->charge_voltage_limit / 10.0f;

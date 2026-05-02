@@ -13,10 +13,13 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_PASS    "wifi_pass"
 #define NVS_KEY_BEACON  "beacon"
 #define NVS_KEY_AUTO_V  "auto_v"
+#define NVS_KEY_STOP_M  "stop_m"
+#define NVS_KEY_STOP_V  "stop_v"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
 #define DEFAULT_SOC     80
+#define DEFAULT_STOP_V  1000   // 100.0 V
 
 static charger_config_t s_cfg;
 
@@ -47,9 +50,18 @@ esp_err_t config_svc_init(void)
     bool auto_v;
     s_cfg.auto_voltage = (hal_nvs_get_bool(NVS_NS, NVS_KEY_AUTO_V, &auto_v) == ESP_OK) && auto_v;
 
-    ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d",
-             s_cfg.max_voltage_01v, s_cfg.max_current_01a,
-             s_cfg.target_soc, (int)s_cfg.beacon_unlocked, (int)s_cfg.auto_voltage);
+    {
+        uint32_t tmp;
+        s_cfg.stop_mode = (hal_nvs_get_u32(NVS_NS, NVS_KEY_STOP_M, &tmp) == ESP_OK && tmp <= 1)
+                          ? (stop_mode_t)tmp : STOP_MODE_SOC;
+        s_cfg.stop_voltage_01v = (hal_nvs_get_u32(NVS_NS, NVS_KEY_STOP_V, &tmp) == ESP_OK)
+                                 ? (uint16_t)tmp : DEFAULT_STOP_V;
+    }
+
+    ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u",
+             s_cfg.max_voltage_01v, s_cfg.max_current_01a, s_cfg.target_soc,
+             (int)s_cfg.beacon_unlocked, (int)s_cfg.auto_voltage,
+             (int)s_cfg.stop_mode, s_cfg.stop_voltage_01v);
     return ESP_OK;
 }
 
@@ -88,6 +100,15 @@ esp_err_t config_svc_set_auto_voltage(bool enabled)
 {
     s_cfg.auto_voltage = enabled;
     return hal_nvs_set_bool(NVS_NS, NVS_KEY_AUTO_V, enabled);
+}
+
+esp_err_t config_svc_set_stop(stop_mode_t mode, uint16_t stop_voltage_01v)
+{
+    s_cfg.stop_mode        = mode;
+    s_cfg.stop_voltage_01v = stop_voltage_01v;
+    esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_M, (uint32_t)mode);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_V, stop_voltage_01v);
+    return r;
 }
 
 void config_svc_override_voltage(uint16_t v_01v)

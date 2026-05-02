@@ -119,9 +119,11 @@ void task_tes_sm(void *arg)
         inputs.psu_voltage   = psu.voltage;
         inputs.psu_current   = psu.current;
 
-        inputs.max_voltage_01v = cfg->max_voltage_01v;
-        inputs.max_current_01a = cfg->max_current_01a;
-        inputs.target_soc      = cfg->target_soc;
+        inputs.max_voltage_01v  = cfg->max_voltage_01v;
+        inputs.max_current_01a  = cfg->max_current_01a;
+        inputs.target_soc       = cfg->target_soc;
+        inputs.stop_mode        = cfg->stop_mode;
+        inputs.stop_voltage_01v = cfg->stop_voltage_01v;
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);

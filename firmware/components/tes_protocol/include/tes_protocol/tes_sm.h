@@ -27,9 +27,11 @@ typedef struct {
     float    psu_current;           // A，PSU 回報
 
     // 來自 config_svc（每次 tick 更新）
-    uint16_t max_voltage_01v;
-    uint16_t max_current_01a;
-    int8_t   target_soc;
+    uint16_t    max_voltage_01v;
+    uint16_t    max_current_01a;
+    int8_t      target_soc;
+    stop_mode_t stop_mode;          // 充電停止條件
+    uint16_t    stop_voltage_01v;   // 停止電壓（stop_mode=VOLTAGE 時有效）
 
     // 來自按鈕 / remote（atomic flags，讀後清除）
     bool start_requested;

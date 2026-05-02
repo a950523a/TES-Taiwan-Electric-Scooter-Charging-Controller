@@ -17,6 +17,13 @@ typedef enum {
     TES_STATE_FINALIZE,         // 最終化（確認輸出電壓歸零）
 } tes_state_t;
 
+// ─── 充電停止模式 ──────────────────────────────────────────────────────────────
+
+typedef enum {
+    STOP_MODE_SOC     = 0,   // 依 BMS 回報 SOC 停止（預設）
+    STOP_MODE_VOLTAGE = 1,   // 依輸出電壓停止
+} stop_mode_t;
+
 // ─── CP 電壓狀態（以 ADS1115 讀取直流電壓判斷） ──────────────────────────────
 
 typedef enum {
