@@ -171,7 +171,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: Stop-mode + Auto-voltage features added (2026-05-02). V3 is feature-complete. Push tag `v3.x.x` to trigger automated build and release.
+### Current Status: OTA upload + UI improvements added (2026-05-02). V3 is feature-complete. Push tag `v3.x.x` to trigger automated build and release.
 
 ### Implementation Progress
 
@@ -206,6 +206,9 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 27 | GitHub Pages 首次燒錄工具 (`docs/index.html` + `docs/manifest.json`, ESP Web Tools) | DONE |
 | 28 | Auto-voltage: ADC 開機一次讀取 + 1s 延遲 + 龜 logo 畫面 + OLED 選單 + Web UI 開關 | DONE |
 | 29 | Stop mode: SOC / 電壓二選一停止 + OLED 選單 + REST API + Web UI radio + NVS 保存 | DONE |
+| 30 | Stop mode UI: OLED 選單依模式只顯示 Target SOC 或 Stop Voltage；Web UI 同步隱藏另一欄 | DONE |
+| 31 | OTA 手動上傳：`POST /ota/upload` + Web UI 檔案選擇器；進度透過 `/status` polling 顯示 | DONE |
+| 32 | OLED 狀態畫面：Volt 模式顯示即時/目標電壓，SOC 模式顯示 SOC 現在/目標 | DONE |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -246,9 +249,9 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Auto Volt | ON / OFF | toggle | toggle |
 | Max Voltage | 40.0 V -- 120.0 V (顯示為 "V Cap" when Auto ON) | ±0.1 V | ±1 V (auto-repeat) |
 | Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
-| Target SOC | 20 % -- 100 % | ±1 % | ±5 % (auto-repeat) |
 | Stop Mode | SOC / Volt | toggle | toggle |
-| Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時有效） | ±0.1 V | ±1 V (auto-repeat) |
+| Target SOC | 20 % -- 100 %（Stop Mode=SOC 時顯示） | ±1 % | ±5 % (auto-repeat) |
+| Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
@@ -257,7 +260,9 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 WiFi Info shows: `AP: 192.168.4.1` (AP mode) / `IP: x.x.x.x` (STA connected) / `WiFi: ---` (disconnected).
 
-OLED status screen shows `SOC:現在/目標%` (e.g. `SOC:72/95%`).
+OLED status screen:
+- **SOC 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72/95%  1h23m`
+- **Volt 模式**：第二行 `54.2V/100.0V`（即時/目標電壓），第三行 `SOC:72%  1h23m`
 
 ### PSU UART Protocol Notes (discovered during hardware testing 2026-05-01)
 
@@ -311,7 +316,9 @@ Two mutually-exclusive charging termination conditions (selected by user):
 ### OTA 更新流程
 
 - **首次燒錄（V2→V3 或全新）**：前往 `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`，USB 連接後一鍵燒錄
-- **後續更新（V3→V3）**：Web UI 點「更新至最新韌體」，設備自動從 GitHub Releases 拉取最新 `tes_charger.bin`，完成後自動重啟
+- **後續更新（V3→V3）**：
+  - **自動**：Web UI 點「更新至最新韌體」，設備從 GitHub Releases 拉取最新 `tes_charger.bin`，完成後自動重啟
+  - **手動**：Web UI 點「上傳韌體」，選擇本地 `.bin` 檔案；或 `curl --data-binary @tes_charger.bin http://tes-charger.local/ota/upload`
 
 ### 5F0 Post-Charge Emergency Behaviour (FIXED 2026-05-02)
 
@@ -337,6 +344,8 @@ eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
 | POST | `/config` | Partial update JSON body (any subset of fields); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
+| POST | `/ota` | 從 URL 下載韌體（JSON body `{"url":"..."}` 可選）；省略則用 GitHub Releases 預設 URL |
+| POST | `/ota/upload` | 手動上傳韌體 binary（`application/octet-stream`）；需 Content-Length；進度透過 `/status` 查詢 |
 
 **Initial WiFi setup** (AP mode): connect to `TES-Charger`, open `http://192.168.4.1`, use web UI Settings or:
 ```bash
