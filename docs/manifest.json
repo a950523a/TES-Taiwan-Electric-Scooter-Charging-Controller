@@ -6,7 +6,7 @@
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/releases/latest/download/tes_charger_flash.bin",
+          "path": "./tes_charger_flash.bin",
           "offset": 0
         }
       ]

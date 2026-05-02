@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: write   # 建立 Release 需要寫入權限
+  pages: write      # 部署 GitHub Pages
+  id-token: write   # Pages OIDC token
 
 jobs:
   build:
@@ -68,3 +70,38 @@ jobs:
           files: |
             release/tes_charger.bin
             release/tes_charger_flash.bin
+
+      # 只有主要 variant 負責部署 Pages（多 variant 時只能 upload 一次）
+      - name: Prepare GitHub Pages content
+        if: |
+          matrix.variant == 'esp32s3-ssd1306' &&
+          (github.ref == 'refs/heads/main' ||
+           (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')))
+        run: |
+          mkdir -p _pages
+          cp -r docs/. _pages/
+          cp firmware/build/tes_charger_flash.bin _pages/tes_charger_flash.bin
+
+      - name: Upload Pages artifact
+        if: |
+          matrix.variant == 'esp32s3-ssd1306' &&
+          (github.ref == 'refs/heads/main' ||
+           (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')))
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _pages/
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: build
+    if: |
+      github.ref == 'refs/heads/main' ||
+      (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-'))
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
