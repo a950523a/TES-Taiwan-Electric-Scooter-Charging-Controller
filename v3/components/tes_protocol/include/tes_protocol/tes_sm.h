@@ -106,7 +106,10 @@ typedef struct {
     // remote control flags（由 network / web 設定，tick 內讀取後清除）
     bool remote_start;
     bool remote_stop;
-    bool remote_fault_clear;    // 手動復歸緊急停止（network/web 觸發）
+    bool remote_fault_clear;       // 手動復歸緊急停止（network/web 觸發）
+
+    // 緊急停止來源追蹤
+    bool emergency_hw_triggered;   // true=硬體按鈕，false=車端 0x5F0
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────

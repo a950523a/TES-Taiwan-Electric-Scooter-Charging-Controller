@@ -32,6 +32,14 @@ button:active{opacity:.65}
 .b-start{background:#1d5e2a;color:#fff}
 .b-stop{background:#5e1d1d;color:#fff}
 .b-save{background:#1d3a5e;color:#fff;margin-top:10px;width:100%;flex:none}
+.b-ota{background:#1d3a5e;color:#fff;padding:11px;border:none;border-radius:8px;font-size:.95em;cursor:pointer;font-weight:bold;width:100%;margin-top:10px;transition:opacity .15s}
+.b-ota:active{opacity:.65}
+.b-ota:disabled{opacity:.4;cursor:default}
+.ota-prog-wrap{margin:10px 0 4px;display:none}
+.ota-prog-bar{width:100%;height:12px;border-radius:6px;appearance:none;-webkit-appearance:none;background:#222;display:block}
+.ota-prog-bar::-webkit-progress-bar{background:#222;border-radius:6px}
+.ota-prog-bar::-webkit-progress-value{background:linear-gradient(90deg,#1a3a6a,#48f);border-radius:6px;transition:width .4s}
+.ver{color:#444;font-size:.75em;margin-top:6px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px}
 input[type=text],input[type=number],input[type=password]{
   width:100%;padding:9px 10px;margin-top:5px;
@@ -96,6 +104,20 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <span class="lbl">主機名稱</span>
     <span style="font-family:monospace;color:#555">tes-charger.local</span>
   </div>
+</div>
+
+<!-- OTA 韌體更新 -->
+<div class="card">
+  <section-title>🔄 韌體更新</section-title>
+  <div id="ota-msg"></div>
+  <div class="ota-prog-wrap" id="ota-pw">
+    <div class="prog-label">
+      <span>下載進度</span><span id="ota-pct">0%</span>
+    </div>
+    <progress class="ota-prog-bar" id="ota-pb" value="0" max="100"></progress>
+  </div>
+  <button class="b-ota" id="ota-btn" onclick="startOta()">⬆ 更新至最新韌體</button>
+  <div class="ver" id="fw-ver"></div>
 </div>
 
 <!-- 設定 -->
@@ -173,6 +195,37 @@ async function poll(){
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
     document.getElementById('ip').textContent=d.ip||'--';
     document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+
+    // 韌體版本
+    if(d.firmware_version)
+      document.getElementById('fw-ver').textContent='目前版本：'+d.firmware_version;
+
+    // OTA 狀態
+    const btn=document.getElementById('ota-btn');
+    const pw=document.getElementById('ota-pw');
+    const om=document.getElementById('ota-msg');
+    if(d.ota_running){
+      pw.style.display='block';
+      document.getElementById('ota-pb').value=d.ota_progress;
+      document.getElementById('ota-pct').textContent=d.ota_progress+'%';
+      om.className='';
+      om.textContent='更新中，請勿斷電…';
+      btn.disabled=true;
+    } else if(d.ota_error){
+      pw.style.display='none';
+      om.className='err';
+      om.textContent='✗ '+d.ota_error;
+      btn.disabled=false;
+    } else {
+      if(document.getElementById('ota-pb').value==100){
+        om.className='ok';
+        om.textContent='✓ 更新完成，重新啟動中…';
+        btn.disabled=true;
+      } else {
+        pw.style.display='none';
+        btn.disabled=false;
+      }
+    }
   }catch(e){}
 }
 
@@ -212,6 +265,19 @@ async function save(){
 
 async function act(url){
   try{await fetch(url,{method:'POST'});}catch(e){}
+}
+
+async function startOta(){
+  const btn=document.getElementById('ota-btn');
+  const om=document.getElementById('ota-msg');
+  if(!confirm('確定要更新韌體嗎？更新期間請勿斷電。'))return;
+  btn.disabled=true;
+  om.className='';
+  om.textContent='連線中…';
+  try{
+    const r=await(await fetch('/ota',{method:'POST'})).json();
+    if(!r.ok){om.className='err';om.textContent='✗ 無法啟動更新';btn.disabled=false;}
+  }catch(e){om.className='err';om.textContent='✗ 連線錯誤';btn.disabled=false;}
 }
 
 loadCfg();

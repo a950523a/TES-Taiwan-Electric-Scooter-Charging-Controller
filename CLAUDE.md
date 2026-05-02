@@ -185,7 +185,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: Network + Web UI complete (2026-05-01). Full charge cycle + REST API + embedded web page all working.
+### Current Status: OTA + GitHub Actions complete (2026-05-02). V3 is feature-complete and ready for first release. Push tag `v3.x.x` to trigger automated build and release.
 
 ### Implementation Progress
 
@@ -214,7 +214,10 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 21 | REST API -- GET /status, GET /config, POST /config, POST /start, POST /stop | DONE |
 | 22 | AP mode (no SSID → "TES-Charger" open AP) + mDNS `tes-charger.local` | DONE |
 | 23 | Embedded web UI -- single-page app, 1s live polling, dark theme | DONE |
-| 24 | OTA URL trigger | TODO |
+| 24 | OTA: `POST /ota` REST API + Web UI 進度顯示 + GitHub Releases 預設 URL | DONE |
+| 25 | 5F0 post-charge emergency auto-recovery (5s timeout + `emergency_hw_triggered` tracking) | DONE |
+| 26 | GitHub Actions matrix build + Release (`tes_charger.bin` + `tes_charger_flash.bin`) | DONE |
+| 27 | GitHub Pages 首次燒錄工具 (`docs/index.html` + `docs/manifest.json`, ESP Web Tools) | DONE |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -242,8 +245,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 | Item | V2 | V3 current |
 |------|-----|------------|
-| OTA | GitHub release pull | Skeleton only, needs URL trigger |
-| BLE | Partial implementation | Not implemented in V3 |
+| OTA | GitHub release pull | POST /ota + Web UI + GitHub Actions auto-release |
+| BLE | Partial implementation | Not implemented (out of scope for V3) |
 
 ### Settings Menu
 
@@ -276,7 +279,31 @@ The PSU sends two types of frames on UART:
 
 - `TES_STATE_ENDING`: `relay_open_delay_ms` is a local static inside the case block; should move to `tes_sm_t` struct to make SM fully re-entrant
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
-- ENDING → EMERGENCY transition: vehicle (eMoving iE125) sends 0x5F0 emergency after normal charge end; SM handles it via 5s EMERGENCY→IDLE timeout which is functionally correct but sets `fault_latched=true` (LED shows fault briefly after each charge cycle)
+
+### Release 流程
+
+1. 確認程式碼正確後 push tag：`git tag v3.0.0 && git push origin v3.0.0`
+2. GitHub Actions (`.github/workflows/build-v3.yml`) 自動：
+   - 用 ESP-IDF v5.5.1 編譯 V3
+   - 生成合併 binary (`idf.py merge-bin`)
+   - 建立 GitHub Release，附上：
+     - `tes_charger.bin` → Web UI OTA 更新用
+     - `tes_charger_flash.bin` → GitHub Pages 首次燒錄用
+
+**新增硬體變體**：在 `build-v3.yml` 的 `matrix.include` 加一行，並在 `v3/` 為新硬體建立對應 Kconfig/driver。
+
+### OTA 更新流程
+
+- **首次燒錄（V2→V3 或全新）**：前往 `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`，USB 連接後一鍵燒錄
+- **後續更新（V3→V3）**：Web UI 點「更新至最新韌體」，設備自動從 GitHub Releases 拉取最新 `tes_charger.bin`，完成後自動重啟
+
+### 5F0 Post-Charge Emergency Behaviour (FIXED 2026-05-02)
+
+eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
+- `emergency_hw_triggered` (field in `tes_sm_t`) tracks source: `true` = hardware button, `false` = vehicle CAN
+- **Hardware button**: EMERGENCY requires manual fault-clear (Reset Fault menu), no auto-timeout
+- **Vehicle 0x5F0**: EMERGENCY auto-recovers to IDLE after 5 s; `fault_latched` cleared → LED shows COMPLETE (not FAULT)
+- **Re-entry guard**: in IDLE with `charge_complete_latched=true`, further vehicle 0x5F0 is ignored
 
 ### Network & Web UI
 

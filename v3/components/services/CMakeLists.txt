@@ -17,6 +17,7 @@ idf_component_register(
         esp_wifi
         esp_http_server
         esp_https_ota
+        mbedtls
         json
         espressif__mdns
         freertos
