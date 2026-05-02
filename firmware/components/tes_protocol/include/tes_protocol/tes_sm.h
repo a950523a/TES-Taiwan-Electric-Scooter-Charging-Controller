@@ -30,7 +30,6 @@ typedef struct {
     uint16_t max_voltage_01v;
     uint16_t max_current_01a;
     int8_t   target_soc;
-    bool     auto_voltage;          // true = 依 BMS max_charge_voltage 自動設定電壓上限
 
     // 來自按鈕 / remote（atomic flags，讀後清除）
     bool start_requested;
