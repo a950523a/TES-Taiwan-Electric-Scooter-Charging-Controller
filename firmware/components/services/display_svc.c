@@ -63,6 +63,9 @@ static stop_mode_t s_edit_stop_mode;
 static uint16_t    s_edit_stop_voltage;
 static bool        s_edit_beacon;
 
+static int s_visible_items[MENU_ITEM_COUNT];
+static int s_visible_count = 0;
+
 #define MAX_VISIBLE_ROWS  4
 #define HEADER_H         16    // pixels reserved for header + separator
 #define ROW_H            12    // pixels per menu row
@@ -83,6 +86,7 @@ static void menu_open(void)
     s_cursor       = 0;
     s_scroll_top   = 0;
     s_mode         = MENU_MODE_NAV;
+    build_visible_list();
     s_screen       = DISP_SCREEN_MENU;
     g_menu_open    = true;
     ESP_LOGI(TAG, "menu open");
@@ -180,6 +184,40 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_STOP_VOLTAGE  ||
             item == MENU_ITEM_BEACON);
     // MENU_ITEM_WIFI_INFO is display-only
+}
+
+static bool item_is_visible(int item)
+{
+    if (item == MENU_ITEM_TARGET_SOC)
+        return s_edit_stop_mode == STOP_MODE_SOC;
+    if (item == MENU_ITEM_STOP_VOLTAGE)
+        return s_edit_stop_mode == STOP_MODE_VOLTAGE;
+    return true;
+}
+
+static void build_visible_list(void)
+{
+    s_visible_count = 0;
+    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
+        if (item_is_visible(i))
+            s_visible_items[s_visible_count++] = i;
+    }
+}
+
+static void rebuild_and_fix_cursor(void)
+{
+    int actual = (s_cursor < s_visible_count) ? s_visible_items[s_cursor] : MENU_ITEM_SAVE;
+    build_visible_list();
+    for (int i = 0; i < s_visible_count; i++) {
+        if (s_visible_items[i] == actual) {
+            s_cursor = i;
+            break;
+        }
+    }
+    if (s_cursor < s_scroll_top)
+        s_scroll_top = s_cursor;
+    if (s_cursor >= s_scroll_top + MAX_VISIBLE_ROWS)
+        s_scroll_top = s_cursor - MAX_VISIBLE_ROWS + 1;
 }
 
 // delta > 0 = up, delta < 0 = down
@@ -347,12 +385,13 @@ static void render_menu(void)
     // Items: 4 visible rows, each 12px tall
     display_driver_font_small();
     for (int row = 0; row < MAX_VISIBLE_ROWS; row++) {
-        int item = s_scroll_top + row;
-        if (item >= MENU_ITEM_COUNT) break;
+        int vis = s_scroll_top + row;
+        if (vis >= s_visible_count) break;
+        int item = s_visible_items[vis];
 
         int box_y  = HEADER_H + row * ROW_H;
         int text_y = box_y + ROW_TEXT_OFS;
-        bool selected = (item == s_cursor);
+        bool selected = (vis == s_cursor);
 
         item_label(item, buf, sizeof(buf));
 
@@ -371,7 +410,7 @@ static void render_menu(void)
     // Scroll arrows (right side) when there are hidden items
     if (s_scroll_top > 0)
         display_driver_draw_str(120, HEADER_H + ROW_TEXT_OFS, "^");
-    if (s_scroll_top + MAX_VISIBLE_ROWS < MENU_ITEM_COUNT)
+    if (s_scroll_top + MAX_VISIBLE_ROWS < s_visible_count)
         display_driver_draw_str(120, HEADER_H + (MAX_VISIBLE_ROWS - 1) * ROW_H + ROW_TEXT_OFS, "v");
 
     display_driver_flush();
@@ -414,7 +453,7 @@ void display_svc_button(uint8_t evt)
             break;
 
         case EVT_BUTTON_STOP:    // scroll DOWN
-            if (s_cursor < MENU_ITEM_COUNT - 1) {
+            if (s_cursor < s_visible_count - 1) {
                 s_cursor++;
                 if (s_cursor >= s_scroll_top + MAX_VISIBLE_ROWS)
                     s_scroll_top = s_cursor - MAX_VISIBLE_ROWS + 1;
@@ -422,18 +461,21 @@ void display_svc_button(uint8_t evt)
             break;
 
         case EVT_BUTTON_SETTING: // CONFIRM / execute
-            if (s_cursor == MENU_ITEM_SAVE) {
-                menu_save();
-                menu_close();
-            } else if (s_cursor == MENU_ITEM_CANCEL) {
-                menu_close();
-            } else if (s_cursor == MENU_ITEM_RESET_FAULT) {
-                uint8_t evt = (uint8_t)EVT_FAULT_CLEAR;
-                xQueueSend(g_btn_event_queue, &evt, 0);
-                ESP_LOGI(TAG, "fault clear sent");
-                menu_close();
-            } else if (item_is_editable(s_cursor)) {
-                s_mode = MENU_MODE_EDIT;
+            {
+                int actual = s_visible_items[s_cursor];
+                if (actual == MENU_ITEM_SAVE) {
+                    menu_save();
+                    menu_close();
+                } else if (actual == MENU_ITEM_CANCEL) {
+                    menu_close();
+                } else if (actual == MENU_ITEM_RESET_FAULT) {
+                    uint8_t evt = (uint8_t)EVT_FAULT_CLEAR;
+                    xQueueSend(g_btn_event_queue, &evt, 0);
+                    ESP_LOGI(TAG, "fault clear sent");
+                    menu_close();
+                } else if (item_is_editable(actual)) {
+                    s_mode = MENU_MODE_EDIT;
+                }
             }
             break;
 
@@ -442,10 +484,10 @@ void display_svc_button(uint8_t evt)
         }
     } else { // MENU_MODE_EDIT
         switch (evt) {
-        case EVT_BUTTON_START:      value_step(s_cursor, +1);  break; // fine   +0.1
-        case EVT_BUTTON_STOP:       value_step(s_cursor, -1);  break; // fine   -0.1
-        case EVT_BUTTON_START_LONG: value_step(s_cursor, +10); break; // coarse +1
-        case EVT_BUTTON_STOP_LONG:  value_step(s_cursor, -10); break; // coarse -1
+        case EVT_BUTTON_START:      value_step(s_visible_items[s_cursor], +1);  rebuild_and_fix_cursor(); break;
+        case EVT_BUTTON_STOP:       value_step(s_visible_items[s_cursor], -1);  rebuild_and_fix_cursor(); break;
+        case EVT_BUTTON_START_LONG: value_step(s_visible_items[s_cursor], +10); rebuild_and_fix_cursor(); break;
+        case EVT_BUTTON_STOP_LONG:  value_step(s_visible_items[s_cursor], -10); rebuild_and_fix_cursor(); break;
         case EVT_BUTTON_SETTING:    s_mode = MENU_MODE_NAV;    break; // confirm, back to nav
         default:
             break;
