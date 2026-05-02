@@ -89,3 +89,9 @@ esp_err_t config_svc_set_auto_voltage(bool enabled)
     s_cfg.auto_voltage = enabled;
     return hal_nvs_set_bool(NVS_NS, NVS_KEY_AUTO_V, enabled);
 }
+
+void config_svc_override_voltage(uint16_t v_01v)
+{
+    s_cfg.max_voltage_01v = v_01v;
+    ESP_LOGI(TAG, "auto-voltage: max_v overridden to %u.%uV", v_01v / 10, v_01v % 10);
+}

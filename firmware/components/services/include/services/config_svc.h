@@ -20,7 +20,8 @@ typedef struct {
 esp_err_t                config_svc_init         (void);
 const charger_config_t  *config_svc_get          (void);  // pointer to RAM cache
 
-esp_err_t config_svc_set_charging    (uint16_t v_01v, uint16_t a_01a, int8_t soc);
-esp_err_t config_svc_set_wifi        (const char *ssid, const char *pass);
-esp_err_t config_svc_set_beacon      (bool unlocked);
-esp_err_t config_svc_set_auto_voltage(bool enabled);
+esp_err_t config_svc_set_charging       (uint16_t v_01v, uint16_t a_01a, int8_t soc);
+esp_err_t config_svc_set_wifi           (const char *ssid, const char *pass);
+esp_err_t config_svc_set_beacon         (bool unlocked);
+esp_err_t config_svc_set_auto_voltage   (bool enabled);
+void      config_svc_override_voltage   (uint16_t v_01v);  // RAM only, no NVS write

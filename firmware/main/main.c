@@ -16,6 +16,10 @@
 #include "freertos/task.h"
 #include <stdatomic.h>
 
+#define AUTO_VOLT_SETTLE_MS  1000   // ADC 穩定等待時間
+#define AUTO_VOLT_MIN_V      40.0f
+#define AUTO_VOLT_MAX_V     120.0f
+
 static const char *TAG = "main";
 
 // ── Global definitions ───────────────────────────────────────────────────────
@@ -60,6 +64,19 @@ void app_main(void)
     // Services init
     event_bus_init();
     ESP_ERROR_CHECK(config_svc_init());
+
+    // Auto-voltage: 等待 ADC 穩定後讀一次電壓，更新 max_voltage（僅 RAM）
+    if (config_svc_get()->auto_voltage) {
+        ESP_LOGI(TAG, "auto-voltage: waiting %dms for ADC to settle", AUTO_VOLT_SETTLE_MS);
+        vTaskDelay(pdMS_TO_TICKS(AUTO_VOLT_SETTLE_MS));
+        float v = adc_driver_read_voltage();
+        if (v >= AUTO_VOLT_MIN_V && v <= AUTO_VOLT_MAX_V) {
+            config_svc_override_voltage((uint16_t)(v * 10.0f + 0.5f));
+        } else {
+            ESP_LOGW(TAG, "auto-voltage: ADC read %.1fV out of range, keeping NVS value", v);
+        }
+    }
+
     ESP_ERROR_CHECK(network_svc_init());
 
     // IPC objects
