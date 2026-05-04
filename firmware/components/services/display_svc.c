@@ -10,6 +10,7 @@
 #include "drivers/led_driver.h"
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -40,6 +41,7 @@ typedef enum {
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
+    MENU_ITEM_ABOUT,         // 韌體版本 + 作者（唯讀）
     MENU_ITEM_SAVE,
     MENU_ITEM_CANCEL,
     MENU_ITEM_COUNT
@@ -164,6 +166,11 @@ static void item_label(int item, char *buf, size_t bufsz)
     case MENU_ITEM_RESET_FAULT:
         snprintf(buf, bufsz, "Reset Fault");
         break;
+    case MENU_ITEM_ABOUT: {
+        const esp_app_desc_t *app = esp_app_get_description();
+        snprintf(buf, bufsz, "v%s  Chris Huang", app->version);
+        break;
+    }
     case MENU_ITEM_SAVE:
         snprintf(buf, bufsz, "Save & Exit");
         break;

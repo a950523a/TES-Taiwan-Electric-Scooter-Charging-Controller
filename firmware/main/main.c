@@ -11,6 +11,8 @@
 #include "services/event_bus.h"
 #include "services/config_svc.h"
 #include "services/network_svc.h"
+#include "services/notify_svc.h"
+#include "services/log_svc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -85,6 +87,8 @@ void task_hal_poll (void *arg);
 void task_display  (void *arg);
 void task_network  (void *arg);
 void task_ota      (void *arg);
+void task_notify   (void *arg);
+void task_log      (void *arg);
 void task_monitor  (void *arg);
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -109,6 +113,8 @@ void app_main(void)
     // Services init
     event_bus_init();
     ESP_ERROR_CHECK(config_svc_init());
+    notify_svc_init();
+    log_svc_init();
 
     // Auto-voltage: 等待 ADC 穩定後讀一次電壓，更新 max_voltage（僅 RAM）
     if (config_svc_get()->auto_voltage) {
@@ -139,6 +145,8 @@ void app_main(void)
     xTaskCreate(task_display,  "display",  4096,  NULL,  4, NULL);
     xTaskCreate(task_network,  "network",  12288, NULL,  3, NULL);
     xTaskCreate(task_ota,      "ota",      16384, NULL,  2, NULL);
+    xTaskCreate(task_notify,   "notify",   6144,  NULL,  2, NULL);
+    xTaskCreate(task_log,      "task_log", 3072,  NULL,  1, NULL);
     xTaskCreate(task_monitor,  "monitor",  4096,  NULL,  1, NULL);
 
     network_svc_start();

@@ -5,10 +5,15 @@ idf_component_register(
         "display_svc.c"
         "network_svc.c"
         "ota_svc.c"
+        "notify_svc.c"
+        "log_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
         "web/index.html"
+        "web/manifest.json"
+        "web/sw.js"
+        "web/icon.svg"
     REQUIRES
         tes_protocol
         charger_hal
@@ -18,6 +23,7 @@ idf_component_register(
         esp_http_server
         esp_https_ota
         app_update
+        esp_http_client
         mbedtls
         json
         espressif__mdns

@@ -109,6 +109,28 @@ typedef struct {
     uint16_t manufacturer_code;     // H'5F8 製造商代碼
 } tes_sm_config_t;
 
+// ─── 充電停止原因 ──────────────────────────────────────────────────────────────
+
+typedef enum {
+    STOP_REASON_NORMAL = 0,  // SOC / 電壓目標達成
+    STOP_REASON_USER   = 1,  // 手動停止（按鈕或 REST API）
+    STOP_REASON_FAULT  = 2,
+    STOP_REASON_EMERG  = 3,
+    STOP_REASON_BMS    = 4,  // BMS 撤回充電許可
+    STOP_REASON_TIMER  = 5,
+} stop_reason_t;
+
+// ─── 充電紀錄（可放入 charger_event_t payload，12 bytes） ─────────────────────
+
+typedef struct {
+    uint32_t duration_s;    // 充電時長（秒）
+    float    energy_wh;     // 充電電量（Wh，V×I × 10ms / 3600000）
+    uint8_t  soc_start;     // 充電開始時 SOC（0-100）
+    uint8_t  soc_end;       // 充電結束時 SOC（0-100）
+    uint8_t  stop_reason;   // stop_reason_t
+    uint8_t  _pad;
+} charge_session_t;         // 12 bytes
+
 // ─── 快照（只讀，供 display / network / 未來 JS 讀取） ─────────────────────
 
 typedef struct {

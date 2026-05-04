@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TES Charger</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4a9eff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TES充電">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icon.svg">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#ddd;padding:12px;max-width:500px;margin:0 auto}
@@ -51,6 +57,25 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#48f}
 #msg{font-size:.85em;margin-top:8px;min-height:1.1em}
 .ok{color:#4d4}.err{color:#f55}
 section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-bottom:8px}
+.wifi-row{display:flex;gap:8px;align-items:flex-end}
+.wifi-row input{flex:1;margin-top:5px}
+.b-scan{flex:none;padding:9px 12px;background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:.85em;white-space:nowrap;font-weight:bold;transition:opacity .15s}
+.b-scan:active{opacity:.65}
+.b-scan:disabled{opacity:.4;cursor:default}
+.scan-list{background:#222;border:1px solid #3a3a3a;border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;display:none}
+.scan-item{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;font-size:.9em}
+.scan-item:last-child{border-bottom:none}
+.scan-item:hover{background:#2a2a2a}
+.scan-rssi{font-size:.75em;color:#666;white-space:nowrap;margin-left:8px}
+.b-wifi-sw{width:100%;margin-top:10px;padding:9px;background:#1a2a3a;color:#4a9eff;border:1px solid #2a4a6a;border-radius:6px;cursor:pointer;font-size:.85em;font-weight:bold;transition:opacity .15s}
+.b-wifi-sw:active{opacity:.65}
+.hist-table{width:100%;border-collapse:collapse;font-size:.82em;margin-top:6px}
+.hist-table th{color:#555;font-weight:normal;text-align:left;padding:4px 6px;border-bottom:1px solid #2a2a2a}
+.hist-table td{padding:5px 6px;border-bottom:1px solid #1e1e1e;vertical-align:middle}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-reason-0{color:#4d4}.hist-reason-1{color:#aaa}.hist-reason-2{color:#f55}.hist-reason-3{color:#f80}.hist-reason-4{color:#db4}.hist-reason-5{color:#77f}
+.b-refresh{padding:6px 12px;background:#1e2e1e;color:#4a9eff;border:1px solid #2a3a2a;border-radius:6px;cursor:pointer;font-size:.8em;font-weight:bold;float:right;transition:opacity .15s}
+.b-refresh:active{opacity:.65}
 </style>
 </head>
 <body>
@@ -104,6 +129,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <span class="lbl">主機名稱</span>
     <span style="font-family:monospace;color:#555">tes-charger.local</span>
   </div>
+  <button class="b-wifi-sw" onclick="openPhoneWifi()">📶 切換手機 WiFi</button>
 </div>
 
 <!-- OTA 韌體更新 -->
@@ -123,6 +149,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <button class="b-ota" id="ota-up-btn" onclick="uploadFirmware()" style="margin-top:6px">📤&nbsp;上傳韌體</button>
   </div>
   <div class="ver" id="fw-ver"></div>
+  <div class="ver" style="margin-top:2px">作者：Chris Huang　授權：CC BY-NC-SA 4.0</div>
 </div>
 
 <!-- 設定 -->
@@ -156,15 +183,57 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <input type="number" id="csv" step="0.1" min="40" max="120">
   </div>
   <label class="lbl2">WiFi SSID</label>
-  <input type="text" id="ci" autocomplete="off" placeholder="路由器名稱">
+  <div class="wifi-row">
+    <input type="text" id="ci" autocomplete="off" placeholder="路由器名稱">
+    <button class="b-scan" id="scan-btn" onclick="scanWifi()">🔍 掃描</button>
+  </div>
+  <div class="scan-list" id="scan-list"></div>
   <label class="lbl2">WiFi 密碼（留空保持不變）</label>
   <input type="password" id="cp" placeholder="••••••••">
   <div class="chk-row">
     <input type="checkbox" id="cb">
     <span>LuxBeacon SOC 燈號</span>
   </div>
+  <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
+    <label class="lbl2" style="margin-bottom:8px;display:block">🔔 推播通知</label>
+    <div class="chk-row" style="gap:14px;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-ntfy" value="ntfy" onchange="updateNotifyUI()" style="accent-color:#48f"><span>ntfy.sh（推薦）</span></label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-custom" value="custom" onchange="updateNotifyUI()" style="accent-color:#48f"><span>自定義 Webhook</span></label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-off" value="off" onchange="updateNotifyUI()" style="accent-color:#48f"><span>停用</span></label>
+    </div>
+    <div id="ntfy-panel">
+      <div style="background:#111;border:1px solid #2a3a2a;border-radius:6px;padding:8px 10px;margin-bottom:6px">
+        <div style="font-size:.75em;color:#555;margin-bottom:3px">推播頻道網址</div>
+        <code id="ntfy-url" style="font-size:.83em;color:#4a9eff;word-break:break-all;display:block;min-height:1.2em"></code>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        <button class="b-scan" onclick="copyNtfyUrl()">📋 複製</button>
+        <button class="b-scan" onclick="genNtfyTopic()">🎲 重新產生</button>
+        <a id="ntfy-sub-link" class="b-scan" style="text-decoration:none;text-align:center" href="#">📲 訂閱</a>
+        <button class="b-scan" id="test-btn" onclick="testNotify()">📨 測試</button>
+      </div>
+      <div style="font-size:.78em;color:#555;line-height:1.7">
+        ① 下載 ntfy app：<a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" style="color:#4a9eff">Android</a> ／ <a href="https://apps.apple.com/app/ntfy/id1625396347" style="color:#4a9eff">iOS</a><br>
+        ② 點「訂閱」自動帶入頻道，或在 app 手動輸入上方網址
+      </div>
+    </div>
+    <div id="custom-panel" style="display:none">
+      <input type="url" id="cn" autocomplete="off" placeholder="https://ntfy.sh/your-topic 或任意 Webhook URL">
+    </div>
+  </div>
   <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
   <div id="msg"></div>
+</div>
+
+<!-- 充電紀錄 -->
+<div class="card">
+  <section-title>📋 充電紀錄 <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
+  <div id="hist-body">
+    <table class="hist-table">
+      <thead><tr><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
+      <tbody id="hist-rows"><tr><td colspan="4" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
@@ -253,7 +322,10 @@ async function poll(){
         btn.disabled=false;upBtn.disabled=false;
       }
     }
-  }catch(e){}
+  }catch(e){
+    document.getElementById('ws').innerHTML='<span class="dot" style="background:#555"></span>離線';
+    document.getElementById('ts').textContent='--:--:--';
+  }
 }
 
 function updateAutoVoltUI(){
@@ -278,6 +350,12 @@ async function loadCfg(){
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
     document.getElementById('ci').value=d.wifi_ssid;
     document.getElementById('cb').checked=d.beacon;
+    const nu=d.notify_url||'';
+    if(!nu){document.getElementById('nm-off').checked=true;}
+    else if(/^https?:\/\/ntfy\.sh\//.test(nu)){document.getElementById('nm-ntfy').checked=true;ntfyTopic=nu.replace(/^https?:\/\/ntfy\.sh\//,'');}
+    else{document.getElementById('nm-custom').checked=true;document.getElementById('cn').value=nu;}
+    if(!ntfyTopic)genNtfyTopic();
+    refreshNtfyUI();updateNotifyUI();
     updateAutoVoltUI();
     updateStopModeUI();
   }catch(e){}
@@ -285,6 +363,7 @@ async function loadCfg(){
 
 async function save(){
   const stopMode=document.getElementById('sm1').checked?1:0;
+  const ssid=document.getElementById('ci').value;
   const b={
     auto_voltage:document.getElementById('cav').checked,
     max_voltage:parseFloat(document.getElementById('cv').value),
@@ -292,8 +371,9 @@ async function save(){
     target_soc:parseInt(document.getElementById('cs').value),
     stop_mode:stopMode,
     stop_voltage:parseFloat(document.getElementById('csv').value),
-    wifi_ssid:document.getElementById('ci').value,
-    beacon:document.getElementById('cb').checked
+    wifi_ssid:ssid,
+    beacon:document.getElementById('cb').checked,
+    notify_url:getNotifyUrl()
   };
   const p=document.getElementById('cp').value;
   if(p)b.wifi_pass=p;
@@ -304,9 +384,15 @@ async function save(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(b)
     })).json();
-    m.className=r.ok?'ok':'err';
-    m.textContent=r.ok?'✓ 已儲存（WiFi 變更需重啟生效）':'✗ 儲存失敗';
-    if(r.ok)setTimeout(()=>m.textContent='',5000);
+    if(r.ok&&ssid&&p){
+      m.className='ok';
+      m.innerHTML='✓ 已儲存。設備將重啟連接至 <b>'+ssid+'</b>。<br>'
+        +'請將手機 WiFi 切換至相同網路，再開啟 <a href="http://tes-charger.local" style="color:#4a9eff">tes-charger.local</a>';
+    }else{
+      m.className=r.ok?'ok':'err';
+      m.textContent=r.ok?'✓ 已儲存':'✗ 儲存失敗';
+      if(r.ok)setTimeout(()=>m.textContent='',5000);
+    }
   }catch(e){m.className='err';m.textContent='✗ 連線錯誤';}
 }
 
@@ -359,9 +445,125 @@ async function uploadFirmware(){
   }
 }
 
+let ntfyTopic='';
+
+function genNtfyTopic(){
+  const c='abcdefghijklmnopqrstuvwxyz0123456789';
+  ntfyTopic='tes-'+Array.from({length:10},()=>c[Math.random()*c.length|0]).join('');
+  refreshNtfyUI();
+}
+
+function refreshNtfyUI(){
+  document.getElementById('ntfy-url').textContent='https://ntfy.sh/'+ntfyTopic;
+  document.getElementById('ntfy-sub-link').href='ntfy://ntfy.sh/'+ntfyTopic;
+}
+
+function copyNtfyUrl(){
+  navigator.clipboard.writeText('https://ntfy.sh/'+ntfyTopic)
+    .then(()=>showMsg('✓ 已複製','ok')).catch(()=>showMsg('✗ 複製失敗','err'));
+}
+
+function updateNotifyUI(){
+  const mode=document.querySelector('input[name="nmode"]:checked')?.value||'off';
+  document.getElementById('ntfy-panel').style.display=mode==='ntfy'?'':'none';
+  document.getElementById('custom-panel').style.display=mode==='custom'?'':'none';
+}
+
+function getNotifyUrl(){
+  const mode=document.querySelector('input[name="nmode"]:checked')?.value||'off';
+  if(mode==='ntfy')return ntfyTopic?'https://ntfy.sh/'+ntfyTopic:'';
+  if(mode==='custom')return document.getElementById('cn').value;
+  return '';
+}
+
+async function testNotify(){
+  const btn=document.getElementById('test-btn');
+  btn.disabled=true;btn.textContent='發送中…';
+  try{
+    const r=await(await fetch('/notify/test',{method:'POST'})).json();
+    showMsg(r.ok?'✓ 測試推播已發送':'✗ '+(r.error||'發送失敗'),r.ok?'ok':'err');
+  }catch(e){showMsg('✗ 連線錯誤','err');}
+  btn.disabled=false;btn.textContent='📨 測試';
+}
+
+function showMsg(text,cls){
+  const m=document.getElementById('msg');
+  m.className=cls;m.textContent=text;
+  if(cls==='ok')setTimeout(()=>m.textContent='',4000);
+}
+
+function openPhoneWifi(){
+  if(/Android/i.test(navigator.userAgent)){
+    location.href='intent:#Intent;action=android.settings.WIFI_SETTINGS;end';
+  }else{
+    location.href='App-prefs:root=WIFI';
+  }
+}
+
+async function scanWifi(){
+  const btn=document.getElementById('scan-btn');
+  const list=document.getElementById('scan-list');
+  btn.disabled=true;btn.textContent='掃描中…';
+  list.style.display='none';list.innerHTML='';
+  try{
+    const nets=await(await fetch('/wifi/scan')).json();
+    if(!nets.length){
+      list.innerHTML='<div class="scan-item" style="color:#666;cursor:default">未找到網路</div>';
+    }else{
+      nets.forEach(n=>{
+        const pct=Math.min(100,Math.max(0,(n.rssi+100)*2));
+        const bar=pct>66?'▂▄▆█':pct>33?'▂▄▆':'▂▄';
+        const el=document.createElement('div');
+        el.className='scan-item';
+        el.innerHTML=`<span>${n.secured?'🔒':'🔓'} ${n.ssid||'(隱藏網路)'}</span><span class="scan-rssi">${bar} ${n.rssi} dBm</span>`;
+        el.onclick=()=>{
+          document.getElementById('ci').value=n.ssid;
+          list.style.display='none';
+          document.getElementById('cp').focus();
+        };
+        list.appendChild(el);
+      });
+    }
+    list.style.display='block';
+  }catch(e){
+    list.innerHTML='<div class="scan-item" style="color:#f55;cursor:default">✗ 掃描失敗</div>';
+    list.style.display='block';
+  }
+  btn.disabled=false;btn.textContent='🔍 掃描';
+}
+
+const STOP_REASON=['正常完成','手動停止','故障','緊急停止','BMS 停止','計時停止'];
+const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5'];
+
+async function loadHistory(){
+  const tbody=document.getElementById('hist-rows');
+  tbody.innerHTML='<tr><td colspan="4" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr>';
+  try{
+    const rows=await(await fetch('/history')).json();
+    if(!rows.length){
+      tbody.innerHTML='<tr><td colspan="4" style="color:#444;text-align:center;padding:12px">尚無紀錄</td></tr>';
+      return;
+    }
+    tbody.innerHTML=rows.map(r=>{
+      const dur=r.duration_s>=3600
+        ?`${Math.floor(r.duration_s/3600)}h ${String(Math.floor(r.duration_s%3600/60)).padStart(2,'0')}m`
+        :`${String(Math.floor(r.duration_s/60)).padStart(2,'0')}:${String(r.duration_s%60).padStart(2,'0')}`;
+      const wh=r.energy_wh.toFixed(2);
+      const soc=`${r.soc_start}% → ${r.soc_end}%`;
+      const ri=Math.min(r.stop_reason,5);
+      const reason=`<span class="${STOP_CLS[ri]}">${STOP_REASON[ri]}</span>`;
+      return`<tr><td>${dur}</td><td>${wh}</td><td>${soc}</td><td>${reason}</td></tr>`;
+    }).join('');
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="4" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
+  }
+}
+
 loadCfg();
+loadHistory();
 poll();
 setInterval(poll,1000);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js');
 </script>
 </body>
 </html>

@@ -81,7 +81,7 @@ task_hal_poll --[g_display_btn_queue depth=8]-> task_display      (SETTING alway
 task_hal_poll --[g_emergency_stop atomic_bool]> task_tes_sm       (every tick, bypasses menu gate)
 task_hal_poll --[g_adc_cp_voltage / g_adc_output_voltage volatile]-> task_tes_sm
 task_tes_sm   --[g_snapshot + g_snapshot_mutex]--> task_display / task_network
-task_tes_sm   --[event_bus]--------------------> task_ota / future subscribers
+task_tes_sm   --[event_bus]--------------------> task_ota / task_notify (v3.1.0) / task_log (v3.1.0)
 display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button routing)
 ```
 
@@ -95,7 +95,9 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
+| `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
+| `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
 
 ### Button Routing
 
@@ -171,7 +173,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: v3.0.0 released (2026-05-02). V3 is feature-complete and stable.
+### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。
 
 ### Implementation Progress
 
@@ -211,6 +213,14 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 32 | OLED 狀態畫面：Volt 模式顯示即時/目標電壓，SOC 模式顯示 SOC 現在/目標 | DONE |
 | 33 | Web UI 停止條件選單排序：充電停止條件 radio 移至 Target SOC / Stop Voltage 之前（與 OLED 一致） | DONE |
 | 34 | GitHub Pages 燒錄工具 CORS 修正：manifest 改相對路徑 `./tes_charger_flash.bin`；Actions 部署 binary，Pages source 設為 GitHub Actions | DONE |
+| 35 | Webhook / ntfy 推播通知：`notify_svc`，充電開始/完成/故障時 HTTP POST JSON；URL 存 NVS，Web UI 設定 | DONE ⚠️ 尚未接車測試 |
+| 36 | PWA 升級：`manifest.json` + `sw.js` + `icon.svg`；Apple homescreen meta tags；Web UI 可安裝至手機桌面 | DONE ⚠️ 尚未接車測試 |
+| 37 | 充電紀錄 + Wh 統計：`log_svc` 最近 20 次記錄存 NVS；`GET /history`；Web UI 紀錄表格 | DONE ⚠️ 尚未接車測試 |
+| 38 | WiFi 掃描：`GET /wifi/scan` 回傳附近 AP；Web UI 掃描按鈕 + dropdown 點選填入 SSID | DONE ⚠️ 尚未接車測試 |
+| 39 | mDNS AP 模式修正：`WIFI_EVENT_AP_START` 時也啟動 mDNS，`tes-charger.local` 在 AP/STA 兩種模式皆有效 | DONE ⚠️ 尚未接車測試 |
+| 40 | Web UI 手機 WiFi 切換按鈕：iOS `App-prefs:root=WIFI` / Android `intent:#Intent;action=...WIFI_SETTINGS` | DONE ⚠️ 尚未接車測試 |
+| 41 | PWA 離線修正：`Cache-Control: max-age=86400, stale-if-error=604800`；`sw.js` 改 network-first + 離線 fallback；`poll()` 離線顯示「離線」狀態 | DONE ⚠️ 尚未接車測試 |
+| 42 | OLED 設定選單 + Web UI：新增韌體版本 / 作者欄（`MENU_ITEM_ABOUT`，唯讀；Web UI OTA 卡片底部） | DONE ⚠️ 尚未接車測試 |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -232,7 +242,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | SETTING button | Long press opens menu; short press cycles SOC (80→95→100→80) |
 | WiFi / REST API | AP mode when unconfigured; STA mode when SSID set; full REST API |
 | Web UI | Embedded SPA at `GET /`, live 1s polling, start/stop/config controls |
-| mDNS | `tes-charger.local` registered after STA connects |
+| mDNS | `tes-charger.local` registered in both AP and STA mode (AP: maps to 192.168.4.1) ⚠️ 尚未測試 |
 
 #### Known differences vs V2 for hardware testing
 
@@ -243,7 +253,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ### Settings Menu
 
-11 items, accessible by **long-pressing SETTING** from the status screen.
+12 items, accessible by **long-pressing SETTING** from the status screen.
 **Short-pressing SETTING** on the status screen cycles the quick SOC preset: 80 % → 95 % → 100 % → 80 % (saves to NVS immediately).
 
 | Item | Range | Short press step | Long press step |
@@ -257,6 +267,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
+| About | 韌體版本 + 作者（唯讀） | — | — |
 | Save & Exit | writes to NVS | — | — |
 | Cancel | discard changes | — | — |
 
@@ -349,12 +360,18 @@ eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
 |--------|------|-------------|
 | GET | `/` | Embedded web UI (HTML/CSS/JS, ~9 KB) |
 | GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, timer, fault, wifi, ip |
-| GET | `/config` | JSON config: auto_voltage, max_voltage, max_current, target_soc, stop_mode, stop_voltage, wifi_ssid, beacon |
+| GET | `/config` | JSON config: auto_voltage, max_voltage, max_current, target_soc, stop_mode, stop_voltage, wifi_ssid, beacon, notify_url |
 | POST | `/config` | Partial update JSON body (any subset of fields); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | 從 URL 下載韌體（JSON body `{"url":"..."}` 可選）；省略則用 GitHub Releases 預設 URL |
 | POST | `/ota/upload` | 手動上傳韌體 binary（`application/octet-stream`）；需 Content-Length；進度透過 `/status` 查詢 |
+| GET | `/history` | JSON 陣列，最近 20 次充電紀錄（由新到舊）：duration_s, energy_wh, soc_start, soc_end, stop_reason |
+| GET | `/manifest.json` | PWA Web App Manifest |
+| GET | `/sw.js` | Service Worker（離線快取 index.html） |
+| GET | `/icon.svg` | App 圖示（SVG，用於 homescreen） |
+| GET | `/wifi/scan` | 掃描附近 WiFi AP，回傳最多 20 筆（ssid, rssi, secured）⚠️ 尚未測試 |
+| POST | `/notify/test` | 立即發送測試推播到已設定的 notify_url；AP 模式或未連線時回傳錯誤 ⚠️ 尚未測試 |
 
 **Initial WiFi setup** (AP mode): connect to `TES-Charger`, open `http://192.168.4.1`, use web UI Settings or:
 ```bash
@@ -368,6 +385,119 @@ Reboot to connect to the configured AP. After connecting, use `http://tes-charge
 - HTML is embedded via `EMBED_TXTFILES "web/index.html"` in `services/CMakeLists.txt`
 - Symbol name uses **filename only** (not path): `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS uses managed component `espressif/mdns` declared in `services/idf_component.yml`; CMakeLists REQUIRES entry is `espressif__mdns` (double underscore)
+
+### Webhook / ntfy Push Notification Feature (DONE ⚠️ 尚未接車測試)
+
+`notify_svc` subscribes to event bus, POSTs ntfy-compatible JSON when charging state changes.
+
+**Trigger events:**
+- `TES_STATE_CHARGING` entered → "充電開始"
+- `TES_STATE_IDLE` with `charge_complete=true` → "充電完成" (includes SOC, elapsed time from snapshot)
+- `TES_STATE_FAULT` → "充電故障"
+- `TES_STATE_EMERGENCY` → "緊急停止"
+
+**AP mode behaviour:** `network_svc_is_connected()` checked before every send; no HTTP attempt in AP mode or when STA disconnected (avoids 5s timeout).
+
+**Config:** `notify_url[128]` in `charger_config_t`; NVS key `"notify_url"` in `"tes_cfg"`.
+- `notify_url` = `"https://ntfy.sh/{topic}"` → ntfy mode
+- `notify_url` = any other URL → generic webhook
+- `notify_url` = `""` → disabled
+
+**JSON payload** (ntfy.sh compatible):
+```json
+{"title": "充電完成", "message": "SOC 95%  1h 23m", "priority": 3}
+```
+
+**Task:** priority 2, stack 6 KB. `esp_http_client`, 5 s timeout, no retry.
+
+**Public API:** `notify_svc_send(url, title, message, priority)` — callable from REST handler.
+
+**Web UI guided setup:**
+- ntfy.sh 模式：自動產生 `tes-xxxxxxxxxx` 隨機 topic；提供「複製」「重新產生」「📲 訂閱」（`ntfy://` 深層連結）「📨 測試」按鈕；附 Android/iOS app 下載連結
+- 自定義 Webhook 模式：直接輸入 URL
+- 停用模式：儲存空字串
+
+**Files:** `notify_svc.h`, `notify_svc.c` in `firmware/components/services/`.
+**CMake:** `notify_svc.c` in SRCS; `esp_http_client` in REQUIRES.
+**main.c:** `notify_svc_init()` after `config_svc_init()`; `xTaskCreate(task_notify, "notify", 6144, NULL, 2)`.
+
+---
+
+### PWA Upgrade (DONE ⚠️ 尚未接車測試)
+
+Embedded web UI converted to installable PWA.
+
+**Embedded files** (EMBED_TXTFILES in `services/CMakeLists.txt`):
+
+| File | Endpoint | MIME | Cache-Control |
+|------|----------|------|---------------|
+| `web/manifest.json` | `GET /manifest.json` | `application/manifest+json` | max-age=3600 |
+| `web/sw.js` | `GET /sw.js` | `application/javascript` | no-cache |
+| `web/icon.svg` | `GET /icon.svg` | `image/svg+xml` | max-age=86400 |
+| `web/index.html` | `GET /` | `text/html` | max-age=300 |
+
+**sw.js strategy:** cache `/` on install; network-first for `/status`, `/config`, `/history`, `/wifi/scan`; cache-first for `/`.
+
+**Note on HTTP limitation:** Service Worker requires HTTPS or localhost. On `http://tes-charger.local` (plain HTTP), SW registration is silently blocked by browsers — offline caching does not work. "Add to Home Screen" shortcut works on all platforms over HTTP.
+
+**Consistent URL across modes:** mDNS now starts in both AP and STA mode → always use `http://tes-charger.local`, never install PWA from `http://192.168.4.1` (IP changes when device switches to STA).
+
+**Additional Web UI features added in this pass:**
+- `GET /wifi/scan`: active scan, returns up to 20 APs; Web UI scan button + dropdown
+- 「切換手機 WiFi」button: iOS → `App-prefs:root=WIFI`; Android → `intent:#Intent;action=android.settings.WIFI_SETTINGS`
+- Post-save WiFi guidance: when SSID + password saved, shows instruction to switch phone WiFi and link to `tes-charger.local`
+
+**CMake:** `max_uri_handlers = 16`; 13 handlers registered (14 after log_svc adds `GET /history`).
+
+---
+
+### Charge Session History + Wh Tracking (PLANNED v3.1.0)
+
+`task_tes_sm` accumulates V×I energy per 10 ms tick during CHARGING, then publishes a `EVT_SESSION_COMPLETE` event when the session ends. `log_svc` stores the last 20 sessions as an NVS blob.
+
+**New types** (added to `tes_types.h`):
+```c
+typedef enum {
+    STOP_REASON_NORMAL = 0,  // SOC / voltage target reached
+    STOP_REASON_USER   = 1,  // user stop button / remote stop
+    STOP_REASON_FAULT  = 2,
+    STOP_REASON_EMERG  = 3,
+    STOP_REASON_BMS    = 4,  // BMS revoked permission
+    STOP_REASON_TIMER  = 5,
+} stop_reason_t;
+
+typedef struct {
+    uint32_t duration_s;   // session length in seconds
+    float    energy_wh;    // Wh delivered (V×I × 10ms / 3600000)
+    uint8_t  soc_start;
+    uint8_t  soc_end;
+    uint8_t  stop_reason;  // stop_reason_t
+    uint8_t  _pad;
+} charge_session_t;        // 12 bytes — fits in 24-byte event payload
+```
+
+**Energy formula (per tick):** `energy_wh += V * A / 360000.0f` (10 ms tick)
+Only accumulated when `state == TES_STATE_CHARGING && timer_running && V > 0 && A > 0`.
+
+**`EVT_SESSION_COMPLETE`** added to `event_type_t`; payload carries `charge_session_t` (12 bytes).
+
+**log_svc storage:** NVS namespace `"tes_hist"`, blob key `"log"`, 248-byte circular buffer (head + count + 20 × `charge_session_t`).
+
+**New files:** `log_svc.h`, `log_svc.c` in `firmware/components/services/`.
+**Task:** priority 1, stack 3 KB; subscribes to event bus.
+**main.c:** call `log_svc_init()` after `config_svc_init()`.
+
+**`GET /history` response:**
+```json
+[{"duration_s":5400,"energy_wh":1.23,"soc_start":45,"soc_end":95,"stop_reason":0}, ...]
+```
+Returned newest-first; max 20 entries.
+
+**Web UI:** "充電紀錄" section at bottom of page; columns: 充電時間(分鐘), 電量(Wh), SOC起→終, 停止原因.
+
+**hal_nvs blob:** if `hal_nvs_get_blob` / `hal_nvs_set_blob` not present in `charger_hal/hal_nvs.h`, add them wrapping `nvs_get_blob` / `nvs_set_blob`.
+
+---
 
 ### File Structure
 
@@ -385,6 +515,11 @@ firmware/
 |   +-- drivers/                can/adc/psu/display/led -- all complete
 |   +-- services/               all services complete
 |   |   +-- web/index.html      embedded web UI (EMBED_TXTFILES in services/CMakeLists.txt)
+|   |   +-- web/manifest.json   PWA manifest (PLANNED v3.1.0)
+|   |   +-- web/sw.js           service worker (PLANNED v3.1.0)
+|   |   +-- web/icon.svg        app icon (PLANNED v3.1.0)
+|   |   +-- notify_svc.c/.h     push notification service (PLANNED v3.1.0)
+|   |   +-- log_svc.c/.h        charge session history (PLANNED v3.1.0)
 |   |   +-- idf_component.yml   declares espressif/mdns managed component
 +-- main/
     +-- globals.h               IPC objects (queues, snapshot mutex, atomic, volatile ADC, menu flag)

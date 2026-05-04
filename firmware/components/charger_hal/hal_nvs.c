@@ -107,3 +107,24 @@ esp_err_t hal_nvs_set_bool(const char *ns, const char *key, bool val)
     nvs_close(h);
     return ret;
 }
+
+esp_err_t hal_nvs_get_blob(const char *ns, const char *key, void *out, size_t *len)
+{
+    nvs_handle_t h;
+    esp_err_t ret = open_ns(ns, NVS_READONLY, &h);
+    if (ret != ESP_OK) return ret;
+    ret = nvs_get_blob(h, key, out, len);
+    nvs_close(h);
+    return ret;
+}
+
+esp_err_t hal_nvs_set_blob(const char *ns, const char *key, const void *val, size_t len)
+{
+    nvs_handle_t h;
+    esp_err_t ret = open_ns(ns, NVS_READWRITE, &h);
+    if (ret != ESP_OK) return ret;
+    ret = nvs_set_blob(h, key, val, len);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    nvs_close(h);
+    return ret;
+}
