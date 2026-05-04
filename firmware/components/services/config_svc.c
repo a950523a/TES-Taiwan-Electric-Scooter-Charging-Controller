@@ -15,6 +15,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_AUTO_V  "auto_v"
 #define NVS_KEY_STOP_M  "stop_m"
 #define NVS_KEY_STOP_V  "stop_v"
+#define NVS_KEY_NOTIFY  "notify_url"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -56,6 +57,10 @@ esp_err_t config_svc_init(void)
                           ? (stop_mode_t)tmp : STOP_MODE_SOC;
         s_cfg.stop_voltage_01v = (hal_nvs_get_u32(NVS_NS, NVS_KEY_STOP_V, &tmp) == ESP_OK)
                                  ? (uint16_t)tmp : DEFAULT_STOP_V;
+    }
+
+    if (hal_nvs_get_str(NVS_NS, NVS_KEY_NOTIFY, s_cfg.notify_url, sizeof(s_cfg.notify_url)) != ESP_OK) {
+        s_cfg.notify_url[0] = '\0';
     }
 
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u",
@@ -109,6 +114,13 @@ esp_err_t config_svc_set_stop(stop_mode_t mode, uint16_t stop_voltage_01v)
     esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_M, (uint32_t)mode);
     r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_V, stop_voltage_01v);
     return r;
+}
+
+esp_err_t config_svc_set_notify_url(const char *url)
+{
+    strncpy(s_cfg.notify_url, url, sizeof(s_cfg.notify_url) - 1);
+    s_cfg.notify_url[sizeof(s_cfg.notify_url) - 1] = '\0';
+    return hal_nvs_set_str(NVS_NS, NVS_KEY_NOTIFY, s_cfg.notify_url);
 }
 
 void config_svc_override_voltage(uint16_t v_01v)

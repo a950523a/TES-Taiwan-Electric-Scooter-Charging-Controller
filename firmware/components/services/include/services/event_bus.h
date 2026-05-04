@@ -23,6 +23,7 @@ typedef enum {
     EVT_OTA_PROGRESS,
     EVT_OTA_COMPLETE,
     EVT_FAULT_CLEAR,
+    EVT_SESSION_COMPLETE,   // payload: charge_session_t (12 bytes)
 } event_type_t;
 
 typedef struct {

@@ -14,3 +14,5 @@ esp_err_t hal_nvs_get_str (const char *ns, const char *key, char *out, size_t ma
 esp_err_t hal_nvs_set_str (const char *ns, const char *key, const char *val);
 esp_err_t hal_nvs_get_bool(const char *ns, const char *key, bool *out);
 esp_err_t hal_nvs_set_bool(const char *ns, const char *key, bool val);
+esp_err_t hal_nvs_get_blob(const char *ns, const char *key, void *out, size_t *len);
+esp_err_t hal_nvs_set_blob(const char *ns, const char *key, const void *val, size_t len);

@@ -18,7 +18,13 @@ static const char *TAG = "task_tes_sm";
 
 #define TICK_MS 10
 
-static tes_sm_t s_sm;
+static tes_sm_t  s_sm;
+
+// Session energy tracking
+static bool     s_session_active    = false;
+static float    s_session_energy_wh = 0.0f;
+static uint8_t  s_soc_start         = 0;
+static uint32_t s_session_end_sec   = 0;
 
 static void drain_can_rx_queue(tes_sm_inputs_t *in)
 {
@@ -139,20 +145,63 @@ void task_tes_sm(void *arg)
             xSemaphoreGive(g_snapshot_mutex);
         }
 
+        // Energy accumulation during CHARGING
+        if (snap.state == TES_STATE_CHARGING && s_session_active &&
+            snap.output_voltage > 0.0f && snap.output_current > 0.0f) {
+            s_session_energy_wh += snap.output_voltage * snap.output_current / 360000.0f;
+        }
+
         static tes_state_t s_last_state = TES_STATE_IDLE;
         if (snap.state != s_last_state) {
+            tes_state_t prev  = s_last_state;
+            tes_state_t curr  = snap.state;
             static const char *state_names[] = {
                 "IDLE","PARAM_EXCHANGE","PRE_CHARGE","CHARGING",
                 "ENDING","FINALIZE","FAULT","EMERGENCY"
             };
-            const char *name = (snap.state < 8) ? state_names[snap.state] : "?";
+            const char *name = (curr < 8) ? state_names[curr] : "?";
             ESP_LOGI(TAG, "state: %s -> %s  psu_conn=%d cp_v=%.2f",
-                     state_names[s_last_state], name,
+                     state_names[prev], name,
                      inputs.psu_connected, inputs.cp_voltage);
-            s_last_state = snap.state;
+            s_last_state = curr;
+
+            // Session start
+            if (curr == TES_STATE_CHARGING && !s_session_active) {
+                s_session_active    = true;
+                s_session_energy_wh = 0.0f;
+                s_soc_start         = snap.soc;
+            }
+            // Capture duration the tick we leave CHARGING (timer still valid)
+            if (prev == TES_STATE_CHARGING) {
+                s_session_end_sec = snap.elapsed_seconds;
+            }
+            // Session end: publish when reaching terminal state
+            if (s_session_active && (curr == TES_STATE_IDLE ||
+                                     curr == TES_STATE_FAULT ||
+                                     curr == TES_STATE_EMERGENCY)) {
+                uint8_t reason;
+                if      (curr == TES_STATE_FAULT)     reason = STOP_REASON_FAULT;
+                else if (curr == TES_STATE_EMERGENCY) reason = STOP_REASON_EMERG;
+                else if (snap.charge_complete)        reason = STOP_REASON_NORMAL;
+                else                                  reason = STOP_REASON_USER;
+
+                charge_session_t sess = {
+                    .duration_s  = s_session_end_sec,
+                    .energy_wh   = s_session_energy_wh,
+                    .soc_start   = s_soc_start,
+                    .soc_end     = snap.soc,
+                    .stop_reason = reason,
+                };
+                charger_event_t sess_evt = { .type = EVT_SESSION_COMPLETE,
+                                             .timestamp_ms = inputs.tick_ms };
+                memcpy(sess_evt.payload, &sess, sizeof(charge_session_t));
+                event_bus_publish(&sess_evt);
+                s_session_active = false;
+            }
+
             charger_event_t evt = { .type = EVT_TES_STATE_CHANGED,
                                     .timestamp_ms = inputs.tick_ms };
-            evt.payload[0] = (uint8_t)snap.state;
+            evt.payload[0] = (uint8_t)curr;
             event_bus_publish(&evt);
         }
     }
