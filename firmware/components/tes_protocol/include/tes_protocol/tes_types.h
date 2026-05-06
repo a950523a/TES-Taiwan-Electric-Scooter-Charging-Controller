@@ -127,8 +127,8 @@ typedef struct {
     float    energy_wh;     // 充電電量（Wh，V×I × 10ms / 3600000）
     uint8_t  soc_start;     // 充電開始時 SOC（0-100）
     uint8_t  soc_end;       // 充電結束時 SOC（0-100）
-    uint8_t  stop_reason;   // stop_reason_t
-    uint8_t  _pad;
+    uint8_t  stop_reason;      // stop_reason_t
+    uint8_t  energy_estimated; // 1 = PSU 未連線，電量為 ADC 預估值
 } charge_session_t;         // 12 bytes
 
 // ─── CAN 診斷快照（最後收到的 0x500 / 0x501 解碼值） ────────────────────────

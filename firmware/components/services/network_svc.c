@@ -630,11 +630,12 @@ static esp_err_t handle_get_history(httpd_req_t *req)
     cJSON *arr = cJSON_CreateArray();
     for (uint8_t i = 0; i < n; i++) {
         cJSON *obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "duration_s",  buf[i].duration_s);
-        cJSON_AddNumberToObject(obj, "energy_wh",   (double)buf[i].energy_wh);
-        cJSON_AddNumberToObject(obj, "soc_start",   buf[i].soc_start);
-        cJSON_AddNumberToObject(obj, "soc_end",     buf[i].soc_end);
-        cJSON_AddNumberToObject(obj, "stop_reason", buf[i].stop_reason);
+        cJSON_AddNumberToObject(obj, "duration_s",       buf[i].duration_s);
+        cJSON_AddNumberToObject(obj, "energy_wh",        (double)buf[i].energy_wh);
+        cJSON_AddBoolToObject  (obj, "energy_estimated", buf[i].energy_estimated);
+        cJSON_AddNumberToObject(obj, "soc_start",        buf[i].soc_start);
+        cJSON_AddNumberToObject(obj, "soc_end",          buf[i].soc_end);
+        cJSON_AddNumberToObject(obj, "stop_reason",      buf[i].stop_reason);
         cJSON_AddItemToArray(arr, obj);
     }
 
