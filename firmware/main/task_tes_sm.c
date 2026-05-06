@@ -21,10 +21,11 @@ static const char *TAG = "task_tes_sm";
 static tes_sm_t  s_sm;
 
 // Session energy tracking
-static bool     s_session_active    = false;
-static float    s_session_energy_wh = 0.0f;
-static uint8_t  s_soc_start         = 0;
-static uint32_t s_session_end_sec   = 0;
+static bool     s_session_active        = false;
+static float    s_session_energy_wh     = 0.0f;
+static uint8_t  s_soc_start             = 0;
+static uint32_t s_session_end_sec       = 0;
+static bool     s_session_psu_seen      = false; // PSU connected at any tick during session
 
 // CAN diag: last received RX raw values + last sent TX frames
 static uint8_t              s_last_5f0_flags = 0;
@@ -184,6 +185,7 @@ void task_tes_sm(void *arg)
         if (snap.state == TES_STATE_CHARGING && s_session_active &&
             snap.output_voltage > 0.0f && snap.output_current > 0.0f) {
             s_session_energy_wh += snap.output_voltage * snap.output_current / 360000.0f;
+            if (psu.connected) s_session_psu_seen = true;
         }
 
         static tes_state_t s_last_state = TES_STATE_IDLE;
@@ -205,6 +207,7 @@ void task_tes_sm(void *arg)
                 s_session_active    = true;
                 s_session_energy_wh = 0.0f;
                 s_soc_start         = snap.soc;
+                s_session_psu_seen  = false;
             }
             // Capture duration the tick we leave CHARGING (timer still valid)
             if (prev == TES_STATE_CHARGING) {
@@ -221,11 +224,12 @@ void task_tes_sm(void *arg)
                 else                                  reason = STOP_REASON_USER;
 
                 charge_session_t sess = {
-                    .duration_s  = s_session_end_sec,
-                    .energy_wh   = s_session_energy_wh,
-                    .soc_start   = s_soc_start,
-                    .soc_end     = snap.soc,
-                    .stop_reason = reason,
+                    .duration_s       = s_session_end_sec,
+                    .energy_wh        = s_session_energy_wh,
+                    .soc_start        = s_soc_start,
+                    .soc_end          = snap.soc,
+                    .stop_reason      = reason,
+                    .energy_estimated = s_session_psu_seen ? 0 : 1,
                 };
                 charger_event_t sess_evt = { .type = EVT_SESSION_COMPLETE,
                                              .timestamp_ms = inputs.tick_ms };

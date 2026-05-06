@@ -717,7 +717,8 @@ async function loadHistory(){
       const dur=r.duration_s>=3600
         ?`${Math.floor(r.duration_s/3600)}h ${String(Math.floor(r.duration_s%3600/60)).padStart(2,'0')}m`
         :`${String(Math.floor(r.duration_s/60)).padStart(2,'0')}:${String(r.duration_s%60).padStart(2,'0')}`;
-      const wh=r.energy_wh.toFixed(2);
+      const whEst=r.energy_estimated?'<span style="color:#555;font-size:.75em"> (預估)</span>':'';
+      const wh=r.energy_wh.toFixed(2)+' Wh'+whEst;
       const soc=`${r.soc_start}% → ${r.soc_end}%`;
       const ri=Math.min(r.stop_reason,5);
       const reason=`<span class="${STOP_CLS[ri]}">${STOP_REASON[ri]}</span>`;
