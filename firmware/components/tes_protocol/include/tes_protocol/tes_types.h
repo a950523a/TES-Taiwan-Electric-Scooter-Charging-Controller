@@ -152,4 +152,6 @@ typedef struct {
     led_state_t   led_state;
     uint8_t       last_fault_flags;      // 最後一次故障旗標（用於顯示）
     float         last_valid_req_current;
+    float         energy_wh;            // 本次充電累積電量（充電中有效，其他狀態為 0）
+    bool          psu_connected;        // PSU UART 已回報（false = 數值為預估）
 } tes_snapshot_t;

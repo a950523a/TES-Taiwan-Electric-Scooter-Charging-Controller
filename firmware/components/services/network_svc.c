@@ -122,6 +122,9 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddStringToObject(root, "state",             state_name(snap.state));
     cJSON_AddNumberToObject(root, "voltage",           snap.output_voltage);
     cJSON_AddNumberToObject(root, "current",           snap.output_current);
+    cJSON_AddNumberToObject(root, "power_w",           snap.output_voltage * snap.output_current);
+    cJSON_AddNumberToObject(root, "energy_wh",         snap.energy_wh);
+    cJSON_AddBoolToObject  (root, "psu_connected",     snap.psu_connected);
     cJSON_AddNumberToObject(root, "soc",               snap.soc);
     cJSON_AddNumberToObject(root, "target_soc",        snap.target_soc);
     cJSON_AddBoolToObject  (root, "fault",             snap.fault_latched);

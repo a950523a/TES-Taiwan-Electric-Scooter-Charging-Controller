@@ -100,6 +100,14 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       <span class="lbl">輸出電流</span>
       <span class="val big" id="a">-- A</span>
     </div>
+    <div class="row">
+      <span class="lbl">即時功率</span>
+      <span class="val" id="pw">--</span>
+    </div>
+    <div class="row">
+      <span class="lbl">累積電量</span>
+      <span class="val" id="ewh">--</span>
+    </div>
     <div class="prog-wrap">
       <div class="prog-label">
         <span>SOC</span><span id="soc-txt">-- / --%</span>
@@ -246,6 +254,9 @@ function updateDisplay(d){
 
   document.getElementById('v').textContent=(d.voltage??0).toFixed(1)+' V';
   document.getElementById('a').textContent=(d.current??0).toFixed(1)+' A';
+  const est=d.psu_connected?'':'<span style="color:#555;font-size:.75em"> (預估)</span>';
+  document.getElementById('pw').innerHTML=(d.power_w??0).toFixed(1)+' W'+est;
+  document.getElementById('ewh').innerHTML=(d.energy_wh??0).toFixed(2)+' Wh'+est;
 
   const soc=d.soc??0;
   const tgt=d.target_soc??100;
