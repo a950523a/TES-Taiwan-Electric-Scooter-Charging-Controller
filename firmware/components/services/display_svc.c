@@ -168,7 +168,10 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_ABOUT: {
         const esp_app_desc_t *app = esp_app_get_description();
-        snprintf(buf, bufsz, "v%s  Chris Huang", app->version);
+        strncpy(buf, app->version, bufsz - 1);
+        buf[bufsz - 1] = '\0';
+        char *dirty = strstr(buf, "-dirty");
+        if (dirty) *dirty = '\0';   // "-dirty" 超出 OLED 行寬，截掉
         break;
     }
     case MENU_ITEM_SAVE:
