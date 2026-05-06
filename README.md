@@ -38,10 +38,14 @@
 - **通用性**：適用於 eMoving iE125 等支援 TES 快充標準之車輛
 
 ### 智慧功能
-- **Web UI**：內建單頁應用，1 秒即時更新電壓、電流、SOC、剩餘時間
+- **Web UI / PWA**：內建單頁應用，1 秒即時更新電壓、電流、SOC、剩餘時間；可安裝至手機桌面
 - **REST API**：`GET /status`、`POST /start`、`POST /stop`、`POST /ota`
 - **mDNS**：連接 WiFi 後可用 `http://tes-charger.local` 直接存取
 - **OTA 無線更新**：Web UI 一鍵從 GitHub Releases 拉取最新韌體，自動重刷
+- **MQTT 遠端監控**：設定 broker 後可在任何網路環境即時監控並遠端 Start/Stop
+- **Cloud PWA**：無需與設備在同一個 WiFi，透過 MQTT 遠端監控 👉 [monitor.html](https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/monitor.html)
+- **推播通知**：充電開始／完成／故障時自動透過 ntfy 或 Webhook 推播到手機
+- **充電紀錄**：最近 20 次充電的時長、電量 (Wh)、SOC 起訖、停止原因
 - **OLED 狀態顯示**：SSD1306 128×64，顯示充電狀態、電壓電流、SOC、剩餘時間
 - **設定選單**：長按 SETTING 進入，可調最大電壓、電流、目標 SOC、WiFi 設定
 - **LuxBeacon**：LED SOC 脈衝燈號編碼
@@ -83,6 +87,21 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 tes_charger_flash.bin
 2. 瀏覽器開啟 `http://192.168.4.1`
 3. 在「設定」填入家用 WiFi SSID 與密碼 → 儲存
 4. 重啟後自動連接，之後使用 `http://tes-charger.local`
+
+---
+
+## 📱 遠端監控
+
+### 裝置端 PWA（同一個 WiFi）
+
+連線至 `http://tes-charger.local`，點瀏覽器「加入主畫面」即可安裝為 PWA。
+
+### Cloud PWA（任何網路）
+
+👉 **[https://a950523a.github.io/.../monitor.html](https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/monitor.html)**
+
+需先在裝置端 Web UI 設定 MQTT Broker（建議使用免費公共 broker：`mqtt://broker.hivemq.com:1883`）。
+設定後點「取得遠端監控連結」，掃描 QR code 或複製連結，在任何地點開啟即可即時監控並遠端 Start/Stop。
 
 ---
 
@@ -147,6 +166,7 @@ Copyright (c) 2025 Chris Huang
 
 ## 🔗 相關專案
 
+- **[TES-Protocol](https://github.com/a950523a/TES-Protocol)**：本專案抽出的可攜式 C99 CAN codec（`tes_types.h` + `tes_codec.c`），可作為 submodule 用於 STM32 或其他平台
 - **[LianMing-PSU-Controller](https://github.com/a950523a/LianMing-PSU-Controller)**：聯明電源 CAN Bus 控制器，可與本專案配合使用實現高功率便攜充電方案
 
 ---
