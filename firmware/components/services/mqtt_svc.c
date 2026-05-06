@@ -56,11 +56,14 @@ static int build_status_json(char *buf, size_t len)
     }
     return snprintf(buf, len,
         "{\"state\":\"%s\",\"voltage\":%.1f,\"current\":%.1f,"
+        "\"power_w\":%.1f,\"energy_wh\":%.2f,\"psu_connected\":%s,"
         "\"soc\":%d,\"target_soc\":%d,"
         "\"elapsed_seconds\":%lu,\"remaining_seconds\":%lu,"
         "\"fault\":%s,\"charge_complete\":%s,\"timer_running\":%s}",
         state_str(snap.state),
         snap.output_voltage, snap.output_current,
+        snap.output_voltage * snap.output_current, snap.energy_wh,
+        snap.psu_connected   ? "true" : "false",
         (int)snap.soc, (int)snap.target_soc,
         (unsigned long)snap.elapsed_seconds,
         (unsigned long)snap.remaining_seconds,

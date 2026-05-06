@@ -140,6 +140,8 @@ void task_tes_sm(void *arg)
         inputs.vehicle_emergency     = false; // 每 tick 重置：只反映本 tick 收到的 0x5F0 幀
 
         tes_snapshot_t snap = tes_sm_get_snapshot(&s_sm);
+        snap.energy_wh    = s_session_active ? s_session_energy_wh : 0.0f;
+        snap.psu_connected = psu.connected;
         if (xSemaphoreTake(g_snapshot_mutex, 0) == pdTRUE) {
             g_snapshot = snap;
             xSemaphoreGive(g_snapshot_mutex);
