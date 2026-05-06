@@ -41,6 +41,5 @@ CONFIG_TWAI_ERRATA_FIX_LISTEN_ONLY_DOM=y
 # --- Heap ---
 CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS=n
 
-# --- App version ---
-CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="3.0.0-dev"
+# --- App version: set by CMakeLists.txt via git describe, not hardcoded here ---
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=n
