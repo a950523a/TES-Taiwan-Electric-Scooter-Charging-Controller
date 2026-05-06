@@ -221,8 +221,38 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       <input type="url" id="cn" autocomplete="off" placeholder="https://ntfy.sh/your-topic 或任意 Webhook URL">
     </div>
   </div>
+  <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
+    <label class="lbl2" style="margin-bottom:8px;display:block">📡 MQTT 遠端監控</label>
+    <label class="lbl2">Broker URL（空白 = 停用）</label>
+    <input type="url" id="mqtt-url" autocomplete="off" placeholder="mqtt://broker.hivemq.com:1883">
+    <label class="lbl2">Topic Prefix</label>
+    <input type="text" id="mqtt-topic" autocomplete="off" placeholder="tes/charger">
+    <div style="font-size:.78em;color:#555;margin-top:6px;line-height:1.6">
+      推薦 Broker：<code style="color:#48f">broker.hivemq.com</code>（免費，無需帳號）<br>
+      MQTT 設定變更後需重啟生效
+    </div>
+  </div>
   <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
   <div id="msg"></div>
+</div>
+
+<!-- 遠端監控 -->
+<div class="card" id="mqtt-card" style="display:none">
+  <section-title>📡 遠端監控</section-title>
+  <div style="font-size:.82em;color:#aaa;margin-bottom:10px;line-height:1.6">
+    透過 MQTT 在任何網路環境即時監控充電狀態並遠端 Start / Stop
+  </div>
+  <div style="background:#111;border:1px solid #1a3a1a;border-radius:6px;padding:8px 10px;margin-bottom:8px">
+    <div style="font-size:.75em;color:#555;margin-bottom:3px">Cloud PWA 連結</div>
+    <code id="mqtt-link-url" style="font-size:.78em;color:#4a9eff;word-break:break-all;display:block;min-height:1.2em"></code>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="b-scan" onclick="copyMqttLink()">📋 複製連結</button>
+    <button class="b-scan" onclick="openMqttMonitor()">🔗 開啟監控</button>
+  </div>
+  <div style="font-size:.78em;color:#555;margin-top:8px;line-height:1.6">
+    在手機上開啟後可加入主畫面作為獨立 App
+  </div>
 </div>
 
 <!-- 充電紀錄 -->
@@ -350,6 +380,8 @@ async function loadCfg(){
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
     document.getElementById('ci').value=d.wifi_ssid;
     document.getElementById('cb').checked=d.beacon;
+    document.getElementById('mqtt-url').value=d.mqtt_broker_url||'';
+    document.getElementById('mqtt-topic').value=d.mqtt_topic_prefix||'tes/charger';
     const nu=d.notify_url||'';
     if(!nu){document.getElementById('nm-off').checked=true;}
     else if(/^https?:\/\/ntfy\.sh\//.test(nu)){document.getElementById('nm-ntfy').checked=true;ntfyTopic=nu.replace(/^https?:\/\/ntfy\.sh\//,'');}
@@ -373,7 +405,9 @@ async function save(){
     stop_voltage:parseFloat(document.getElementById('csv').value),
     wifi_ssid:ssid,
     beacon:document.getElementById('cb').checked,
-    notify_url:getNotifyUrl()
+    notify_url:getNotifyUrl(),
+    mqtt_broker_url:document.getElementById('mqtt-url').value.trim(),
+    mqtt_topic_prefix:document.getElementById('mqtt-topic').value.trim()||'tes/charger'
   };
   const p=document.getElementById('cp').value;
   if(p)b.wifi_pass=p;
@@ -559,8 +593,32 @@ async function loadHistory(){
   }
 }
 
+let mqttMonitorUrl='';
+
+async function loadMqttLink(){
+  try{
+    const d=await(await fetch('/mqtt/link')).json();
+    if(d.ok&&d.url){
+      mqttMonitorUrl=d.url;
+      document.getElementById('mqtt-link-url').textContent=d.url;
+      document.getElementById('mqtt-card').style.display='block';
+    }
+  }catch(e){}
+}
+
+function copyMqttLink(){
+  if(!mqttMonitorUrl)return;
+  navigator.clipboard.writeText(mqttMonitorUrl)
+    .then(()=>showMsg('✓ 已複製','ok')).catch(()=>showMsg('✗ 複製失敗','err'));
+}
+
+function openMqttMonitor(){
+  if(mqttMonitorUrl)window.open(mqttMonitorUrl,'_blank');
+}
+
 loadCfg();
 loadHistory();
+loadMqttLink();
 poll();
 setInterval(poll,1000);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js');

@@ -178,7 +178,9 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg->stop_voltage_01v / 10.0);
     cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
-    cJSON_AddStringToObject(root, "notify_url",     cfg->notify_url);
+    cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
+    cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
+    cJSON_AddStringToObject(root, "mqtt_topic_prefix", cfg->mqtt_topic_prefix);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -309,6 +311,27 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         notify_url_changed = true;
     }
 
+    char new_mqtt_broker_url[128]   = {0};
+    char new_mqtt_topic_prefix[64]  = {0};
+    bool mqtt_changed = false;
+    item = cJSON_GetObjectItem(root, "mqtt_broker_url");
+    if (cJSON_IsString(item) && item->valuestring) {
+        strncpy(new_mqtt_broker_url, item->valuestring, sizeof(new_mqtt_broker_url) - 1);
+        mqtt_changed = true;
+    }
+    item = cJSON_GetObjectItem(root, "mqtt_topic_prefix");
+    if (cJSON_IsString(item) && item->valuestring) {
+        strncpy(new_mqtt_topic_prefix, item->valuestring, sizeof(new_mqtt_topic_prefix) - 1);
+        mqtt_changed = true;
+    }
+    // Fill in current values if only one field was supplied
+    if (mqtt_changed) {
+        if (new_mqtt_broker_url[0] == '\0')
+            strncpy(new_mqtt_broker_url, config_svc_get()->mqtt_broker_url, sizeof(new_mqtt_broker_url) - 1);
+        if (new_mqtt_topic_prefix[0] == '\0')
+            strncpy(new_mqtt_topic_prefix, config_svc_get()->mqtt_topic_prefix, sizeof(new_mqtt_topic_prefix) - 1);
+    }
+
     cJSON_Delete(root);
 
     if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
@@ -317,9 +340,10 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (auto_voltage_changed) config_svc_set_auto_voltage(new_auto_voltage);
     if (notify_url_changed)   config_svc_set_notify_url(new_notify_url);
     if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage);
+    if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
 
-    if (wifi_changed)
-        ESP_LOGI(TAG, "WiFi credentials updated — reboot to connect");
+    if (wifi_changed || mqtt_changed)
+        ESP_LOGI(TAG, "WiFi/MQTT config updated — reboot to apply");
 
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
@@ -626,6 +650,79 @@ static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
 };
 
+// ── GET /mqtt/link ────────────────────────────────────────────────────────────
+// Returns the Cloud PWA URL pre-filled with broker hostname, WS port, and topic.
+// WS port mapping: HiveMQ→8000, Mosquitto→8080, others→8083 (EMQX default).
+
+static void extract_broker_host(const char *uri, char *host, size_t len)
+{
+    // Strip scheme: "mqtt://user:pass@host:port" → "host"
+    const char *p = strstr(uri, "://");
+    p = p ? p + 3 : uri;
+    // Skip user:pass@ if present
+    const char *at = strchr(p, '@');
+    if (at && (!strchr(p, ':') || strchr(p, ':') > at)) p = at + 1;
+    const char *end = strchr(p, ':');
+    if (!end) end = strchr(p, '/');
+    if (!end) end = p + strlen(p);
+    size_t n = (size_t)(end - p) < len - 1 ? (size_t)(end - p) : len - 1;
+    memcpy(host, p, n);
+    host[n] = '\0';
+}
+
+static uint16_t broker_ws_port(const char *host)
+{
+    if (strstr(host, "hivemq.com"))    return 8000;
+    if (strstr(host, "mosquitto.org")) return 8080;
+    return 8083;
+}
+
+static esp_err_t handle_get_mqtt_link(httpd_req_t *req)
+{
+    const charger_config_t *cfg = config_svc_get();
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+
+    if (cfg->mqtt_broker_url[0] == '\0') {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"mqtt_broker_url not configured\"}");
+        return ESP_OK;
+    }
+
+    char host[128];
+    extract_broker_host(cfg->mqtt_broker_url, host, sizeof(host));
+    uint16_t ws_port = broker_ws_port(host);
+
+    // URL-encode topic prefix (encode '/' as %2F for query param safety)
+    char topic_enc[128] = {0};
+    const char *src = cfg->mqtt_topic_prefix;
+    size_t ti = 0;
+    while (*src && ti < sizeof(topic_enc) - 4) {
+        if (*src == '/') {
+            topic_enc[ti++] = '%';
+            topic_enc[ti++] = '2';
+            topic_enc[ti++] = 'F';
+        } else {
+            topic_enc[ti++] = *src;
+        }
+        src++;
+    }
+
+    char url[384];
+    snprintf(url, sizeof(url),
+             "https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller"
+             "/monitor.html#b=%s&p=%u&t=%s",
+             host, (unsigned)ws_port, topic_enc);
+
+    char resp[420];
+    snprintf(resp, sizeof(resp), "{\"ok\":true,\"url\":\"%s\"}", url);
+    httpd_resp_sendstr(req, resp);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_mqtt_link = {
+    .uri = "/mqtt/link", .method = HTTP_GET, .handler = handle_get_mqtt_link
+};
+
 // ── WiFi event handler ────────────────────────────────────────────────────────
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
@@ -697,6 +794,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_wifi_scan);
     httpd_register_uri_handler(s_server, &s_uri_get_history);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
+    httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
 

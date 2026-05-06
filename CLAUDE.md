@@ -81,7 +81,8 @@ task_hal_poll --[g_display_btn_queue depth=8]-> task_display      (SETTING alway
 task_hal_poll --[g_emergency_stop atomic_bool]> task_tes_sm       (every tick, bypasses menu gate)
 task_hal_poll --[g_adc_cp_voltage / g_adc_output_voltage volatile]-> task_tes_sm
 task_tes_sm   --[g_snapshot + g_snapshot_mutex]--> task_display / task_network
-task_tes_sm   --[event_bus]--------------------> task_ota / task_notify (v3.1.0) / task_log (v3.1.0)
+task_tes_sm   --[event_bus]--------------------> task_ota / task_notify (v3.1.0) / task_log (v3.1.0) / task_mqtt (v3.2.0)
+task_mqtt     --[g_btn_event_queue depth=8]----> task_tes_sm       (remote cmd: start/stop via MQTT)
 display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button routing)
 ```
 
@@ -96,6 +97,7 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
 | `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) |
+| `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
 | `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
 
@@ -173,7 +175,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。
+### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。v3.2.0 in progress：MQTT 遠端監控 + Cloud PWA 已實作，尚未測試。
 
 ### Implementation Progress
 
@@ -218,9 +220,11 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 37 | 充電紀錄 + Wh 統計：`log_svc` 最近 20 次記錄存 NVS；`GET /history`；Web UI 紀錄表格 | DONE ⚠️ 尚未接車測試 |
 | 38 | WiFi 掃描：`GET /wifi/scan` 回傳附近 AP；Web UI 掃描按鈕 + dropdown 點選填入 SSID | DONE ⚠️ 尚未接車測試 |
 | 39 | mDNS AP 模式修正：`WIFI_EVENT_AP_START` 時也啟動 mDNS，`tes-charger.local` 在 AP/STA 兩種模式皆有效 | DONE ⚠️ 尚未接車測試 |
-| 40 | Web UI 手機 WiFi 切換按鈕：iOS `App-prefs:root=WIFI` / Android `intent:#Intent;action=...WIFI_SETTINGS` | DONE ⚠️ 尚未接車測試 |
+| 40 | Web UI 手機 WiFi 切換按鈕：iOS `App-prefs:root=WIFI` / Android `intent:#Intent;action=...WIFI_SETTINGS` | DONE ⚠️ iOS Safari 已知問題：`App-prefs:root=WIFI` 在 Safari 顯示「網址無效」，無法跳轉 WiFi 設定 |
 | 41 | PWA 離線修正：`Cache-Control: max-age=86400, stale-if-error=604800`；`sw.js` 改 network-first + 離線 fallback；`poll()` 離線顯示「離線」狀態 | DONE ⚠️ 尚未接車測試 |
 | 42 | OLED 設定選單 + Web UI：新增韌體版本 / 作者欄（`MENU_ITEM_ABOUT`，唯讀；Web UI OTA 卡片底部） | DONE ⚠️ 尚未接車測試 |
+| 43 | MQTT 遠端監控：`mqtt_svc`，publish 狀態、subscribe 指令；空 URL = 停用；Web UI 設定卡 + 連結；`GET /mqtt/link` | DONE ⚠️ 尚未測試 |
+| 44 | Cloud PWA 遠端監控：GitHub Pages `docs/monitor.html`，MQTT.js WebSocket，URL fragment 自動帶入設定，可安裝至手機桌面 | DONE ⚠️ 尚未測試 |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -372,6 +376,7 @@ eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
 | GET | `/icon.svg` | App 圖示（SVG，用於 homescreen） |
 | GET | `/wifi/scan` | 掃描附近 WiFi AP，回傳最多 20 筆（ssid, rssi, secured）⚠️ 尚未測試 |
 | POST | `/notify/test` | 立即發送測試推播到已設定的 notify_url；AP 模式或未連線時回傳錯誤 ⚠️ 尚未測試 |
+| GET | `/mqtt/link` | 回傳 Cloud PWA URL（含 broker+topic fragment）供 Web UI 產生 QR code |
 
 **Initial WiFi setup** (AP mode): connect to `TES-Charger`, open `http://192.168.4.1`, use web UI Settings or:
 ```bash
@@ -445,13 +450,14 @@ Embedded web UI converted to installable PWA.
 **Additional Web UI features added in this pass:**
 - `GET /wifi/scan`: active scan, returns up to 20 APs; Web UI scan button + dropdown
 - 「切換手機 WiFi」button: iOS → `App-prefs:root=WIFI`; Android → `intent:#Intent;action=android.settings.WIFI_SETTINGS`
+  - **已知問題：** iOS Safari 對 `App-prefs:root=WIFI` URL scheme 顯示「網址無效」錯誤，無法跳轉至 WiFi 設定。此 URL scheme 在 WKWebView（PWA 模式）可能有效，但在 Safari 瀏覽器內無效。待修正。
 - Post-save WiFi guidance: when SSID + password saved, shows instruction to switch phone WiFi and link to `tes-charger.local`
 
 **CMake:** `max_uri_handlers = 16`; 13 handlers registered (14 after log_svc adds `GET /history`).
 
 ---
 
-### Charge Session History + Wh Tracking (PLANNED v3.1.0)
+### Charge Session History + Wh Tracking (v3.1.0)
 
 `task_tes_sm` accumulates V×I energy per 10 ms tick during CHARGING, then publishes a `EVT_SESSION_COMPLETE` event when the session ends. `log_svc` stores the last 20 sessions as an NVS blob.
 
@@ -499,6 +505,95 @@ Returned newest-first; max 20 entries.
 
 ---
 
+### MQTT Remote Monitoring (v3.2.0)
+
+選配功能，`mqtt_broker_url == ""` 時完全不啟動連線。用戶設定後可在任何網路環境監控充電狀態並遠端 Start/Stop。
+
+**Config 新增欄位（`charger_config_t`）：**
+```c
+char mqtt_broker_url[128];   // NVS key "mqtt_url"   e.g. "mqtt://broker.hivemq.com:1883"
+char mqtt_topic_prefix[64];  // NVS key "mqtt_topic"  e.g. "tes/charger1"
+```
+
+**Publish（ESP32 → broker）：**
+
+| Topic | 頻率 | 內容 |
+|-------|------|------|
+| `{prefix}/status` | CHARGING 時 10 s，其他 30 s；狀態改變時立即發 | 同 `GET /status` JSON |
+| `{prefix}/status` (LWT) | 連線中斷時由 broker 自動發 | `{"state":"offline"}` retained |
+
+**Subscribe（broker → ESP32）：**
+
+| Topic | Payload | 動作 |
+|-------|---------|------|
+| `{prefix}/cmd` | `{"cmd":"start"}` | 送 `EVT_BUTTON_START` 至 `g_btn_event_queue` |
+| `{prefix}/cmd` | `{"cmd":"stop"}` | 送 `EVT_BUTTON_STOP` 至 `g_btn_event_queue` |
+
+- QoS: publish QoS 0，cmd subscribe QoS 1
+- ESP-IDF 元件: `esp-mqtt`（內建，CMakeLists REQUIRES 加 `"mqtt"`）
+- Task: priority 2，stack 8 KB；訂閱 event_bus 取得狀態改變事件
+
+**公共 broker 選項（供 Web UI 引導用戶選擇）：**
+- `mqtt://broker.hivemq.com:1883`（免帳號，穩定，WS port 8000）
+- `mqtt://test.mosquitto.org:1883`（免帳號，測試用，WS port 8080）
+- 自定義（用戶填入，需自行確認 WS port）
+
+**Web UI 設定卡（「遠端監控」）：**
+- Broker URL 輸入框 + Topic Prefix 輸入框
+- 儲存後顯示「取得遠端監控連結」按鈕 → 呼叫 `GET /mqtt/link` → 顯示 QR code + 複製連結
+
+**`GET /mqtt/link` 回傳：**
+```json
+{"url": "https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/monitor.html#b=broker.hivemq.com&p=8000&t=tes%2Fcharger1"}
+```
+
+**Files:** `mqtt_svc.h`, `mqtt_svc.c` in `firmware/components/services/`.
+**main.c:** `mqtt_svc_init()` after `config_svc_init()`；`xTaskCreate(task_mqtt, "mqtt", 8192, NULL, 2)`.
+
+---
+
+### Cloud PWA Remote Monitor (v3.2.0)
+
+部署在 GitHub Pages 的靜態 HTML，完全 client-side，不需要任何後端。
+
+**檔案：** `docs/monitor.html`
+
+**技術：**
+- MQTT.js via CDN (`unpkg.com/mqtt/dist/mqtt.min.js`)
+- 透過 WebSocket 連線到 MQTT broker（瀏覽器不支援原生 TCP MQTT）
+- Config 從 URL fragment 讀取：`#b=broker.hivemq.com&p=8000&t=tes/charger1`
+  - `b` = broker hostname
+  - `p` = WebSocket port
+  - `t` = topic prefix
+- 首次設定後存入 `localStorage`，之後直接開 `monitor.html` 即可（不需帶 fragment）
+
+**功能：**
+- 訂閱 `{prefix}/status` → 即時顯示狀態面板（state, voltage, current, SOC, timer）
+- 發布 `{prefix}/cmd` → Start / Stop 按鈕（遠端控制）
+- 連線狀態指示（connecting / connected / broker offline / device offline）
+- 可安裝為 PWA（獨立 manifest）加到手機桌面
+- GitHub Pages 為 HTTPS → Service Worker 可正常運作 → 離線快取有效
+
+**用戶流程：**
+1. 在 Device PWA（`http://tes-charger.local`）設定 MQTT broker + topic
+2. 點「取得遠端監控連結」→ 掃描 QR code 或複製連結
+3. 在任何網路環境打開連結 → 即時監控 + 遠端控制
+4. 加到手機桌面 → 下次直接從桌面圖示開啟
+
+**兩個 PWA 表面的分工：**
+
+| | Device PWA (`tes-charger.local`) | Cloud PWA (GitHub Pages) |
+|--|----------------------------------|--------------------------|
+| 適用場景 | 同一個 WiFi | 任何地點 |
+| 連線方式 | HTTP polling | MQTT WebSocket |
+| 功能 | 完整設定 + 控制 + OTA | 即時狀態 + Start/Stop |
+| SW 離線快取 | ❌ HTTP 限制 | ✅ HTTPS |
+| 需要 MQTT 設定 | 否 | 是 |
+
+**CMake:** `docs/monitor.html` 為靜態檔案，不需 embed；由 GitHub Actions 部署至 Pages 時一併包含。
+
+---
+
 ### File Structure
 
 ```
@@ -515,11 +610,12 @@ firmware/
 |   +-- drivers/                can/adc/psu/display/led -- all complete
 |   +-- services/               all services complete
 |   |   +-- web/index.html      embedded web UI (EMBED_TXTFILES in services/CMakeLists.txt)
-|   |   +-- web/manifest.json   PWA manifest (PLANNED v3.1.0)
-|   |   +-- web/sw.js           service worker (PLANNED v3.1.0)
-|   |   +-- web/icon.svg        app icon (PLANNED v3.1.0)
-|   |   +-- notify_svc.c/.h     push notification service (PLANNED v3.1.0)
-|   |   +-- log_svc.c/.h        charge session history (PLANNED v3.1.0)
+|   |   +-- web/manifest.json   PWA manifest
+|   |   +-- web/sw.js           service worker
+|   |   +-- web/icon.svg        app icon
+|   |   +-- notify_svc.c/.h     push notification service (v3.1.0)
+|   |   +-- log_svc.c/.h        charge session history (v3.1.0)
+|   |   +-- mqtt_svc.c/.h       MQTT remote monitoring service (v3.2.0)
 |   |   +-- idf_component.yml   declares espressif/mdns managed component
 +-- main/
     +-- globals.h               IPC objects (queues, snapshot mutex, atomic, volatile ADC, menu flag)
@@ -533,4 +629,8 @@ firmware/
     +-- task_monitor.c          10s heap report
     +-- idf_component.yml       also declares espressif/mdns (added by idf.py add-dependency)
     +-- web/index.html          copy of services/web/index.html (kept for reference)
+docs/
++-- index.html              GitHub Pages 首次燒錄工具 (ESP Web Tools)
++-- manifest.json           燒錄工具 manifest（相對路徑 ./tes_charger_flash.bin）
++-- monitor.html            Cloud PWA 遠端監控（MQTT.js WebSocket，v3.2.0）
 ```
