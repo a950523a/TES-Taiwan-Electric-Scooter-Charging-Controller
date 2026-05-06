@@ -175,7 +175,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。v3.2.0 in progress：MQTT 遠端監控 + Cloud PWA 已實作，尚未測試。
+### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。v3.2.0 in progress：MQTT 遠端監控 + Cloud PWA + 診斷功能已實作，尚未測試。
 
 ### Implementation Progress
 
@@ -225,6 +225,9 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 42 | OLED 設定選單 + Web UI：新增韌體版本 / 作者欄（`MENU_ITEM_ABOUT`，唯讀；Web UI OTA 卡片底部） | DONE ⚠️ 尚未接車測試 |
 | 43 | MQTT 遠端監控：`mqtt_svc`，publish 狀態、subscribe 指令；空 URL = 停用；Web UI 設定卡 + 連結；`GET /mqtt/link` | DONE ⚠️ 尚未測試 |
 | 44 | Cloud PWA 遠端監控：GitHub Pages `docs/monitor.html`，MQTT.js WebSocket，URL fragment 自動帶入設定，可安裝至手機桌面 | DONE ⚠️ 尚未測試 |
+| 45 | 即時功率 + 累積電量：`power_w` / `energy_wh` 加入 snapshot 及 `/status`；PSU 未接時 Web UI 顯示 `(預估)` | DONE ⚠️ 尚未測試 |
+| 46 | CAN 診斷面板：Web UI 摺疊卡顯示全部 6 條 CAN 訊息解碼值（0x500/501/5F0 RX、0x508/509/5F8 TX），附方向標籤與 bit 指示燈 | DONE ⚠️ 尚未測試 |
+| 47 | 本機 build 版本號：`CMakeLists.txt` 以 `git describe --always --tags --dirty` 設定 `PROJECT_VER`；本機 dev build 顯示完整 commit hash，tag release 顯示 tag 名稱 | DONE |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
