@@ -7,6 +7,7 @@ idf_component_register(
         "ota_svc.c"
         "notify_svc.c"
         "log_svc.c"
+        "mqtt_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
@@ -27,5 +28,6 @@ idf_component_register(
         mbedtls
         json
         espressif__mdns
+        mqtt
         freertos
 )

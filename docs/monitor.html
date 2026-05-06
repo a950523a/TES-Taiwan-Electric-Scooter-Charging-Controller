@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TES 遠端監控</title>
+<meta name="theme-color" content="#4a9eff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TES監控">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#ddd;padding:12px;max-width:500px;margin:0 auto}
+h1{font-size:1.1em;color:#5af;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.card{background:#181818;border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid #222}
+.badge{text-align:center;padding:10px;border-radius:7px;font-weight:bold;font-size:1.15em;margin-bottom:12px;letter-spacing:2px}
+.s-idle{background:#1e1e1e;color:#666}
+.s-connecting,.s-pre_charge{background:#071a2e;color:#4af}
+.s-charging{background:#071f07;color:#4d4}
+.s-ending,.s-finalizing{background:#201800;color:#db4}
+.s-fault,.s-emergency{background:#200707;color:#f55}
+.s-offline{background:#1a1a1a;color:#555}
+.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #222}
+.row:last-child{border-bottom:none}
+.lbl{color:#666;font-size:.88em}
+.val{font-weight:bold}
+.big{font-size:1.4em}
+.prog-wrap{margin:8px 0 4px}
+.prog-label{display:flex;justify-content:space-between;font-size:.8em;color:#666;margin-bottom:4px}
+progress{width:100%;height:16px;border-radius:8px;appearance:none;-webkit-appearance:none;background:#222;display:block}
+progress::-webkit-progress-bar{background:#222;border-radius:8px}
+progress::-webkit-progress-value{background:linear-gradient(90deg,#1a3a6a,#48f);border-radius:8px;transition:width .4s}
+.btns{display:flex;gap:8px}
+button{flex:1;padding:13px;border:none;border-radius:8px;font-size:1em;cursor:pointer;font-weight:bold;transition:opacity .15s}
+button:active{opacity:.65}
+button:disabled{opacity:.35;cursor:default}
+.b-start{background:#1d5e2a;color:#fff}
+.b-stop{background:#5e1d1d;color:#fff}
+.b-cfg{background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;font-size:.9em}
+.b-connect{background:#1d3a5e;color:#fff;width:100%;margin-top:10px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px}
+input[type=text],input[type=number],input[type=url]{
+  width:100%;padding:9px 10px;margin-top:5px;
+  background:#222;border:1px solid #3a3a3a;color:#ddd;border-radius:6px;font-size:.95em}
+input:focus{outline:none;border-color:#48f}
+label.lbl2{display:block;color:#666;font-size:.82em;margin-top:10px}
+.ts{font-size:.7em;color:#444}
+.ok{color:#4d4}.err{color:#f55}
+#status-msg{font-size:.82em;margin-top:6px;min-height:1em}
+section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<!-- 設定面板（未連線時顯示） -->
+<div id="cfg-panel">
+  <h1>📡 TES 遠端監控設定</h1>
+  <div class="card">
+    <section-title>⚙ MQTT 連線設定</section-title>
+    <label class="lbl2">Broker Hostname</label>
+    <input type="text" id="cfg-host" placeholder="broker.hivemq.com">
+    <label class="lbl2">WebSocket Port</label>
+    <input type="number" id="cfg-port" value="8083" min="1" max="65535">
+    <label class="lbl2">Topic Prefix</label>
+    <input type="text" id="cfg-topic" placeholder="tes/charger">
+    <div style="font-size:.78em;color:#555;margin-top:8px;line-height:1.7">
+      常用 Broker WS Port：<br>
+      HiveMQ (<code style="color:#48f">broker.hivemq.com</code>) → <code style="color:#aaa">8000</code><br>
+      EMQX (<code style="color:#48f">broker.emqx.io</code>) → <code style="color:#aaa">8083</code><br>
+      Mosquitto (<code style="color:#48f">test.mosquitto.org</code>) → <code style="color:#aaa">8080</code>
+    </div>
+    <button class="b-connect" onclick="connect()">🔌 連接</button>
+    <div id="cfg-err" class="err" style="font-size:.82em;margin-top:6px;min-height:1em"></div>
+  </div>
+</div>
+
+<!-- 監控面板（連線後顯示） -->
+<div id="mon-panel" style="display:none">
+  <h1>⚡ TES Charger <span class="ts" id="ts">--:--:--</span></h1>
+
+  <!-- 連線狀態 -->
+  <div class="card" style="padding:10px 14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="conn-badge" style="font-size:.85em">
+        <span class="dot" style="background:#555"></span>連線中…
+      </span>
+      <button class="b-cfg" style="flex:none;padding:7px 12px;font-size:.8em" onclick="showCfg()">⚙ 設定</button>
+    </div>
+    <div id="status-msg"></div>
+  </div>
+
+  <!-- 狀態卡 -->
+  <div class="card">
+    <div class="badge s-idle" id="badge">STANDBY</div>
+    <div class="row">
+      <span class="lbl">輸出電壓</span>
+      <span class="val big" id="v">-- V</span>
+    </div>
+    <div class="row">
+      <span class="lbl">輸出電流</span>
+      <span class="val big" id="a">-- A</span>
+    </div>
+    <div class="prog-wrap">
+      <div class="prog-label">
+        <span>SOC</span><span id="soc-txt">-- / --%</span>
+      </div>
+      <progress id="pb" value="0" max="100"></progress>
+    </div>
+    <div class="row" id="tr" style="display:none">
+      <span class="lbl">剩餘時間</span>
+      <span class="val" id="rem">--</span>
+    </div>
+  </div>
+
+  <!-- 控制按鈕 -->
+  <div class="card btns">
+    <button class="b-start" id="btn-start" onclick="sendCmd('start')">▶&nbsp;開始充電</button>
+    <button class="b-stop"  id="btn-stop"  onclick="sendCmd('stop')">◼&nbsp;停止充電</button>
+  </div>
+
+  <div style="font-size:.75em;color:#444;text-align:center;margin-top:4px">
+    透過 MQTT 遠端控制充電器
+  </div>
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+const SL={
+  idle:'STANDBY',connecting:'CONNECTING',pre_charge:'PRE-CHARGE',
+  charging:'CHARGING',ending:'ENDING',finalizing:'FINALIZING',
+  fault:'FAULT',emergency:'EMERGENCY',offline:'OFFLINE'
+};
+const SC={
+  idle:'badge s-idle',connecting:'badge s-connecting',pre_charge:'badge s-connecting',
+  charging:'badge s-charging',ending:'badge s-ending',finalizing:'badge s-ending',
+  fault:'badge s-fault',emergency:'badge s-emergency',offline:'badge s-offline'
+};
+
+function fmt(s){
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
+  return h?`${h}h ${String(m).padStart(2,'0')}m`
+          :`${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+// ── Config: URL fragment → localStorage → defaults ───────────────────────────
+
+const frag=new URLSearchParams(location.hash.slice(1));
+const saved=JSON.parse(localStorage.getItem('tes_mqtt_cfg')||'{}');
+
+const cfg={
+  host: frag.get('b') || saved.host || '',
+  port: parseInt(frag.get('p')) || saved.port || 8083,
+  topic: frag.get('t') || saved.topic || 'tes/charger',
+};
+
+// Clear fragment from URL bar after reading (keep it clean)
+if(location.hash) history.replaceState(null,'',location.pathname);
+
+// ── MQTT client ───────────────────────────────────────────────────────────────
+
+let client=null;
+
+function connect(){
+  const host=document.getElementById('cfg-host').value.trim();
+  const port=parseInt(document.getElementById('cfg-port').value)||8083;
+  const topic=document.getElementById('cfg-topic').value.trim();
+
+  if(!host||!topic){
+    document.getElementById('cfg-err').textContent='請填寫 Broker 和 Topic';
+    return;
+  }
+
+  cfg.host=host; cfg.port=port; cfg.topic=topic;
+  localStorage.setItem('tes_mqtt_cfg',JSON.stringify(cfg));
+
+  document.getElementById('cfg-err').textContent='';
+  doConnect();
+}
+
+function doConnect(){
+  const wsUrl=`ws://${cfg.host}:${cfg.port}/mqtt`;
+
+  document.getElementById('cfg-panel').style.display='none';
+  document.getElementById('mon-panel').style.display='block';
+  setConnBadge(false,'連線中…');
+
+  if(client){try{client.end(true);}catch(e){}}
+
+  client=mqtt.connect(wsUrl,{
+    reconnectPeriod:5000,
+    connectTimeout:10000,
+    keepalive:30,
+  });
+
+  client.on('connect',()=>{
+    client.subscribe(`${cfg.topic}/status`,{qos:0});
+    setConnBadge(true,`已連線 ${cfg.host}`);
+  });
+
+  client.on('disconnect',()=>setConnBadge(false,'已斷線，重連中…'));
+  client.on('offline',()=>setConnBadge(false,'離線，重連中…'));
+  client.on('error',(err)=>setConnBadge(false,'連線錯誤：'+err.message));
+
+  client.on('message',(topic,msg)=>{
+    try{
+      const d=JSON.parse(msg.toString());
+      updateDisplay(d);
+    }catch(e){}
+  });
+}
+
+function showCfg(){
+  document.getElementById('mon-panel').style.display='none';
+  document.getElementById('cfg-panel').style.display='block';
+  document.getElementById('cfg-host').value=cfg.host;
+  document.getElementById('cfg-port').value=cfg.port;
+  document.getElementById('cfg-topic').value=cfg.topic;
+  if(client){try{client.end(true);}catch(e){}}
+  client=null;
+}
+
+function sendCmd(cmd){
+  if(!client||!client.connected){
+    document.getElementById('status-msg').className='err';
+    document.getElementById('status-msg').textContent='✗ 尚未連線，無法發送指令';
+    return;
+  }
+  client.publish(`${cfg.topic}/cmd`,JSON.stringify({cmd}),{qos:1});
+}
+
+function setConnBadge(ok,text){
+  const dot=ok?'#4d4':'#f55';
+  document.getElementById('conn-badge').innerHTML=
+    `<span class="dot" style="background:${dot}"></span>${text}`;
+  document.getElementById('btn-start').disabled=!ok;
+  document.getElementById('btn-stop').disabled=!ok;
+}
+
+function updateDisplay(d){
+  document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+
+  const state=d.state||'idle';
+  const badge=document.getElementById('badge');
+  badge.textContent=SL[state]||state.toUpperCase();
+  badge.className=SC[state]||'badge s-idle';
+
+  document.getElementById('v').textContent=(d.voltage??0).toFixed(1)+' V';
+  document.getElementById('a').textContent=(d.current??0).toFixed(1)+' A';
+
+  const soc=d.soc??0;
+  const tgt=d.target_soc??100;
+  document.getElementById('soc-txt').textContent=soc+' / '+tgt+'%';
+  document.getElementById('pb').value=soc;
+  document.getElementById('pb').max=tgt||100;
+
+  const tr=document.getElementById('tr');
+  if(d.timer_running&&d.remaining_seconds>0){
+    tr.style.display='flex';
+    document.getElementById('rem').textContent=fmt(d.remaining_seconds);
+  }else{
+    tr.style.display='none';
+  }
+
+  // Clear any old status messages when data arrives
+  const sm=document.getElementById('status-msg');
+  if(sm.textContent&&sm.className==='err')sm.textContent='';
+}
+
+// ── Auto-connect if config exists ─────────────────────────────────────────────
+
+document.getElementById('cfg-host').value=cfg.host;
+document.getElementById('cfg-port').value=cfg.port;
+document.getElementById('cfg-topic').value=cfg.topic;
+
+if(cfg.host&&cfg.topic){
+  doConnect();
+}
+</script>
+</body>
+</html>

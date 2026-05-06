@@ -15,7 +15,9 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_AUTO_V  "auto_v"
 #define NVS_KEY_STOP_M  "stop_m"
 #define NVS_KEY_STOP_V  "stop_v"
-#define NVS_KEY_NOTIFY  "notify_url"
+#define NVS_KEY_NOTIFY     "notify_url"
+#define NVS_KEY_MQTT_URL   "mqtt_url"
+#define NVS_KEY_MQTT_TOPIC "mqtt_topic"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -61,6 +63,13 @@ esp_err_t config_svc_init(void)
 
     if (hal_nvs_get_str(NVS_NS, NVS_KEY_NOTIFY, s_cfg.notify_url, sizeof(s_cfg.notify_url)) != ESP_OK) {
         s_cfg.notify_url[0] = '\0';
+    }
+
+    if (hal_nvs_get_str(NVS_NS, NVS_KEY_MQTT_URL, s_cfg.mqtt_broker_url, sizeof(s_cfg.mqtt_broker_url)) != ESP_OK) {
+        s_cfg.mqtt_broker_url[0] = '\0';
+    }
+    if (hal_nvs_get_str(NVS_NS, NVS_KEY_MQTT_TOPIC, s_cfg.mqtt_topic_prefix, sizeof(s_cfg.mqtt_topic_prefix)) != ESP_OK) {
+        strncpy(s_cfg.mqtt_topic_prefix, "tes/charger", sizeof(s_cfg.mqtt_topic_prefix) - 1);
     }
 
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u",
@@ -121,6 +130,17 @@ esp_err_t config_svc_set_notify_url(const char *url)
     strncpy(s_cfg.notify_url, url, sizeof(s_cfg.notify_url) - 1);
     s_cfg.notify_url[sizeof(s_cfg.notify_url) - 1] = '\0';
     return hal_nvs_set_str(NVS_NS, NVS_KEY_NOTIFY, s_cfg.notify_url);
+}
+
+esp_err_t config_svc_set_mqtt(const char *broker_url, const char *topic_prefix)
+{
+    strncpy(s_cfg.mqtt_broker_url,   broker_url,    sizeof(s_cfg.mqtt_broker_url) - 1);
+    strncpy(s_cfg.mqtt_topic_prefix, topic_prefix,  sizeof(s_cfg.mqtt_topic_prefix) - 1);
+    s_cfg.mqtt_broker_url[sizeof(s_cfg.mqtt_broker_url) - 1]     = '\0';
+    s_cfg.mqtt_topic_prefix[sizeof(s_cfg.mqtt_topic_prefix) - 1] = '\0';
+    esp_err_t r = hal_nvs_set_str(NVS_NS, NVS_KEY_MQTT_URL,   s_cfg.mqtt_broker_url);
+    r |= hal_nvs_set_str(NVS_NS, NVS_KEY_MQTT_TOPIC, s_cfg.mqtt_topic_prefix);
+    return r;
 }
 
 void config_svc_override_voltage(uint16_t v_01v)

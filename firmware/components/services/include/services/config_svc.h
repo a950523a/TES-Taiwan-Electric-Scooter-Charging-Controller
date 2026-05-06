@@ -18,7 +18,9 @@ typedef struct {
     bool        auto_voltage;        // true = 依 ADC 自動設定電壓（開機時讀一次）
     stop_mode_t stop_mode;           // STOP_MODE_SOC / STOP_MODE_VOLTAGE
     uint16_t    stop_voltage_01v;    // 充電停止電壓（stop_mode=VOLTAGE 時有效）
-    char        notify_url[128];     // Webhook / ntfy URL（空字串 = 停用）
+    char        notify_url[128];      // Webhook / ntfy URL（空字串 = 停用）
+    char        mqtt_broker_url[128]; // MQTT broker URI，e.g. "mqtt://broker.hivemq.com:1883"（空字串 = 停用）
+    char        mqtt_topic_prefix[64];// MQTT topic prefix，e.g. "tes/charger"
 } charger_config_t;
 
 esp_err_t                config_svc_init         (void);
@@ -30,4 +32,5 @@ esp_err_t config_svc_set_beacon         (bool unlocked);
 esp_err_t config_svc_set_auto_voltage   (bool enabled);
 esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_01v);
 esp_err_t config_svc_set_notify_url    (const char *url);
+esp_err_t config_svc_set_mqtt          (const char *broker_url, const char *topic_prefix);
 void      config_svc_override_voltage   (uint16_t v_01v);  // RAM only, no NVS write
