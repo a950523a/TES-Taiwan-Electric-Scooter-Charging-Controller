@@ -17,6 +17,7 @@ idf_component_register(
         "web/icon.svg"
     REQUIRES
         tes_protocol
+        tes_sm
         charger_hal
         drivers
         nvs_flash

@@ -101,12 +101,11 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->remote_start            = false;
             sm->fault_latched           = false;
             sm->last_fault_flags        = 0;
-            sm->charge_complete_latched = false;  // only clear on new start
+            sm->charge_complete_latched = false;
             out->vp_relay          = true;
             if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
                 sm->state_start_ms = in->tick_ms;
-                // PSU 電流重置
                 out->set_psu_current      = true;
                 out->psu_current_target   = 5.0f;
             }
@@ -114,9 +113,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         break;
 
     case TES_STATE_PARAM_EXCHANGE:
-        // VP 繼電器在整個協商期間保持開啟
         out->vp_relay = true;
-        // 等待車端 CAN 許可（0x500 statusFlags bit0 = 1）
         if (!sm->vehicle_ready && (in->vehicle_status.status_flags & 0x01)) {
             sm->vehicle_ready = true;
         }
@@ -124,7 +121,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             if (check_battery_compatibility(sm, in)) {
                 sm->state          = TES_STATE_PRE_CHARGE;
                 sm->state_start_ms = in->tick_ms;
-                // PSU 電壓設為與車端協商後的上限
                 out->set_psu_voltage    = true;
                 out->psu_voltage_target = (float)sm->status_508.fault_detect_voltage / 10.0f;
             } else {
@@ -142,13 +138,11 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_PRE_CHARGE: {
         const tes_vehicle_status_t *vs = &in->vehicle_status;
 
-        // 車端正常停止請求
         if (vs->status_flags & 0x08) {
             enter_ending(sm, out);
             sm->state_start_ms = in->tick_ms;
             break;
         }
-        // 等待 CP ON 且 CAN 許可
         if (!(sm->cp_state == CP_STATE_ON && (vs->status_flags & 0x01))) {
             if (in->tick_ms - sm->state_start_ms > 20000u) {
                 enter_fault(sm, out);
@@ -157,16 +151,14 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
         }
 
-        // 電磁鎖和 VP 繼電器在整個預充電期間保持
         out->vp_relay     = true;
         out->coupler_lock = (sm->precharge_step >= PRECHARGE_STEP_CONTACTOR_WAIT);
 
         switch (sm->precharge_step) {
         case PRECHARGE_STEP_INIT:
-            // 絕緣測試（stub：永遠通過）
             out->coupler_lock = true;
             sm->status_508.status_flags &= ~0x01u;
-            sm->status_508.status_flags |=  0x04u; // 電磁鎖鎖定
+            sm->status_508.status_flags |=  0x04u;
             out->tx_charger_status  = true;
             out->status_508         = sm->status_508;
             sm->precharge_step      = PRECHARGE_STEP_CONTACTOR_WAIT;
@@ -174,7 +166,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
 
         case PRECHARGE_STEP_CONTACTOR_WAIT:
-            // 等待車端接觸器閉合（statusFlags bit1 = 0 表示閉合）
             if (!(vs->status_flags & 0x02)) {
                 sm->relay_delay_start_ms = in->tick_ms;
                 sm->precharge_step       = PRECHARGE_STEP_RELAY_DELAY;
@@ -187,7 +178,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         case PRECHARGE_STEP_RELAY_DELAY:
             if (in->tick_ms - sm->relay_delay_start_ms >= 250u) {
                 out->relay_on           = true;
-                sm->status_508.status_flags |= 0x02u; // 充電中
+                sm->status_508.status_flags |= 0x02u;
                 out->tx_charger_status  = true;
                 out->status_508         = sm->status_508;
                 sm->precharge_step      = PRECHARGE_STEP_COMPLETE;
@@ -214,7 +205,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->coupler_lock = true;
         out->vp_relay     = true;
 
-        // 每 tick 更新車輛請求值（供 display 用，與 PSU 連線狀態無關）
         {
             float bms_req = (float)in->vehicle_status.charge_current_cmd / 10.0f;
             if (bms_req > 0.0f)
@@ -223,8 +213,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
                 sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
         }
 
-        // PSU 電流控制：取 BMS 請求和用戶上限的最小值
-        // 只在 BMS 有送有效電流請求時才更新，避免 bms_req=0 把 PSU 電流清零
         if (in->psu_connected) {
             float bms_req = (float)in->vehicle_status.charge_current_cmd / 10.0f;
             if (bms_req > 0.0f) {
@@ -240,7 +228,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         break;
 
     case TES_STATE_ENDING: {
-        // 降流、斷繼電器
         if (in->psu_connected) {
             out->set_psu_current    = true;
             out->psu_current_target = 0.0f;
@@ -286,7 +273,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         out->vp_relay     = false;
-        // 手動復歸（硬體按鈕或遠端）
         if (in->fault_clear_requested || sm->remote_fault_clear) {
             sm->remote_fault_clear            = false;
             sm->fault_latched                 = false;
@@ -295,7 +281,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->params_509.remaining_time_min = 0xFFFF;
         } else if (!sm->emergency_hw_triggered &&
                    in->tick_ms - sm->state_start_ms > 5000u) {
-            // 車端 0x5F0 觸發（正常充電結束後車端常見行為）：5秒後自動回 IDLE
             sm->fault_latched                 = false;
             sm->state                         = TES_STATE_IDLE;
             sm->status_508.fault_flags        = 0;
@@ -316,7 +301,6 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // 週期性 CAN 廣播（協議要求 100ms，僅在 PARAM_EXCHANGE 以後）
     if (sm->state >= TES_STATE_PARAM_EXCHANGE && sm->state < TES_STATE_FAULT) {
         prepare_periodic_tx(sm, in, out);
-        // Latch vehicle voltage limit for snapshot (0x500 field)
         if (in->vehicle_status.charge_voltage_limit > 0)
             sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
     }
@@ -376,7 +360,7 @@ static cp_state_t update_cp_state(tes_sm_t *sm, float cp_v)
 
     if (detected == CP_STATE_ERROR) {
         if (++sm->cp_error_count >= CP_ERROR_THRESHOLD) return CP_STATE_ERROR;
-        return sm->cp_state; // 保持舊狀態直到達到閾值
+        return sm->cp_state;
     }
     sm->cp_error_count = 0;
     return detected;
@@ -400,8 +384,6 @@ static void prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_
     if (in->tick_ms - sm->last_periodic_ms < PERIODIC_SEND_MS) return;
     sm->last_periodic_ms = in->tick_ms;
 
-    // 更新 0x509 即時數值
-    // 優先使用 PSU 回報值；若 PSU 只送 CMD_ACK（psu_voltage==0），fallback 到 ADC
     if (in->psu_connected && in->psu_voltage > 0.0f) {
         sm->params_509.actual_voltage = (uint16_t)(in->psu_voltage * 10.0f);
         sm->params_509.actual_current = (uint16_t)(in->psu_current * 10.0f);
@@ -427,15 +409,12 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
 {
     const tes_vehicle_status_t *vs = &in->vehicle_status;
 
-    // CAN 許可撤銷（bit0 消失）
     if (!(vs->status_flags & 0x01)) {
         enter_ending(sm, out); return;
     }
-    // 車端正常停止請求（bit3）
     if (vs->status_flags & 0x08) {
         enter_ending(sm, out); return;
     }
-    // 車端停止請求（bit2）
     if (vs->status_flags & 0x04) {
         enter_ending(sm, out); return;
     }
@@ -482,10 +461,9 @@ static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out)
     out->relay_on      = false;
     out->coupler_lock  = false;
     if (sm->status_508.fault_flags == 0) sm->status_508.fault_flags = 0x01;
-    // 保存故障碼供顯示（若呼叫端已設定則保留，否則使用 CAN 故障旗標）
     if (sm->last_fault_flags == 0) sm->last_fault_flags = sm->status_508.fault_flags;
     out->set_psu_current    = true;
-    out->psu_current_target = 5.0f; // PSU 電流重置
+    out->psu_current_target = 5.0f;
 }
 
 static void enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out)
@@ -509,7 +487,7 @@ static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out)
     out->psu_current_target = 0.0f;
 
     sm->status_508.fault_flags   |= 0x01;
-    sm->last_fault_flags          = sm->status_508.fault_flags; // 保存緊急故障碼
+    sm->last_fault_flags          = sm->status_508.fault_flags;
     sm->status_508.status_flags  |= 0x01;
     out->tx_charger_status  = true;
     out->tx_emergency       = true;
@@ -520,14 +498,12 @@ static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out)
 
 static void update_timer(tes_sm_t *sm, const tes_sm_inputs_t *in)
 {
-    // 更新 BMS 提供的總充電時間
     if (sm->timer_running) {
         uint16_t bms_time = in->vehicle_params.max_charge_time_min;
         if (bms_time != 0xFFFF) {
             uint32_t new_total = (uint32_t)bms_time * 60u;
             if (sm->total_seconds != new_total) sm->total_seconds = new_total;
         }
-        // 秒計時
         uint32_t delta_ms = in->tick_ms - sm->last_timer_ms;
         if (delta_ms >= 1000u) {
             sm->elapsed_seconds += delta_ms / 1000u;
