@@ -75,7 +75,7 @@ typedef struct {
     tes_charger_params_t params_509;
 
     // 流程控制旗標
-    bool             vehicle_ready;          // 收到 CAN 許可（0x500 bit0）
+    bool             vehicle_ready;
     bool             fault_latched;
     bool             charge_complete_latched;
 
@@ -90,7 +90,7 @@ typedef struct {
 
     bool     timer_running;
     uint32_t elapsed_seconds;
-    uint32_t total_seconds;          // 由 BMS maxChargeTime 更新
+    uint32_t total_seconds;
     uint32_t last_timer_ms;
 
     // CP 狀態（狀態機內部去抖計數）
@@ -99,16 +99,16 @@ typedef struct {
 
     // 快照用 latch 數據
     float    last_valid_req_current;
-    uint16_t last_vehicle_voltage_01v;   // 最後收到的 charge_voltage_limit（0x500）
-    uint16_t live_voltage_01v;           // 每 tick 更新：PSU 電壓或 ADC 量測（供 display 用）
-    uint16_t live_current_01a;           // 每 tick 更新：PSU 電流或設定值
+    uint16_t last_vehicle_voltage_01v;
+    uint16_t live_voltage_01v;
+    uint16_t live_current_01a;
     uint8_t  last_fault_flags;
-    uint8_t  soc;                        // 最後收到的 BMS SOC
+    uint8_t  soc;
 
     // remote control flags（由 network / web 設定，tick 內讀取後清除）
     bool remote_start;
     bool remote_stop;
-    bool remote_fault_clear;       // 手動復歸緊急停止（network/web 觸發）
+    bool remote_fault_clear;
 
     // 緊急停止來源追蹤
     bool emergency_hw_triggered;   // true=硬體按鈕，false=車端 0x5F0
@@ -123,4 +123,4 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm);
 // 遠端控制（由 network_svc / display_svc 呼叫，thread-safe by atomic flag）
 void tes_sm_request_start       (tes_sm_t *sm);
 void tes_sm_request_stop        (tes_sm_t *sm);
-void tes_sm_request_fault_clear (tes_sm_t *sm); // 手動復歸緊急停止
+void tes_sm_request_fault_clear (tes_sm_t *sm);

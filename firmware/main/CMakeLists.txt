@@ -12,6 +12,7 @@ idf_component_register(
         "."
     REQUIRES
         tes_protocol
+        tes_sm
         platform
         charger_hal
         drivers
