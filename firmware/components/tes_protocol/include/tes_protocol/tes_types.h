@@ -131,6 +131,36 @@ typedef struct {
     uint8_t  _pad;
 } charge_session_t;         // 12 bytes
 
+// ─── CAN 診斷快照（最後收到的 0x500 / 0x501 解碼值） ────────────────────────
+
+typedef struct {
+    // ── 0x500  Vehicle → Charger ──────────────────────────────────────────
+    uint8_t  v500_fault;        // byte 0：故障旗標（0 = 無故障）
+    uint8_t  v500_status;       // byte 1：bit0=CAN許可 bit1=接觸器開路 bit2=停止請求 bit3=正常停止
+    float    v500_req_current;  // bytes 2-3：BMS 請求電流 (A)
+    float    v500_req_voltage;  // bytes 4-5：BMS 充電電壓上限 (V)
+    float    v500_max_voltage;  // bytes 6-7：BMS 最大允許電壓 (V)
+    // ── 0x501  Vehicle → Charger ──────────────────────────────────────────
+    uint8_t  v501_seq;          // byte 0：esChargeSequenceNumber
+    uint16_t v501_max_time;     // bytes 2-3：最大充電時間 (min)，0xFFFF=未知
+    uint16_t v501_eta;          // bytes 4-5：預估結束時間 (min)，0xFFFF=未知
+    // ── 0x5F0  Vehicle → Charger（緊急）────────────────────────────────────
+    uint8_t  v5f0_flags;        // byte 0：bit0=緊急停止請求
+    // ── 0x508  Charger → Vehicle ──────────────────────────────────────────
+    uint8_t  c508_fault;        // byte 0：故障旗標
+    uint8_t  c508_status;       // byte 1：bit0=待機/準備 bit1=充電中 bit2=電磁鎖鎖定
+    float    c508_avail_voltage;// bytes 2-3：VLIM，可提供電壓 (V)
+    float    c508_avail_current;// bytes 4-5：I_MX，可提供電流 (A)
+    float    c508_fault_voltage;// bytes 6-7：VLIM2，故障偵測電壓 (V)
+    // ── 0x509  Charger → Vehicle ──────────────────────────────────────────
+    uint8_t  c509_rated_kw;     // byte 1：額定功率（×50 W）
+    float    c509_voltage;      // bytes 2-3：實際輸出電壓 (V)
+    float    c509_current;      // bytes 4-5：實際輸出電流 (A)
+    uint16_t c509_remaining;    // bytes 6-7：剩餘時間 (min)，0xFFFF=未知
+    // ── 0x5F8  Charger → Vehicle（緊急）────────────────────────────────────
+    uint8_t  c5f8_flags;        // byte 0：bit0=緊急停止
+} tes_can_diag_t;
+
 // ─── 快照（只讀，供 display / network / 未來 JS 讀取） ─────────────────────
 
 typedef struct {
@@ -154,4 +184,5 @@ typedef struct {
     float         last_valid_req_current;
     float         energy_wh;            // 本次充電累積電量（充電中有效，其他狀態為 0）
     bool          psu_connected;        // PSU UART 已回報（false = 數值為預估）
+    tes_can_diag_t can;                 // 最後收到的 CAN 解碼值（診斷用）
 } tes_snapshot_t;

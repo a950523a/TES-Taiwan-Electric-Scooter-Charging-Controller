@@ -26,6 +26,12 @@ static float    s_session_energy_wh = 0.0f;
 static uint8_t  s_soc_start         = 0;
 static uint32_t s_session_end_sec   = 0;
 
+// CAN diag: last received RX raw values + last sent TX frames
+static uint8_t              s_last_5f0_flags = 0;
+static tes_charger_status_t s_last_508       = {0};
+static tes_charger_params_t s_last_509       = {0};
+static uint8_t              s_last_5f8_flags = 0;
+
 static void drain_can_rx_queue(tes_sm_inputs_t *in)
 {
     can_frame_t frame;
@@ -41,6 +47,7 @@ static void drain_can_rx_queue(tes_sm_inputs_t *in)
             tes_vehicle_emergency_t em;
             tes_codec_decode_vehicle_emergency(frame.data, frame.dlc, &em);
             in->vehicle_emergency = (em.error_request_flags & 0x01) != 0;
+            s_last_5f0_flags = em.error_request_flags;
             break;
         }
         default: break;
@@ -134,14 +141,40 @@ void task_tes_sm(void *arg)
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);
 
+        // Cache last sent TX frames for CAN diag
+        if (outputs.tx_charger_status) s_last_508       = outputs.status_508;
+        if (outputs.tx_charger_params)  s_last_509       = outputs.params_509;
+        if (outputs.tx_emergency)       s_last_5f8_flags = outputs.emergency_5f8.emergency_flags;
+
         inputs.start_requested       = false;
         inputs.stop_requested        = false;
         inputs.fault_clear_requested = false;
         inputs.vehicle_emergency     = false; // 每 tick 重置：只反映本 tick 收到的 0x5F0 幀
 
         tes_snapshot_t snap = tes_sm_get_snapshot(&s_sm);
-        snap.energy_wh    = s_session_active ? s_session_energy_wh : 0.0f;
+        snap.energy_wh     = s_session_active ? s_session_energy_wh : 0.0f;
         snap.psu_connected = psu.connected;
+        // CAN diag — RX side
+        snap.can.v500_fault        = inputs.vehicle_status.fault_flags;
+        snap.can.v500_status       = inputs.vehicle_status.status_flags;
+        snap.can.v500_req_current  = inputs.vehicle_status.charge_current_cmd / 10.0f;
+        snap.can.v500_req_voltage  = inputs.vehicle_status.charge_voltage_limit / 10.0f;
+        snap.can.v500_max_voltage  = inputs.vehicle_status.max_charge_voltage / 10.0f;
+        snap.can.v501_seq          = inputs.vehicle_params.seq_num;
+        snap.can.v501_max_time     = inputs.vehicle_params.max_charge_time_min;
+        snap.can.v501_eta          = inputs.vehicle_params.est_end_time_min;
+        snap.can.v5f0_flags        = s_last_5f0_flags;
+        // CAN diag — TX side
+        snap.can.c508_fault        = s_last_508.fault_flags;
+        snap.can.c508_status       = s_last_508.status_flags;
+        snap.can.c508_avail_voltage= s_last_508.available_voltage / 10.0f;
+        snap.can.c508_avail_current= s_last_508.available_current / 10.0f;
+        snap.can.c508_fault_voltage= s_last_508.fault_detect_voltage / 10.0f;
+        snap.can.c509_rated_kw     = s_last_509.rated_power_50w;
+        snap.can.c509_voltage      = s_last_509.actual_voltage / 10.0f;
+        snap.can.c509_current      = s_last_509.actual_current / 10.0f;
+        snap.can.c509_remaining    = s_last_509.remaining_time_min;
+        snap.can.c5f8_flags        = s_last_5f8_flags;
         if (xSemaphoreTake(g_snapshot_mutex, 0) == pdTRUE) {
             g_snapshot = snap;
             xSemaphoreGive(g_snapshot_mutex);

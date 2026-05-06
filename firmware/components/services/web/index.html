@@ -57,6 +57,12 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#48f}
 #msg{font-size:.85em;margin-top:8px;min-height:1.1em}
 .ok{color:#4d4}.err{color:#f55}
 section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-bottom:8px}
+.can-hdr{display:flex;align-items:center;gap:7px;margin:10px 0 5px;padding-top:8px;border-top:1px solid #222}
+.can-hdr:first-child{border-top:none;margin-top:0}
+.can-tag{font-size:.72em;font-weight:bold;padding:2px 5px;border-radius:3px;white-space:nowrap}
+.can-rx{background:#0d2a0d;color:#4d4}.can-tx{background:#0d1a2d;color:#4af}
+.can-id{font-family:monospace;font-size:.9em;color:#db4;font-weight:bold}
+.can-name{font-size:.82em;color:#666}
 .wifi-row{display:flex;gap:8px;align-items:flex-end}
 .wifi-row input{flex:1;margin-top:5px}
 .b-scan{flex:none;padding:9px 12px;background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:.85em;white-space:nowrap;font-weight:bold;transition:opacity .15s}
@@ -263,6 +269,60 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   </div>
 </div>
 
+<!-- CAN 診斷 -->
+<div class="card">
+  <section-title style="cursor:pointer;user-select:none" onclick="toggleCan()">
+    🔌 CAN 診斷 <span id="can-arrow" style="float:right;font-size:.8em;color:#555">▶ 展開</span>
+  </section-title>
+  <div id="can-body" style="display:none">
+    <div style="font-size:.78em;color:#555;margin-bottom:10px">最後收到／發出的 CAN 解碼值，未接車時全為 0</div>
+
+    <!-- 0x500 -->
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x500</span><span class="can-name">車輛狀態</span></div>
+    <div class="row"><span class="lbl">充電許可 (bit0)</span><span id="c500-b0" class="val">--</span></div>
+    <div class="row"><span class="lbl">接觸器 (bit1)</span><span id="c500-b1" class="val">--</span></div>
+    <div class="row"><span class="lbl">停止請求 (bit2)</span><span id="c500-b2" class="val">--</span></div>
+    <div class="row"><span class="lbl">正常停止 (bit3)</span><span id="c500-b3" class="val">--</span></div>
+    <div class="row"><span class="lbl">故障旗標</span><span id="c500-fault" class="val">--</span></div>
+    <div class="row"><span class="lbl">請求電流</span><span id="c500-ra" class="val">--</span></div>
+    <div class="row"><span class="lbl">充電電壓上限</span><span id="c500-rv" class="val">--</span></div>
+    <div class="row"><span class="lbl">最大允許電壓</span><span id="c500-mv" class="val">--</span></div>
+
+    <!-- 0x501 -->
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x501</span><span class="can-name">車輛參數</span></div>
+    <div class="row"><span class="lbl">序列號</span><span id="c501-seq" class="val">--</span></div>
+    <div class="row"><span class="lbl">最大充電時間</span><span id="c501-mt" class="val">--</span></div>
+    <div class="row"><span class="lbl">預估結束時間</span><span id="c501-eta" class="val">--</span></div>
+
+    <!-- 0x5F0 -->
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x5F0</span><span class="can-name">車輛緊急</span></div>
+    <div class="row"><span class="lbl">緊急旗標</span><span id="c5f0-flags" class="val">--</span></div>
+    <div class="row"><span class="lbl">緊急停止請求 (bit0)</span><span id="c5f0-b0" class="val">--</span></div>
+
+    <!-- 0x508 -->
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x508</span><span class="can-name">充電樁狀態</span></div>
+    <div class="row"><span class="lbl">故障旗標</span><span id="c508-fault" class="val">--</span></div>
+    <div class="row"><span class="lbl">待機/準備 (bit0)</span><span id="c508-b0" class="val">--</span></div>
+    <div class="row"><span class="lbl">充電中 (bit1)</span><span id="c508-b1" class="val">--</span></div>
+    <div class="row"><span class="lbl">電磁鎖鎖定 (bit2)</span><span id="c508-b2" class="val">--</span></div>
+    <div class="row"><span class="lbl">可提供電壓 (VLIM)</span><span id="c508-av" class="val">--</span></div>
+    <div class="row"><span class="lbl">可提供電流 (I_MX)</span><span id="c508-aa" class="val">--</span></div>
+    <div class="row"><span class="lbl">故障偵測電壓 (VLIM2)</span><span id="c508-fv" class="val">--</span></div>
+
+    <!-- 0x509 -->
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x509</span><span class="can-name">充電樁參數</span></div>
+    <div class="row"><span class="lbl">額定功率</span><span id="c509-pw" class="val">--</span></div>
+    <div class="row"><span class="lbl">實際輸出電壓</span><span id="c509-v" class="val">--</span></div>
+    <div class="row"><span class="lbl">實際輸出電流</span><span id="c509-a" class="val">--</span></div>
+    <div class="row"><span class="lbl">剩餘時間</span><span id="c509-rem" class="val">--</span></div>
+
+    <!-- 0x5F8 -->
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x5F8</span><span class="can-name">充電樁緊急</span></div>
+    <div class="row"><span class="lbl">緊急旗標</span><span id="c5f8-flags" class="val">--</span></div>
+    <div class="row"><span class="lbl">緊急停止 (bit0)</span><span id="c5f8-b0" class="val">--</span></div>
+  </div>
+</div>
+
 <!-- 充電紀錄 -->
 <div class="card">
   <section-title>📋 充電紀錄 <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
@@ -363,9 +423,73 @@ async function poll(){
         btn.disabled=false;upBtn.disabled=false;
       }
     }
+    // CAN 診斷（若面板展開才更新，節省 DOM 操作）
+    if(d.can&&document.getElementById('can-body').style.display!=='none'){
+      updateCan(d.can);
+    }
   }catch(e){
     document.getElementById('ws').innerHTML='<span class="dot" style="background:#555"></span>離線';
     document.getElementById('ts').textContent='--:--:--';
+  }
+}
+
+function flagDot(on,trueLabel,falseLabel){
+  const c=on?'#4d4':'#888';
+  const t=on?trueLabel:falseLabel;
+  return`<span class="dot" style="background:${c}"></span>${t}`;
+}
+
+function fhex(v){return v?'0x'+v.toString(16).toUpperCase().padStart(2,'0'):'0x00';}
+function ftime(v){return(v&&v!==0xFFFF)?v+' min':'未知';}
+
+function updateCan(c){
+  // 0x500
+  const s5=c.v500_status||0;
+  document.getElementById('c500-b0').innerHTML=flagDot(s5&0x01,'許可','未許可');
+  document.getElementById('c500-b1').innerHTML=flagDot(s5&0x02,'開路','閉合');
+  document.getElementById('c500-b2').innerHTML=flagDot(s5&0x04,'請求停止','無');
+  document.getElementById('c500-b3').innerHTML=flagDot(s5&0x08,'正常停止','無');
+  document.getElementById('c500-fault').textContent=fhex(c.v500_fault);
+  document.getElementById('c500-ra').textContent=(c.v500_req_current||0).toFixed(1)+' A';
+  document.getElementById('c500-rv').textContent=(c.v500_req_voltage||0).toFixed(1)+' V';
+  document.getElementById('c500-mv').textContent=(c.v500_max_voltage||0).toFixed(1)+' V';
+  // 0x501
+  document.getElementById('c501-seq').textContent=c.v501_seq||0;
+  document.getElementById('c501-mt').textContent=ftime(c.v501_max_time);
+  document.getElementById('c501-eta').textContent=ftime(c.v501_eta);
+  // 0x5F0
+  const f0=c.v5f0_flags||0;
+  document.getElementById('c5f0-flags').textContent=fhex(f0);
+  document.getElementById('c5f0-b0').innerHTML=flagDot(f0&0x01,'緊急停止請求','無');
+  // 0x508
+  const s8=c.c508_status||0;
+  document.getElementById('c508-fault').textContent=fhex(c.c508_fault);
+  document.getElementById('c508-b0').innerHTML=flagDot(s8&0x01,'是','否');
+  document.getElementById('c508-b1').innerHTML=flagDot(s8&0x02,'是','否');
+  document.getElementById('c508-b2').innerHTML=flagDot(s8&0x04,'鎖定','未鎖定');
+  document.getElementById('c508-av').textContent=(c.c508_avail_voltage||0).toFixed(1)+' V';
+  document.getElementById('c508-aa').textContent=(c.c508_avail_current||0).toFixed(1)+' A';
+  document.getElementById('c508-fv').textContent=(c.c508_fault_voltage||0).toFixed(1)+' V';
+  // 0x509
+  document.getElementById('c509-pw').textContent=((c.c509_rated_kw||0)*50)+' W';
+  document.getElementById('c509-v').textContent=(c.c509_voltage||0).toFixed(1)+' V';
+  document.getElementById('c509-a').textContent=(c.c509_current||0).toFixed(1)+' A';
+  document.getElementById('c509-rem').textContent=ftime(c.c509_remaining);
+  // 0x5F8
+  const f8=c.c5f8_flags||0;
+  document.getElementById('c5f8-flags').textContent=fhex(f8);
+  document.getElementById('c5f8-b0').innerHTML=flagDot(f8&0x01,'緊急停止','無');
+}
+
+function toggleCan(){
+  const body=document.getElementById('can-body');
+  const arrow=document.getElementById('can-arrow');
+  if(body.style.display==='none'){
+    body.style.display='block';
+    arrow.textContent='▼ 收起';
+  }else{
+    body.style.display='none';
+    arrow.textContent='▶ 展開';
   }
 }
 
