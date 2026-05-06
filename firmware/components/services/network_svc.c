@@ -143,6 +143,34 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     if (ota_st == OTA_STATE_ERROR)
         cJSON_AddStringToObject(root, "ota_error", ota_svc_get_error());
 
+    // CAN 診斷
+    cJSON *can = cJSON_AddObjectToObject(root, "can");
+    // 0x500 Vehicle → Charger
+    cJSON_AddNumberToObject(can, "v500_fault",        snap.can.v500_fault);
+    cJSON_AddNumberToObject(can, "v500_status",       snap.can.v500_status);
+    cJSON_AddNumberToObject(can, "v500_req_current",  snap.can.v500_req_current);
+    cJSON_AddNumberToObject(can, "v500_req_voltage",  snap.can.v500_req_voltage);
+    cJSON_AddNumberToObject(can, "v500_max_voltage",  snap.can.v500_max_voltage);
+    // 0x501 Vehicle → Charger
+    cJSON_AddNumberToObject(can, "v501_seq",          snap.can.v501_seq);
+    cJSON_AddNumberToObject(can, "v501_max_time",     snap.can.v501_max_time);
+    cJSON_AddNumberToObject(can, "v501_eta",          snap.can.v501_eta);
+    // 0x5F0 Vehicle → Charger
+    cJSON_AddNumberToObject(can, "v5f0_flags",        snap.can.v5f0_flags);
+    // 0x508 Charger → Vehicle
+    cJSON_AddNumberToObject(can, "c508_fault",        snap.can.c508_fault);
+    cJSON_AddNumberToObject(can, "c508_status",       snap.can.c508_status);
+    cJSON_AddNumberToObject(can, "c508_avail_voltage",snap.can.c508_avail_voltage);
+    cJSON_AddNumberToObject(can, "c508_avail_current",snap.can.c508_avail_current);
+    cJSON_AddNumberToObject(can, "c508_fault_voltage",snap.can.c508_fault_voltage);
+    // 0x509 Charger → Vehicle
+    cJSON_AddNumberToObject(can, "c509_rated_kw",     snap.can.c509_rated_kw);
+    cJSON_AddNumberToObject(can, "c509_voltage",      snap.can.c509_voltage);
+    cJSON_AddNumberToObject(can, "c509_current",      snap.can.c509_current);
+    cJSON_AddNumberToObject(can, "c509_remaining",    snap.can.c509_remaining);
+    // 0x5F8 Charger → Vehicle
+    cJSON_AddNumberToObject(can, "c5f8_flags",        snap.can.c5f8_flags);
+
     // 韌體版本
     const esp_app_desc_t *app = esp_app_get_description();
     cJSON_AddStringToObject(root, "firmware_version", app->version);
