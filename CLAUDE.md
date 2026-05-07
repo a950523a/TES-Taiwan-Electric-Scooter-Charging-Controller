@@ -228,6 +228,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 45 | 即時功率 + 累積電量：`power_w` / `energy_wh` 加入 snapshot 及 `/status`；PSU 未接時 Web UI 顯示 `(預估)` | DONE ⚠️ 尚未測試 |
 | 46 | CAN 診斷面板：Web UI 摺疊卡顯示全部 6 條 CAN 訊息解碼值（0x500/501/5F0 RX、0x508/509/5F8 TX），附方向標籤與 bit 指示燈 | DONE ⚠️ 尚未測試 |
 | 47 | 本機 build 版本號：`CMakeLists.txt` 以 `git describe --always --tags --dirty` 設定 `PROJECT_VER`；本機 dev build 顯示完整 commit hash，tag release 顯示 tag 名稱 | DONE |
+| 48 | 充電倒數計時停止：`STOP_MODE_TIMER`；`charge_timer_min` 設定充電時長上限（NVS key `timer_m`）；OLED 選單 + Web UI；SM `run_monitoring()` 檢查 elapsed ≥ timer；OLED 狀態第三行顯示已充時間/目標時長 | DONE ⚠️ 尚未測試 |
+| 49 | Web UI Volt 模式顯示修正：充電停止條件為「依電壓」時，Web UI 電壓欄改顯示「即時電壓 / 目標停止電壓」（與 OLED 一致），隱藏目標 SOC 欄 | DONE ⚠️ 尚未測試 |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -268,9 +270,10 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Auto Volt | ON / OFF | toggle | toggle |
 | Max Voltage | 40.0 V -- 120.0 V (顯示為 "V Cap" when Auto ON) | ±0.1 V | ±1 V (auto-repeat) |
 | Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
-| Stop Mode | SOC / Volt | toggle | toggle |
+| Stop Mode | SOC / Volt / Timer | toggle | toggle |
 | Target SOC | 20 % -- 100 %（Stop Mode=SOC 時顯示） | ±1 % | ±5 % (auto-repeat) |
 | Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
+| Charge Timer | 10 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
@@ -283,6 +286,7 @@ WiFi Info shows: `AP: 192.168.4.1` (AP mode) / `IP: x.x.x.x` (STA connected) / `
 OLED status screen:
 - **SOC 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72/95%  1h23m`
 - **Volt 模式**：第二行 `54.2V/100.0V`（即時/目標電壓），第三行 `SOC:72%  1h23m`
+- **Timer 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72%  1h23m/2h00m`（已充時間/目標充電時長）
 
 ### PSU UART Protocol Notes (discovered during hardware testing 2026-05-01)
 
@@ -310,11 +314,83 @@ Two mutually-exclusive charging termination conditions (selected by user):
 |------|---------------------|-----------|
 | SOC (default) | `STOP_MODE_SOC = 0` | `BMS SOC >= target_soc` |
 | Voltage | `STOP_MODE_VOLTAGE = 1` | `output_voltage >= stop_voltage_01v / 10.0f` |
+| Timer | `STOP_MODE_TIMER = 2` | `charge_elapsed_ms >= charge_timer_min * 60000` |
 
 - Voltage source: PSU reported voltage; ADC fallback if PSU not reporting
-- NVS keys: `stop_m` (uint32 0/1), `stop_v` (uint32, 0.1V/bit, default 1000 = 100.0V)
+- NVS keys: `stop_m` (uint32 0/1/2), `stop_v` (uint32, 0.1V/bit, default 1000 = 100.0V), `timer_m` (uint32, minutes, default 120)
 - SM check in `run_monitoring()` in `tes_sm.c`
-- Configurable via OLED menu (Stop Mode + Stop Voltage items), REST API, web UI
+- Configurable via OLED menu (Stop Mode + Stop Voltage / Charge Timer items), REST API, web UI
+
+### Charge Timer Stop Feature (TODO v3.3.0)
+
+充電倒數計時停止：使用者設定最長充電時間，到時自動停止，適合無法確認 SOC 或不想等到滿電的場景。
+
+**Config 新增欄位（`charger_config_t`）：**
+```c
+uint32_t charge_timer_min;  // NVS key "timer_m"; range 10–600 min; default 120
+```
+
+**`stop_mode_t` 新增：**
+```c
+STOP_MODE_TIMER = 2,  // stop when charge_elapsed_ms >= charge_timer_min * 60000
+```
+
+**SM 修改（`tes_sm.c` `run_monitoring()`）：**
+```c
+case STOP_MODE_TIMER:
+    if (sm->charge_elapsed_ms >= (uint32_t)inputs->charge_timer_min * 60000u)
+        transition(sm, TES_STATE_ENDING);
+    break;
+```
+`charge_elapsed_ms` 已存在於 `tes_sm_t`（charging 計時器），無需新增欄位。
+
+**OLED 狀態畫面（Timer 模式）：**
+- 第二行：`54.2V  12.3A`（同 SOC 模式）
+- 第三行：`SOC:72%  1h23m/2h00m`（已充時間 / 目標時長，格式與 SOC 模式目標 SOC 對齊）
+
+**OLED 設定選單：**
+- Stop Mode 值循環改為 `SOC → Volt → Timer → SOC`
+- Stop Mode = Timer 時顯示「Charge Timer」項目（隱藏 Target SOC 和 Stop Voltage）；±10 min 短按，±30 min 長按 auto-repeat
+
+**Web UI：**
+- Stop Mode radio 新增「依時間」選項
+- 選「依時間」時隱藏 Target SOC / Stop Voltage 欄，顯示 Charge Timer 輸入框（分鐘，10–600）
+- `/status` JSON 加入 `charge_timer_min`；`/config` GET/POST 支援 `charge_timer_min`
+
+**`/status` JSON 新增欄位：**
+```json
+"charge_timer_min": 120
+```
+
+**NVS key：** `timer_m`（uint32，minutes）
+
+---
+
+### Web UI Volt Mode Display Fix (TODO v3.3.0)
+
+**問題（Bug）：** 充電停止條件選「依電壓」時，Web UI 狀態區塊仍顯示「目標 SOC」，與 OLED 行為不一致，會誤導用戶以為 SOC 是停止條件。
+
+**OLED 正確行為（已實作）：**
+- Volt 模式：第二行 `54.2V/100.0V`（即時電壓 / 目標停止電壓），第三行 `SOC:72%  1h23m`（SOC 純參考，無目標）
+
+**Web UI 修正目標（需實作）：**
+
+| Stop Mode | 電壓顯示 | SOC 顯示 |
+|-----------|----------|----------|
+| SOC | `54.2 V`（單值） | `72% / 95%`（即時/目標） |
+| Volt | `54.2 V / 100.0 V`（即時/目標） | `72%`（純參考，無目標） |
+| Timer | `54.2 V`（單值） | `72%`（純參考，無目標） |
+
+**修改範圍（`firmware/components/services/web/index.html`）：**
+- `poll()` 回呼中，依 `data.stop_mode` 切換電壓欄標籤與值格式：
+  - `stop_mode == 1`（Volt）：電壓欄顯示 `${voltage} V / ${stop_voltage} V`，標籤改為「充電電壓 / 目標電壓」
+  - 其他模式：電壓欄顯示 `${voltage} V`，標籤維持「充電電壓」
+- SOC 欄：
+  - `stop_mode == 0`（SOC）：顯示 `${soc}% / ${target_soc}%`，標籤「SOC / 目標」
+  - 其他模式：顯示 `${soc}%`，標籤「SOC」
+- `/status` JSON 須包含 `stop_mode`（整數 0/1/2）和 `stop_voltage`（float，V）；若目前 `/status` 未回傳這兩個欄位，需在 `network_svc.c` snapshot JSON 中補上
+
+---
 
 ### Known Technical Debt (correct behaviour, not clean design)
 

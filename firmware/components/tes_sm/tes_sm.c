@@ -428,6 +428,10 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         if (v_out >= (float)in->stop_voltage_01v / 10.0f) {
             enter_ending(sm, out); return;
         }
+    } else if (in->stop_mode == STOP_MODE_TIMER) {
+        if (sm->elapsed_seconds >= (uint32_t)in->charge_timer_min * 60u) {
+            enter_ending(sm, out); return;
+        }
     } else {
         if (sm->soc >= (uint8_t)sm->cfg.target_soc) {
             enter_ending(sm, out); return;

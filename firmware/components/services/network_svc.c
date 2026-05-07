@@ -136,6 +136,12 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddBoolToObject  (root, "wifi_connected",    s_connected);
     cJSON_AddStringToObject(root, "ip",                s_ip_str);
 
+    // 充電停止條件（供 Web UI 顯示邏輯使用）
+    const charger_config_t *cfg_snap = config_svc_get();
+    cJSON_AddNumberToObject(root, "stop_mode",      (int)cfg_snap->stop_mode);
+    cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg_snap->stop_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "charge_timer_min", cfg_snap->charge_timer_min);
+
     // OTA 狀態
     ota_state_t ota_st = ota_svc_get_state();
     cJSON_AddBoolToObject  (root, "ota_running",  ota_st == OTA_STATE_RUNNING);
@@ -205,8 +211,9 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "max_voltage",    (double)cfg->max_voltage_01v / 10.0);
     cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
     cJSON_AddNumberToObject(root, "target_soc",     cfg->target_soc);
-    cJSON_AddNumberToObject(root, "stop_mode",      (int)cfg->stop_mode);
-    cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg->stop_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "stop_mode",        (int)cfg->stop_mode);
+    cJSON_AddNumberToObject(root, "stop_voltage",     (double)cfg->stop_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "charge_timer_min", cfg->charge_timer_min);
     cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
@@ -277,6 +284,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     bool new_auto_voltage   = cur->auto_voltage;
     uint8_t  new_stop_mode     = (uint8_t)cur->stop_mode;
     uint16_t new_stop_voltage  = cur->stop_voltage_01v;
+    uint16_t new_charge_timer  = cur->charge_timer_min;
 
     bool charging_changed     = false;
     bool wifi_changed         = false;
@@ -326,12 +334,17 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "stop_mode");
     if (cJSON_IsNumber(item)) {
         int m = item->valueint;
-        if (m >= 0 && m <= 1) { new_stop_mode = (uint8_t)m; stop_changed = true; }
+        if (m >= 0 && m <= 2) { new_stop_mode = (uint8_t)m; stop_changed = true; }
     }
     item = cJSON_GetObjectItem(root, "stop_voltage");
     if (cJSON_IsNumber(item)) {
         int v = (int)(item->valuedouble * 10.0 + 0.5);
         if (v >= 400 && v <= 1200) { new_stop_voltage = (uint16_t)v; stop_changed = true; }
+    }
+    item = cJSON_GetObjectItem(root, "charge_timer_min");
+    if (cJSON_IsNumber(item)) {
+        int t = item->valueint;
+        if (t >= 10 && t <= 600) { new_charge_timer = (uint16_t)t; stop_changed = true; }
     }
 
     char new_notify_url[128] = {0};
@@ -370,7 +383,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (beacon_changed)       config_svc_set_beacon(new_beacon);
     if (auto_voltage_changed) config_svc_set_auto_voltage(new_auto_voltage);
     if (notify_url_changed)   config_svc_set_notify_url(new_notify_url);
-    if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage);
+    if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage, new_charge_timer);
     if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
 
     if (wifi_changed || mqtt_changed)

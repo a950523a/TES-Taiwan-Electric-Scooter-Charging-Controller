@@ -32,6 +32,7 @@ typedef struct {
     int8_t      target_soc;
     stop_mode_t stop_mode;          // 充電停止條件
     uint16_t    stop_voltage_01v;   // 停止電壓（stop_mode=VOLTAGE 時有效）
+    uint16_t    charge_timer_min;   // 充電時長上限（stop_mode=TIMER 時有效，分鐘）
 
     // 來自按鈕 / remote（atomic flags，讀後清除）
     bool start_requested;
