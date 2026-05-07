@@ -344,7 +344,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "charge_timer_min");
     if (cJSON_IsNumber(item)) {
         int t = item->valueint;
-        if (t >= 10 && t <= 600) { new_charge_timer = (uint16_t)t; stop_changed = true; }
+        if (t >= 1 && t <= 600) { new_charge_timer = (uint16_t)t; stop_changed = true; }
     }
 
     char new_notify_url[128] = {0};
