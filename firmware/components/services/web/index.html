@@ -730,8 +730,8 @@ async function scanWifi(){
   btn.disabled=false;btn.textContent='🔍 掃描';
 }
 
-const STOP_REASON=['正常完成','手動停止','故障','緊急停止','BMS 停止','計時停止'];
-const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5'];
+const STOP_REASON=['SOC 達標','手動停止','故障','緊急停止','BMS 停止','計時完成','電壓達標'];
+const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5','hist-reason-6'];
 
 async function loadHistory(){
   const tbody=document.getElementById('hist-rows');
@@ -749,8 +749,10 @@ async function loadHistory(){
       const whEst=r.energy_estimated?'<span style="color:#555;font-size:.75em"> (預估)</span>':'';
       const wh=r.energy_wh.toFixed(2)+' Wh'+whEst;
       const soc=`${r.soc_start}% → ${r.soc_end}%`;
-      const ri=Math.min(r.stop_reason,5);
-      const reason=`<span class="${STOP_CLS[ri]}">${STOP_REASON[ri]}</span>`;
+      const ri=Math.min(r.stop_reason,6);
+      let reasonText=STOP_REASON[ri];
+      if(r.stop_reason===6&&r.stop_voltage_v)reasonText=`${r.stop_voltage_v.toFixed(1)} V`;
+      const reason=`<span class="${STOP_CLS[ri]}">${reasonText}</span>`;
       return`<tr><td>${dur}</td><td>${wh}</td><td>${soc}</td><td>${reason}</td></tr>`;
     }).join('');
   }catch(e){
