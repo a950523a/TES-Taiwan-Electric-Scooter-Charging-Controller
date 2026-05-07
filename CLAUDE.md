@@ -23,6 +23,17 @@ idf.py -p <PORT> flash monitor
 
 `sdkconfig.defaults` enables PSRAM (OPI 8MB), DIO 80 MHz flash, TWAI, USB CDC console, FreeRTOS 1 kHz tick.
 
+**Partition table (`partitions_16MB.csv`):** SPIFFS removed (was QuickJS legacy). App partitions maximised for hardware variant growth:
+
+| Partition | Size | Notes |
+|-----------|------|-------|
+| nvs | 20 KB | config + charge history blob |
+| otadata | 8 KB | OTA slot selector |
+| app0 | **7.94 MB** | active firmware (~15% used) |
+| app1 | **7.94 MB** | OTA update slot |
+
+Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only update is not sufficient after a layout change.
+
 **Build environment (PowerShell, Windows):**
 ```powershell
 $env:IDF_PATH = "C:\Users\user\esp\v5.5.1\esp-idf"
@@ -176,6 +187,11 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 ## V3 Implementation Plan & Progress
 
 ### Current Status: v3.0.0 released (2026-05-02). 全部 49 項功能已實作，`idf.py build` 零錯誤（2026-05-07 確認）。v3.1.0 / v3.2.0 / v3.3.0 功能均已實作，**尚未接上車輛進行完整充電流程測試**。
+
+**2026-05-07 追加修改（未計入版本號）：**
+- `partitions_16MB.csv`：移除 SPIFFS（QuickJS 時代遺留），app0/app1 各擴充至 7.94 MB（原 4 MB），韌體目前佔 15%
+- `charge_session_t`：新增 `stop_voltage_v` 欄位（12→16 bytes）；`stop_reason_t` 新增 `STOP_REASON_VOLTAGE=6`，SOC/電壓/計時停止原因現可明確區分
+- 充電紀錄 Web UI：電壓停止顯示「55.2 V」、計時停止顯示「計時完成」、SOC 停止顯示「SOC 達標」
 
 ### Implementation Progress
 
@@ -449,7 +465,7 @@ eMoving iE125 sends 0x5F0 after every normal charge end. The fix in `tes_sm.c`:
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | 從 URL 下載韌體（JSON body `{"url":"..."}` 可選）；省略則用 GitHub Releases 預設 URL |
 | POST | `/ota/upload` | 手動上傳韌體 binary（`application/octet-stream`）；需 Content-Length；進度透過 `/status` 查詢 |
-| GET | `/history` | JSON 陣列，最近 20 次充電紀錄（由新到舊）：duration_s, energy_wh, soc_start, soc_end, stop_reason |
+| GET | `/history` | JSON 陣列，最近 20 次充電紀錄（由新到舊）：duration_s, energy_wh, energy_estimated, stop_voltage_v, soc_start, soc_end, stop_reason |
 | GET | `/manifest.json` | PWA Web App Manifest |
 | GET | `/sw.js` | Service Worker（離線快取 index.html） |
 | GET | `/icon.svg` | App 圖示（SVG，用於 homescreen） |
@@ -543,30 +559,39 @@ Embedded web UI converted to installable PWA.
 **New types** (added to `tes_types.h`):
 ```c
 typedef enum {
-    STOP_REASON_NORMAL = 0,  // SOC / voltage target reached
-    STOP_REASON_USER   = 1,  // user stop button / remote stop
-    STOP_REASON_FAULT  = 2,
-    STOP_REASON_EMERG  = 3,
-    STOP_REASON_BMS    = 4,  // BMS revoked permission
-    STOP_REASON_TIMER  = 5,
+    STOP_REASON_NORMAL  = 0,  // SOC 目標達成
+    STOP_REASON_USER    = 1,  // user stop button / remote stop
+    STOP_REASON_FAULT   = 2,
+    STOP_REASON_EMERG   = 3,
+    STOP_REASON_BMS     = 4,  // BMS revoked permission
+    STOP_REASON_TIMER   = 5,  // 計時到達
+    STOP_REASON_VOLTAGE = 6,  // 電壓目標達成
 } stop_reason_t;
 
 typedef struct {
-    uint32_t duration_s;   // session length in seconds
-    float    energy_wh;    // Wh delivered (V×I × 10ms / 3600000)
+    uint32_t duration_s;       // session length in seconds
+    float    energy_wh;        // Wh delivered (V×I × 10ms / 3600000)
+    float    stop_voltage_v;   // output voltage at stop (STOP_REASON_VOLTAGE only, else 0)
     uint8_t  soc_start;
     uint8_t  soc_end;
-    uint8_t  stop_reason;  // stop_reason_t
-    uint8_t  _pad;
-} charge_session_t;        // 12 bytes — fits in 24-byte event payload
+    uint8_t  stop_reason;      // stop_reason_t
+    uint8_t  energy_estimated; // 1 = PSU not connected; energy calculated from ADC
+} charge_session_t;            // 16 bytes — fits in 24-byte event payload
 ```
+
+`task_tes_sm` sets `stop_reason` based on `inputs.stop_mode` when `charge_complete`:
+- `STOP_MODE_SOC` → `STOP_REASON_NORMAL`
+- `STOP_MODE_VOLTAGE` → `STOP_REASON_VOLTAGE` + captures `snap.output_voltage` into `stop_voltage_v`
+- `STOP_MODE_TIMER` → `STOP_REASON_TIMER`
+
+`energy_estimated = 1` when PSU UART was never seen during the session (ADC-based energy estimate).
 
 **Energy formula (per tick):** `energy_wh += V * A / 360000.0f` (10 ms tick)
 Only accumulated when `state == TES_STATE_CHARGING && timer_running && V > 0 && A > 0`.
 
-**`EVT_SESSION_COMPLETE`** added to `event_type_t`; payload carries `charge_session_t` (12 bytes).
+**`EVT_SESSION_COMPLETE`** added to `event_type_t`; payload carries `charge_session_t` (16 bytes).
 
-**log_svc storage:** NVS namespace `"tes_hist"`, blob key `"log"`, 248-byte circular buffer (head + count + 20 × `charge_session_t`).
+**log_svc storage:** NVS namespace `"tes_hist"`, blob key `"log"`, 324-byte circular buffer (head + count + pad + 20 × `charge_session_t`). Blob size change (was 248) clears old history on first boot after upgrade.
 
 **New files:** `log_svc.h`, `log_svc.c` in `firmware/components/services/`.
 **Task:** priority 1, stack 3 KB; subscribes to event bus.
@@ -574,11 +599,11 @@ Only accumulated when `state == TES_STATE_CHARGING && timer_running && V > 0 && 
 
 **`GET /history` response:**
 ```json
-[{"duration_s":5400,"energy_wh":1.23,"soc_start":45,"soc_end":95,"stop_reason":0}, ...]
+[{"duration_s":5400,"energy_wh":1.23,"energy_estimated":false,"stop_voltage_v":0,"soc_start":45,"soc_end":95,"stop_reason":0}, ...]
 ```
 Returned newest-first; max 20 entries.
 
-**Web UI:** "充電紀錄" section at bottom of page; columns: 充電時間(分鐘), 電量(Wh), SOC起→終, 停止原因.
+**Web UI:** "充電紀錄" section at bottom of page; columns: 充電時間, 電量(Wh, 附 `(預估)` 標記), SOC起→終, 停止條件。停止條件欄依 stop_reason 顯示：SOC 達標 / `55.2 V`（電壓模式） / 計時完成 / 手動停止 / 故障 / 緊急停止 / BMS 停止。
 
 **hal_nvs blob:** if `hal_nvs_get_blob` / `hal_nvs_set_blob` not present in `charger_hal/hal_nvs.h`, add them wrapping `nvs_get_blob` / `nvs_set_blob`.
 
