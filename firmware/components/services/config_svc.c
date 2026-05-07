@@ -62,7 +62,7 @@ esp_err_t config_svc_init(void)
         s_cfg.stop_voltage_01v = (hal_nvs_get_u32(NVS_NS, NVS_KEY_STOP_V, &tmp) == ESP_OK)
                                  ? (uint16_t)tmp : DEFAULT_STOP_V;
         s_cfg.charge_timer_min = (hal_nvs_get_u32(NVS_NS, NVS_KEY_TIMER_M, &tmp) == ESP_OK
-                                  && tmp >= 10 && tmp <= 600)
+                                  && tmp >= 1 && tmp <= 600)
                                  ? (uint16_t)tmp : DEFAULT_TIMER_M;
     }
 

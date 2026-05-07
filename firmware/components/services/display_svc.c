@@ -293,7 +293,7 @@ static void value_step(int item, int delta)
         // coarse |delta|=10 → 30 min; fine |delta|=1 → 10 min
         int step = (delta >= 10 || delta <= -10) ? (delta > 0 ? 30 : -30) : (delta > 0 ? 10 : -10);
         int t = (int)s_edit_charge_timer + step;
-        if (t < 10)  t = 10;
+        if (t < 1)   t = 1;
         if (t > 600) t = 600;
         s_edit_charge_timer = (uint16_t)t;
         break;
