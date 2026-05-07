@@ -399,11 +399,21 @@ async function poll(){
     }
     document.getElementById('pb').value=d.soc;
 
-    const tr=document.getElementById('tr');
-    if(d.timer_running&&d.remaining_seconds>0){
-      tr.style.display='flex';
+    const trRow=document.getElementById('tr');
+    const trLbl=trRow.querySelector('.lbl');
+    if(sm===2&&d.timer_running){
+      // Timer 模式：顯示已充時間 / 目標時長（BMS remaining 不適用）
+      const target=(d.charge_timer_min||120)*60;
+      trRow.style.display='flex';
+      trLbl.textContent='已充時間';
+      document.getElementById('rem').textContent=fmt(d.elapsed_seconds||0)+' / '+fmt(target);
+    }else if(d.timer_running&&d.remaining_seconds>0){
+      trRow.style.display='flex';
+      trLbl.textContent='剩餘時間';
       document.getElementById('rem').textContent=fmt(d.remaining_seconds);
-    }else tr.style.display='none';
+    }else{
+      trRow.style.display='none';
+    }
 
     const fr=document.getElementById('fr');
     if(d.fault&&d.fault_flags){
