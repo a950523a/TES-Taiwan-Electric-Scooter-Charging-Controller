@@ -192,6 +192,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 - `partitions_16MB.csv`：移除 SPIFFS（QuickJS 時代遺留），app0/app1 各擴充至 7.94 MB（原 4 MB），韌體目前佔 15%
 - `charge_session_t`：新增 `stop_voltage_v` 欄位（12→16 bytes）；`stop_reason_t` 新增 `STOP_REASON_VOLTAGE=6`，SOC/電壓/計時停止原因現可明確區分
 - 充電紀錄 Web UI：電壓停止顯示「55.2 V」、計時停止顯示「計時完成」、SOC 停止顯示「SOC 達標」
+- **Bug fix**：Timer 模式 Web UI 狀態列原本因 BMS 回報 `remaining_seconds=0` 而隱藏；改為從 `elapsed_seconds` / `charge_timer_min` 計算，顯示「已充時間：0h05m / 2h00m」格式
+- **Bug fix**：`charge_timer_min` 最小值驗證從 10 分鐘降為 1 分鐘（`network_svc.c`、`config_svc.c`、`display_svc.c`、`web/index.html`）；原本設 < 10 分鐘會被靜默丟棄、維持舊值，導致計時停止無法在短時間內測試
 
 ### Implementation Progress
 
@@ -289,7 +291,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | Stop Mode | SOC / Volt / Timer | toggle | toggle |
 | Target SOC | 20 % -- 100 %（Stop Mode=SOC 時顯示） | ±1 % | ±5 % (auto-repeat) |
 | Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
-| Charge Timer | 10 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
+| Charge Timer | 1 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
