@@ -35,9 +35,10 @@ typedef enum {
     MENU_ITEM_AUTO_VOLTAGE = 0,
     MENU_ITEM_MAX_VOLTAGE,
     MENU_ITEM_MAX_CURRENT,
-    MENU_ITEM_STOP_MODE,     // 停止條件：SOC / Voltage
+    MENU_ITEM_STOP_MODE,      // 停止條件：SOC / Voltage / Timer
     MENU_ITEM_TARGET_SOC,    // 停止條件值（stop_mode=SOC 時顯示）
     MENU_ITEM_STOP_VOLTAGE,  // 停止條件值（stop_mode=VOLTAGE 時顯示）
+    MENU_ITEM_CHARGE_TIMER,  // 充電時長（stop_mode=TIMER 時顯示，分鐘）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
@@ -63,6 +64,7 @@ static uint16_t    s_edit_current;
 static int8_t      s_edit_soc;
 static stop_mode_t s_edit_stop_mode;
 static uint16_t    s_edit_stop_voltage;
+static uint16_t    s_edit_charge_timer;
 static bool        s_edit_beacon;
 
 static int s_visible_items[MENU_ITEM_COUNT];
@@ -86,6 +88,7 @@ static void menu_open(void)
     s_edit_soc           = cfg->target_soc;
     s_edit_stop_mode     = cfg->stop_mode;
     s_edit_stop_voltage  = cfg->stop_voltage_01v;
+    s_edit_charge_timer  = cfg->charge_timer_min;
     s_edit_beacon        = cfg->beacon_unlocked;
     s_cursor       = 0;
     s_scroll_top   = 0;
@@ -107,15 +110,15 @@ static void menu_save(void)
 {
     config_svc_set_auto_voltage(s_edit_auto_voltage);
     config_svc_set_charging(s_edit_voltage, s_edit_current, s_edit_soc);
-    config_svc_set_stop(s_edit_stop_mode, s_edit_stop_voltage);
+    config_svc_set_stop(s_edit_stop_mode, s_edit_stop_voltage, s_edit_charge_timer);
     config_svc_set_beacon(s_edit_beacon);
-    ESP_LOGI(TAG, "saved: auto_v=%d %u.%uV %u.%uA SOC=%d stop=%d stpV=%u.%u beacon=%d",
+    ESP_LOGI(TAG, "saved: auto_v=%d %u.%uV %u.%uA SOC=%d stop=%d stpV=%u.%u timer=%um beacon=%d",
              (int)s_edit_auto_voltage,
              s_edit_voltage / 10, s_edit_voltage % 10,
              s_edit_current / 10, s_edit_current % 10,
              s_edit_soc, (int)s_edit_stop_mode,
              s_edit_stop_voltage / 10, s_edit_stop_voltage % 10,
-             (int)s_edit_beacon);
+             s_edit_charge_timer, (int)s_edit_beacon);
 }
 
 static void item_label(int item, char *buf, size_t bufsz)
@@ -142,11 +145,15 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_STOP_MODE:
         snprintf(buf, bufsz, "Stop: %s",
-                 s_edit_stop_mode == STOP_MODE_VOLTAGE ? "Volt" : "SOC");
+                 s_edit_stop_mode == STOP_MODE_VOLTAGE ? "Volt" :
+                 s_edit_stop_mode == STOP_MODE_TIMER   ? "Timer" : "SOC");
         break;
     case MENU_ITEM_STOP_VOLTAGE:
         snprintf(buf, bufsz, "Stop V: %u.%uV",
                  s_edit_stop_voltage / 10, s_edit_stop_voltage % 10);
+        break;
+    case MENU_ITEM_CHARGE_TIMER:
+        snprintf(buf, bufsz, "Timer: %um", s_edit_charge_timer);
         break;
     case MENU_ITEM_BEACON:
         snprintf(buf, bufsz, "LuxBeacon: %s",
@@ -194,6 +201,7 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_TARGET_SOC    ||
             item == MENU_ITEM_STOP_MODE     ||
             item == MENU_ITEM_STOP_VOLTAGE  ||
+            item == MENU_ITEM_CHARGE_TIMER  ||
             item == MENU_ITEM_BEACON);
     // MENU_ITEM_WIFI_INFO is display-only
 }
@@ -204,6 +212,8 @@ static bool item_is_visible(int item)
         return s_edit_stop_mode == STOP_MODE_SOC;
     if (item == MENU_ITEM_STOP_VOLTAGE)
         return s_edit_stop_mode == STOP_MODE_VOLTAGE;
+    if (item == MENU_ITEM_CHARGE_TIMER)
+        return s_edit_stop_mode == STOP_MODE_TIMER;
     return true;
 }
 
@@ -265,14 +275,27 @@ static void value_step(int item, int delta)
         s_edit_auto_voltage = !s_edit_auto_voltage;
         break;
     case MENU_ITEM_STOP_MODE:
-        s_edit_stop_mode = (s_edit_stop_mode == STOP_MODE_SOC)
-                           ? STOP_MODE_VOLTAGE : STOP_MODE_SOC;
+        if (s_edit_stop_mode == STOP_MODE_SOC)
+            s_edit_stop_mode = STOP_MODE_VOLTAGE;
+        else if (s_edit_stop_mode == STOP_MODE_VOLTAGE)
+            s_edit_stop_mode = STOP_MODE_TIMER;
+        else
+            s_edit_stop_mode = STOP_MODE_SOC;
         break;
     case MENU_ITEM_STOP_VOLTAGE: {
         int v = (int)s_edit_stop_voltage + delta;
         if (v < 400)  v = 400;
         if (v > 1200) v = 1200;
         s_edit_stop_voltage = (uint16_t)v;
+        break;
+    }
+    case MENU_ITEM_CHARGE_TIMER: {
+        // coarse |delta|=10 → 30 min; fine |delta|=1 → 10 min
+        int step = (delta >= 10 || delta <= -10) ? (delta > 0 ? 30 : -30) : (delta > 0 ? 10 : -10);
+        int t = (int)s_edit_charge_timer + step;
+        if (t < 10)  t = 10;
+        if (t > 600) t = 600;
+        s_edit_charge_timer = (uint16_t)t;
         break;
     }
     case MENU_ITEM_BEACON:
@@ -350,26 +373,40 @@ static void render_status(const tes_snapshot_t *snap)
 
     display_driver_font_medium();
     if (cfg->stop_mode == STOP_MODE_VOLTAGE) {
+        // Volt 模式：行 2 = 即時電壓/目標停止電壓，行 3 = SOC（純參考）+ 剩餘時間
         float stop_v = cfg->stop_voltage_01v / 10.0f;
         snprintf(buf, sizeof(buf), "%.1fV/%.1fV",
                  snap->output_voltage, stop_v);
         display_driver_draw_str(0, 28, buf);
-
         snprintf(buf, sizeof(buf), "SOC:%d%%", snap->soc);
         display_driver_draw_str(0, 42, buf);
-    } else {
+        uint32_t rem_min = snap->timer_running
+            ? (snap->remaining_seconds + 30) / 60 : 0;
+        snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
+        display_driver_draw_str(80, 42, buf);
+    } else if (cfg->stop_mode == STOP_MODE_TIMER) {
+        // Timer 模式：行 2 = 電壓/電流，行 3 = SOC + 已充/目標時間
         snprintf(buf, sizeof(buf), "%.1fV  %.1fA",
                  snap->output_voltage, snap->output_current);
         display_driver_draw_str(0, 28, buf);
-
+        snprintf(buf, sizeof(buf), "SOC:%d%%", snap->soc);
+        display_driver_draw_str(0, 42, buf);
+        uint32_t el_min = snap->elapsed_seconds / 60;
+        snprintf(buf, sizeof(buf), "%um/%um",
+                 (unsigned)el_min, (unsigned)cfg->charge_timer_min);
+        display_driver_draw_str(60, 42, buf);
+    } else {
+        // SOC 模式：行 2 = 電壓/電流，行 3 = SOC 現在/目標 + 剩餘時間
+        snprintf(buf, sizeof(buf), "%.1fV  %.1fA",
+                 snap->output_voltage, snap->output_current);
+        display_driver_draw_str(0, 28, buf);
         snprintf(buf, sizeof(buf), "SOC:%d/%d%%", snap->soc, (int)snap->target_soc);
         display_driver_draw_str(0, 42, buf);
+        uint32_t rem_min = snap->timer_running
+            ? (snap->remaining_seconds + 30) / 60 : 0;
+        snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
+        display_driver_draw_str(80, 42, buf);
     }
-
-    uint32_t rem_min = snap->timer_running
-        ? (snap->remaining_seconds + 30) / 60 : 0;
-    snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
-    display_driver_draw_str(80, 42, buf);
 
     display_driver_font_small();
     if (snap->state == TES_STATE_FAULT || snap->state == TES_STATE_EMERGENCY) {

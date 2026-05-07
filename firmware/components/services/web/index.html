@@ -187,6 +187,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       <input type="radio" name="stop_mode" id="sm1" value="1" onchange="updateStopModeUI()" style="accent-color:#48f">
       <span>依電壓停止</span>
     </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="stop_mode" id="sm2" value="2" onchange="updateStopModeUI()" style="accent-color:#48f">
+      <span>依時間停止</span>
+    </label>
   </div>
   <div id="soc-row">
     <label class="lbl2">目標 SOC (%)</label>
@@ -195,6 +199,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <div id="stop-volt-row" style="display:none">
     <label class="lbl2">充電停止電壓 (V)</label>
     <input type="number" id="csv" step="0.1" min="40" max="120">
+  </div>
+  <div id="timer-row" style="display:none">
+    <label class="lbl2">充電時長上限（分鐘，10–600）</label>
+    <input type="number" id="ctm" step="10" min="10" max="600">
   </div>
   <label class="lbl2">WiFi SSID</label>
   <div class="wifi-row">
@@ -365,14 +373,31 @@ async function poll(){
       b.className=SC[d.state]||'badge s-idle';
     }
 
-    document.getElementById('v').textContent=d.voltage.toFixed(1)+' V';
+    // Feature 49 fix: Volt/Timer 模式下電壓與 SOC 顯示與 OLED 一致
+    const sm=d.stop_mode||0;
+    const vEl=document.getElementById('v');
+    const vLbl=vEl.previousElementSibling;
+    if(sm===1){
+      // Volt 模式：顯示「即時 / 目標停止電壓」
+      vEl.textContent=d.voltage.toFixed(1)+' / '+(d.stop_voltage||100).toFixed(1)+' V';
+      if(vLbl)vLbl.textContent='充電電壓 / 停止電壓';
+    } else {
+      vEl.textContent=d.voltage.toFixed(1)+' V';
+      if(vLbl)vLbl.textContent='輸出電壓';
+    }
     document.getElementById('a').textContent=d.current.toFixed(1)+' A';
     const est=d.psu_connected?'':'<span style="color:#555;font-size:.75em"> (預估)</span>';
     document.getElementById('pw').innerHTML=(d.power_w||0).toFixed(1)+' W'+est;
     document.getElementById('ewh').innerHTML=(d.energy_wh||0).toFixed(2)+' Wh'+est;
-    document.getElementById('soc-txt').textContent=d.soc+' / '+d.target_soc+'%';
+    // SOC 顯示：SOC 模式顯示「現在/目標」，Volt/Timer 模式純參考
+    if(sm===0){
+      document.getElementById('soc-txt').textContent=d.soc+' / '+d.target_soc+'%';
+      document.getElementById('pb').max=d.target_soc||100;
+    } else {
+      document.getElementById('soc-txt').textContent=d.soc+'%';
+      document.getElementById('pb').max=100;
+    }
     document.getElementById('pb').value=d.soc;
-    document.getElementById('pb').max=d.target_soc||100;
 
     const tr=document.getElementById('tr');
     if(d.timer_running&&d.remaining_seconds>0){
@@ -500,8 +525,10 @@ function updateAutoVoltUI(){
 
 function updateStopModeUI(){
   const volt=document.getElementById('sm1').checked;
-  document.getElementById('soc-row').style.display=volt?'none':'block';
+  const timer=document.getElementById('sm2').checked;
+  document.getElementById('soc-row').style.display=(!volt&&!timer)?'block':'none';
   document.getElementById('stop-volt-row').style.display=volt?'block':'none';
+  document.getElementById('timer-row').style.display=timer?'block':'none';
 }
 
 async function loadCfg(){
@@ -513,6 +540,7 @@ async function loadCfg(){
     document.getElementById('cs').value=d.target_soc;
     document.getElementById('sm'+(d.stop_mode||0)).checked=true;
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
+    document.getElementById('ctm').value=d.charge_timer_min||120;
     document.getElementById('ci').value=d.wifi_ssid;
     document.getElementById('cb').checked=d.beacon;
     document.getElementById('mqtt-url').value=d.mqtt_broker_url||'';
@@ -529,7 +557,7 @@ async function loadCfg(){
 }
 
 async function save(){
-  const stopMode=document.getElementById('sm1').checked?1:0;
+  const stopMode=document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
   const ssid=document.getElementById('ci').value;
   const b={
     auto_voltage:document.getElementById('cav').checked,
@@ -538,6 +566,7 @@ async function save(){
     target_soc:parseInt(document.getElementById('cs').value),
     stop_mode:stopMode,
     stop_voltage:parseFloat(document.getElementById('csv').value),
+    charge_timer_min:parseInt(document.getElementById('ctm').value)||120,
     wifi_ssid:ssid,
     beacon:document.getElementById('cb').checked,
     notify_url:getNotifyUrl(),

@@ -138,6 +138,7 @@ void task_tes_sm(void *arg)
         inputs.target_soc       = cfg->target_soc;
         inputs.stop_mode        = cfg->stop_mode;
         inputs.stop_voltage_01v = cfg->stop_voltage_01v;
+        inputs.charge_timer_min = cfg->charge_timer_min;
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);
