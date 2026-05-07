@@ -175,7 +175,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: v3.0.0 released (2026-05-02). v3.1.0 in progress：所有功能已實作，**尚未接上車輛進行充電流程測試**。v3.2.0 in progress：MQTT 遠端監控 + Cloud PWA + 診斷功能已實作，尚未測試。
+### Current Status: v3.0.0 released (2026-05-02). 全部 49 項功能已實作，`idf.py build` 零錯誤（2026-05-07 確認）。v3.1.0 / v3.2.0 / v3.3.0 功能均已實作，**尚未接上車輛進行完整充電流程測試**。
 
 ### Implementation Progress
 
@@ -321,7 +321,7 @@ Two mutually-exclusive charging termination conditions (selected by user):
 - SM check in `run_monitoring()` in `tes_sm.c`
 - Configurable via OLED menu (Stop Mode + Stop Voltage / Charge Timer items), REST API, web UI
 
-### Charge Timer Stop Feature (TODO v3.3.0)
+### Charge Timer Stop Feature (v3.3.0, DONE ⚠️ 尚未測試)
 
 充電倒數計時停止：使用者設定最長充電時間，到時自動停止，適合無法確認 SOC 或不想等到滿電的場景。
 
@@ -366,7 +366,7 @@ case STOP_MODE_TIMER:
 
 ---
 
-### Web UI Volt Mode Display Fix (TODO v3.3.0)
+### Web UI Volt Mode Display Fix (v3.3.0, DONE ⚠️ 尚未測試)
 
 **問題（Bug）：** 充電停止條件選「依電壓」時，Web UI 狀態區塊仍顯示「目標 SOC」，與 OLED 行為不一致，會誤導用戶以為 SOC 是停止條件。
 
