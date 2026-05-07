@@ -18,7 +18,7 @@ typedef struct {
     uint8_t          count;
     uint8_t          _pad[2];          // align sessions[] to 4 bytes
     charge_session_t sessions[LOG_MAX];
-} session_log_t;                       // 4 + 20*12 = 244 bytes
+} session_log_t;                       // 4 + 20*16 = 324 bytes
 
 static session_log_t s_log;
 

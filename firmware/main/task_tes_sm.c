@@ -219,14 +219,28 @@ void task_tes_sm(void *arg)
                                      curr == TES_STATE_FAULT ||
                                      curr == TES_STATE_EMERGENCY)) {
                 uint8_t reason;
-                if      (curr == TES_STATE_FAULT)     reason = STOP_REASON_FAULT;
-                else if (curr == TES_STATE_EMERGENCY) reason = STOP_REASON_EMERG;
-                else if (snap.charge_complete)        reason = STOP_REASON_NORMAL;
-                else                                  reason = STOP_REASON_USER;
+                float   stop_v = 0.0f;
+                if      (curr == TES_STATE_FAULT)     { reason = STOP_REASON_FAULT; }
+                else if (curr == TES_STATE_EMERGENCY) { reason = STOP_REASON_EMERG; }
+                else if (snap.charge_complete) {
+                    switch (inputs.stop_mode) {
+                    case STOP_MODE_VOLTAGE:
+                        reason = STOP_REASON_VOLTAGE;
+                        stop_v = snap.output_voltage;
+                        break;
+                    case STOP_MODE_TIMER:
+                        reason = STOP_REASON_TIMER;
+                        break;
+                    default:
+                        reason = STOP_REASON_NORMAL;
+                        break;
+                    }
+                } else { reason = STOP_REASON_USER; }
 
                 charge_session_t sess = {
                     .duration_s       = s_session_end_sec,
                     .energy_wh        = s_session_energy_wh,
+                    .stop_voltage_v   = stop_v,
                     .soc_start        = s_soc_start,
                     .soc_end          = snap.soc,
                     .stop_reason      = reason,
