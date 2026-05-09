@@ -65,7 +65,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // 更新計時器
     update_timer(sm, in);
 
-    // CP 更新（每 50ms 一次）— 記錄前一狀態供 auto_start 邊緣偵測
+    // CP 更新（每 50ms 一次）— 記錄前一狀態供觸發邊緣偵測及充電完成清除判斷
     if (in->tick_ms - sm->last_cp_read_ms >= CP_READ_MS) {
         sm->last_cp_read_ms = in->tick_ms;
         sm->cp_prev  = sm->cp_state;
@@ -123,11 +123,13 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
         }
 
-        // Beta auto_start：偵測 CAN 許可 0→1 邊緣（CP 在 CAN 之後才有訊號，不作為觸發源）
+        // Beta auto_start：CP OFF→ON 邊緣（CP 比 CAN 更早出現）或 CAN bit0 0→1 邊緣皆可觸發
+        // 時序：VP ON → CP ON → CAN bit0=1 → 充電 → CAN ends → CP OFF
         // 不清除 fault_latched — 故障後仍須手動按 START 確認
         if (in->auto_start_enabled && !sm->fault_latched && !sm->charge_complete_latched) {
+            bool cp_edge  = (sm->cp_state == CP_STATE_ON && sm->cp_prev != CP_STATE_ON);
             bool can_edge = (in->vehicle_status.status_flags & 0x01) && !sm->last_can_permit;
-            if (can_edge) {
+            if (cp_edge || can_edge) {
                 out->vp_relay = true;
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
                 sm->state_start_ms = in->tick_ms;
@@ -289,7 +291,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         out->vp_relay     = in->auto_start_enabled;  // keep vehicle powered for auto-retry
-        if (in->tick_ms - sm->state_start_ms > 10000u) {
+        if (in->tick_ms - sm->state_start_ms > sm->fault_timeout_ms) {
             sm->fault_latched          = false;
             sm->state                  = TES_STATE_IDLE;
             sm->status_508.fault_flags = 0;
@@ -483,23 +485,24 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         enter_fault(sm, out); return;
     }
     if (sm->cp_state != CP_STATE_ON) {
-        // auto_start 模式：CP 斷開是車端主動結束充電的訊號，正常停止
-        // 一般模式：CP 斷開屬非預期異常，觸發 fault
         if (in->auto_start_enabled)
-            enter_ending(sm, out);
-        else
+            enter_ending(sm, out);       // auto_start 模式：CP 斷開視為正常停止
+        else {
             enter_fault(sm, out);
+            sm->fault_timeout_ms = 1000u; // 手動模式：CP 斷開快速復歸（1 秒）
+        }
         return;
     }
 }
 
 static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out)
 {
-    sm->fault_latched  = true;
-    sm->timer_running  = false;
-    sm->state          = TES_STATE_FAULT;
-    out->relay_on      = false;
-    out->coupler_lock  = false;
+    sm->fault_latched     = true;
+    sm->timer_running     = false;
+    sm->fault_timeout_ms  = 10000u;
+    sm->state             = TES_STATE_FAULT;
+    out->relay_on         = false;
+    out->coupler_lock     = false;
     if (sm->status_508.fault_flags == 0) sm->status_508.fault_flags = 0x01;
     if (sm->last_fault_flags == 0) sm->last_fault_flags = sm->status_508.fault_flags;
     out->set_psu_current    = true;
