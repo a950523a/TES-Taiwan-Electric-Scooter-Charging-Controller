@@ -287,6 +287,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_FAULT:
         out->relay_on     = false;
         out->coupler_lock = false;
+        out->vp_relay     = in->auto_start_enabled;  // keep vehicle powered for auto-retry
         if (in->tick_ms - sm->state_start_ms > 10000u) {
             sm->fault_latched          = false;
             sm->state                  = TES_STATE_IDLE;
