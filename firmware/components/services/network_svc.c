@@ -231,6 +231,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "sched_start_min", cfg->sched_start_min);
     cJSON_AddBoolToObject  (root, "sched_stop_en",   cfg->sched_stop_en);
     cJSON_AddNumberToObject(root, "sched_stop_min",  cfg->sched_stop_min);
+    cJSON_AddBoolToObject  (root, "auto_start",      cfg->auto_start);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -409,6 +410,11 @@ static esp_err_t handle_post_config(httpd_req_t *req)
             strncpy(new_mqtt_topic_prefix, config_svc_get()->mqtt_topic_prefix, sizeof(new_mqtt_topic_prefix) - 1);
     }
 
+    bool new_auto_start    = cur->auto_start;
+    bool auto_start_changed = false;
+    item = cJSON_GetObjectItem(root, "auto_start");
+    if (cJSON_IsBool(item)) { new_auto_start = cJSON_IsTrue(item); auto_start_changed = true; }
+
     cJSON_Delete(root);
 
     if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
@@ -419,6 +425,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage, new_charge_timer);
     if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
     if (sched_changed)        config_svc_set_scheduler(new_sched_enabled, new_sched_start_min, new_sched_stop_en, new_sched_stop_min);
+    if (auto_start_changed)   config_svc_set_auto_start(new_auto_start);
 
     if (wifi_changed || mqtt_changed)
         ESP_LOGI(TAG, "WiFi/MQTT config updated — reboot to apply");

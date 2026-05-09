@@ -42,6 +42,7 @@ typedef enum {
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
+    MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
     MENU_ITEM_ABOUT,         // 韌體版本 + 作者（唯讀）
     MENU_ITEM_SAVE,
@@ -68,6 +69,7 @@ static uint16_t    s_edit_stop_voltage;
 static uint16_t    s_edit_charge_timer;
 static bool        s_edit_beacon;
 static bool        s_edit_sched_enabled;
+static bool        s_edit_auto_start;
 
 static int s_visible_items[MENU_ITEM_COUNT];
 static int s_visible_count = 0;
@@ -93,6 +95,7 @@ static void menu_open(void)
     s_edit_charge_timer   = cfg->charge_timer_min;
     s_edit_beacon         = cfg->beacon_unlocked;
     s_edit_sched_enabled  = cfg->sched_enabled;
+    s_edit_auto_start     = cfg->auto_start;
     s_cursor       = 0;
     s_scroll_top   = 0;
     s_mode         = MENU_MODE_NAV;
@@ -120,6 +123,7 @@ static void menu_save(void)
         config_svc_set_scheduler(s_edit_sched_enabled, cfg->sched_start_min,
                                   cfg->sched_stop_en, cfg->sched_stop_min);
     }
+    config_svc_set_auto_start(s_edit_auto_start);
     ESP_LOGI(TAG, "saved: auto_v=%d %u.%uV %u.%uA SOC=%d stop=%d stpV=%u.%u timer=%um beacon=%d",
              (int)s_edit_auto_voltage,
              s_edit_voltage / 10, s_edit_voltage % 10,
@@ -182,6 +186,10 @@ static void item_label(int item, char *buf, size_t bufsz)
         snprintf(buf, bufsz, "Scheduler: %s",
                  s_edit_sched_enabled ? "ON" : "OFF");
         break;
+    case MENU_ITEM_AUTO_START:
+        snprintf(buf, bufsz, "[Beta]Auto: %s",
+                 s_edit_auto_start ? "ON" : "OFF");
+        break;
     case MENU_ITEM_RESET_FAULT:
         snprintf(buf, bufsz, "Reset Fault");
         break;
@@ -215,7 +223,8 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_STOP_VOLTAGE  ||
             item == MENU_ITEM_CHARGE_TIMER  ||
             item == MENU_ITEM_BEACON        ||
-            item == MENU_ITEM_SCHEDULER);
+            item == MENU_ITEM_SCHEDULER     ||
+            item == MENU_ITEM_AUTO_START);
     // MENU_ITEM_WIFI_INFO, MENU_ITEM_ABOUT are display-only
 }
 
@@ -316,6 +325,9 @@ static void value_step(int item, int delta)
         break;
     case MENU_ITEM_SCHEDULER:
         s_edit_sched_enabled = !s_edit_sched_enabled;
+        break;
+    case MENU_ITEM_AUTO_START:
+        s_edit_auto_start = !s_edit_auto_start;
         break;
     default:
         break;

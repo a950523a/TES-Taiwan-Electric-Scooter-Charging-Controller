@@ -65,9 +65,10 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // 更新計時器
     update_timer(sm, in);
 
-    // CP 更新（每 50ms 一次）
+    // CP 更新（每 50ms 一次）— 記錄前一狀態供 auto_start 邊緣偵測
     if (in->tick_ms - sm->last_cp_read_ms >= CP_READ_MS) {
         sm->last_cp_read_ms = in->tick_ms;
+        sm->cp_prev  = sm->cp_state;
         sm->cp_state = update_cp_state(sm, in->cp_voltage);
     }
 
@@ -91,23 +92,46 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_IDLE:
         out->relay_on     = false;
         out->coupler_lock = false;
-        out->vp_relay     = false;
+        // Beta auto_start: VP 常通，讓車端上電後能送 CAN
+        out->vp_relay     = in->auto_start_enabled;
         sm->vehicle_ready          = false;
         sm->timer_running          = false;
         sm->precharge_step         = PRECHARGE_STEP_INIT;
         sm->params_509.remaining_time_min = 0xFFFF;
 
+        // Beta: 充電完成後 CP 穩定斷開（兩次讀取皆 OFF）才允許下次自動觸發
+        if (in->auto_start_enabled && sm->charge_complete_latched &&
+            sm->cp_state == CP_STATE_OFF && sm->cp_prev == CP_STATE_OFF) {
+            sm->charge_complete_latched = false;
+        }
+
+        // 手動 START（按鈕或遠端）：清除故障鎖存，強制進入流程
         if (in->start_requested || sm->remote_start) {
             sm->remote_start            = false;
             sm->fault_latched           = false;
             sm->last_fault_flags        = 0;
             sm->charge_complete_latched = false;
-            out->vp_relay          = true;
+            out->vp_relay = true;
             if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
                 sm->state_start_ms = in->tick_ms;
-                out->set_psu_current      = true;
-                out->psu_current_target   = 5.0f;
+                out->set_psu_current    = true;
+                out->psu_current_target = 5.0f;
+            }
+            break;
+        }
+
+        // Beta auto_start：偵測 CP OFF→ON 邊緣（插槍）或 CAN 許可 0→1 邊緣
+        // 不清除 fault_latched — 故障後仍須手動按 START 確認
+        if (in->auto_start_enabled && !sm->fault_latched && !sm->charge_complete_latched) {
+            bool cp_edge  = (sm->cp_state == CP_STATE_ON && sm->cp_prev != CP_STATE_ON);
+            bool can_edge = (in->vehicle_status.status_flags & 0x01) && !sm->last_can_permit;
+            if (cp_edge || can_edge) {
+                out->vp_relay = true;
+                sm->state          = TES_STATE_PARAM_EXCHANGE;
+                sm->state_start_ms = in->tick_ms;
+                out->set_psu_current    = true;
+                out->psu_current_target = 5.0f;
             }
         }
         break;
@@ -313,6 +337,9 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         sm->live_voltage_01v = (uint16_t)(in->measured_voltage * 10.0f);
         sm->live_current_01a = out->relay_on ? sm->cfg.max_current_01a : 0;
     }
+
+    // Beta auto_start: update CAN permit edge-detection latch for next tick
+    sm->last_can_permit = (in->vehicle_status.status_flags & 0x01) != 0;
 }
 
 tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)

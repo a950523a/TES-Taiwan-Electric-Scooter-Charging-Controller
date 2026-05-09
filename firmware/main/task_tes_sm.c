@@ -133,12 +133,13 @@ void task_tes_sm(void *arg)
         inputs.psu_voltage   = psu.voltage;
         inputs.psu_current   = psu.current;
 
-        inputs.max_voltage_01v  = cfg->max_voltage_01v;
-        inputs.max_current_01a  = cfg->max_current_01a;
-        inputs.target_soc       = cfg->target_soc;
-        inputs.stop_mode        = cfg->stop_mode;
-        inputs.stop_voltage_01v = cfg->stop_voltage_01v;
-        inputs.charge_timer_min = cfg->charge_timer_min;
+        inputs.max_voltage_01v    = cfg->max_voltage_01v;
+        inputs.max_current_01a    = cfg->max_current_01a;
+        inputs.target_soc         = cfg->target_soc;
+        inputs.stop_mode          = cfg->stop_mode;
+        inputs.stop_voltage_01v   = cfg->stop_voltage_01v;
+        inputs.charge_timer_min   = cfg->charge_timer_min;
+        inputs.auto_start_enabled = cfg->auto_start;
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
         execute_outputs(&outputs);

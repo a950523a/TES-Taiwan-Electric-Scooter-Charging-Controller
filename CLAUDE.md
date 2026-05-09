@@ -250,6 +250,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 48 | 充電倒數計時停止：`STOP_MODE_TIMER`；`charge_timer_min` 設定充電時長上限（NVS key `timer_m`）；OLED 選單 + Web UI；SM `run_monitoring()` 檢查 elapsed ≥ timer；OLED 狀態第三行顯示已充時間/目標時長 | DONE ⚠️ 尚未測試 |
 | 49 | Web UI Volt 模式顯示修正：充電停止條件為「依電壓」時，Web UI 電壓欄改顯示「即時電壓 / 目標停止電壓」（與 OLED 一致），隱藏目標 SOC 欄 | DONE ⚠️ 尚未測試 |
 | 50 | 定時充電：`scheduler_svc`，NTP 同步（UTC+8）+ 窗口進出偵測自動 Start/Stop；`sched_enabled/start/stop_en/stop` 存 NVS；OLED ON/OFF 開關；Web UI 設定卡（時間選擇器）；`/status` 回傳 `ntp_synced`/`local_time` | DONE ⚠️ 尚未測試 |
+| 51 | Beta 自動充電：`auto_start` (NVS key `auto_s`)；IDLE 時 VP 繼電器常通；偵測 CP OFF→ON 邊緣（插槍）或 CAN 0x500 bit0 上升邊緣自動進入 PARAM_EXCHANGE；故障後仍須手動 START；充電完成後 CP 穩定斷開（2 tick）才允許再次觸發；OLED 選單 `[Beta]Auto: ON/OFF`；Web UI 設定（含安全說明）；`/config` GET/POST 支援 `auto_start` | DONE ⚠️ 尚未測試 |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -501,6 +502,51 @@ void      scheduler_svc_get_time_info(bool *synced_out, char *buf, size_t buflen
 | `sched_start` | uint16 | 0 | start time (minutes from midnight) |
 | `sched_stop_en` | uint8 (bool) | 0 | auto-stop switch |
 | `sched_stop` | uint16 | 360 | stop time (minutes from midnight) |
+
+---
+
+### Beta Auto-Start Feature (DONE ⚠️ 尚未測試)
+
+VP 繼電器常通 + CAN/CP 邊緣自動觸發充電流程，適合固定充電位置不需手動按鍵的場景。
+
+**Config 新增欄位（`charger_config_t`）：**
+```c
+bool auto_start;   // NVS key "auto_s"; default false
+```
+
+**`tes_sm_inputs_t` 新增：**
+```c
+bool auto_start_enabled;  // Beta: VP 常通 + CAN/CP 邊緣自動觸發充電
+```
+
+**`tes_sm_t` 新增邊緣偵測欄位：**
+```c
+cp_state_t cp_prev;        // 上次 CP 更新前的狀態（偵測 OFF→ON 邊緣）
+bool       last_can_permit; // 上一 tick 的 CAN 許可位元（偵測 0→1 邊緣）
+```
+
+**SM 行為（IDLE 狀態）：**
+- `auto_start_enabled=true` → `out->vp_relay = true`（VP 常通）
+- 偵測 CP OFF→ON 邊緣（`cp_state==ON && cp_prev!=ON`）或 CAN 0x500 bit0 上升邊緣（`status_flags&0x01 && !last_can_permit`）→ 自動進入 PARAM_EXCHANGE
+- 故障後不清除 `fault_latched`（仍須手動 START 確認）
+- 充電完成後（`charge_complete_latched=true`）直到 CP 連續兩次讀取為 OFF 才清除，防止重複觸發
+
+**CP 更新與邊緣偵測：**
+- CP 每 50ms 更新一次；更新前先存 `sm->cp_prev = sm->cp_state`
+- `last_can_permit` 在 `tes_sm_tick()` 末尾每 tick 更新
+
+**安全特性：**
+- 故障後 `fault_latched=true`，auto_start 被阻擋，必須手動 START 才能清除故障鎖存
+- 充電完成後須斷槍（CP 兩次讀取為 OFF）才允許下一次自動觸發
+- 緊急停止後 VP 仍關閉（`enter_emergency` 強制 `out->vp_relay = false`）
+
+**NVS key：** `auto_s`（bool）
+
+**OLED 選單：** 在 Scheduler 之後顯示 `[Beta]Auto: ON/OFF`
+
+**Web UI：** 在定時充電設定區塊之後，「儲存設定」之前，含 Beta 標籤與中文安全說明。
+
+**`/config` GET/POST：** 欄位 `auto_start`（bool）
 
 ---
 
