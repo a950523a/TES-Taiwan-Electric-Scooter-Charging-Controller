@@ -187,7 +187,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 
 ## V3 Implementation Plan & Progress
 
-### Current Status: v3.0.0 released (2026-05-02). 全部 49 項功能已實作，`idf.py build` 零錯誤（2026-05-07 確認）。v3.1.0 / v3.2.0 / v3.3.0 功能均已實作，**尚未接上車輛進行完整充電流程測試**。
+### Current Status: v3.0.0 released (2026-05-02). 全部 49 項功能已實作，`idf.py build` 零錯誤（2026-05-09 確認）。v3.1.0 / v3.2.0 / v3.3.0 / v3.4.0 / Beta 自動充電功能均已實作，**尚未接上車輛進行完整充電流程測試**。
 
 **2026-05-07 追加修改（未計入版本號）：**
 - `partitions_16MB.csv`：移除 SPIFFS（QuickJS 時代遺留），app0/app1 各擴充至 7.94 MB（原 4 MB），韌體目前佔 15%
@@ -195,6 +195,11 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 - 充電紀錄 Web UI：電壓停止顯示「55.2 V」、計時停止顯示「計時完成」、SOC 停止顯示「SOC 達標」
 - **Bug fix**：Timer 模式 Web UI 狀態列原本因 BMS 回報 `remaining_seconds=0` 而隱藏；改為從 `elapsed_seconds` / `charge_timer_min` 計算，顯示「已充時間：0h05m / 2h00m」格式
 - **Bug fix**：`charge_timer_min` 最小值驗證從 10 分鐘降為 1 分鐘（`network_svc.c`、`config_svc.c`、`display_svc.c`、`web/index.html`）；原本設 < 10 分鐘會被靜默丟棄、維持舊值，導致計時停止無法在短時間內測試
+
+**2026-05-09 追加修改（未計入版本號）：**
+- **新功能**：v3.4.0 定時充電（`scheduler_svc`），NTP UTC+8 + 每日充電窗口邊緣偵測，自動 Start/Stop；`sched_enabled/start/stop_en/stop` 存 NVS；OLED ON/OFF 開關；Web UI 時間選擇器；`/status` 回傳 `ntp_synced`/`local_time`
+- **新功能**：Beta 自動充電（`auto_start`，NVS key `auto_s`）；IDLE 時 VP 繼電器常通；偵測 CP OFF→ON 邊緣或 CAN 0x500 bit0 上升邊緣自動觸發 PARAM_EXCHANGE；OLED `[Beta]Auto: ON/OFF`；Web UI 含安全說明；`/config` GET/POST 支援
+- **行為修改**：一般故障（`TES_STATE_FAULT`）10 秒後轉回 IDLE 時同步清除 `fault_latched`，實現自動復歸；硬體緊急停止鈕仍須手動 Reset Fault（不變）；車端 0x5F0 緊急仍 5 秒自動復歸（不變）
 
 ### Implementation Progress
 
@@ -528,7 +533,7 @@ bool       last_can_permit; // 上一 tick 的 CAN 許可位元（偵測 0→1 �
 **SM 行為（IDLE 狀態）：**
 - `auto_start_enabled=true` → `out->vp_relay = true`（VP 常通）
 - 偵測 CP OFF→ON 邊緣（`cp_state==ON && cp_prev!=ON`）或 CAN 0x500 bit0 上升邊緣（`status_flags&0x01 && !last_can_permit`）→ 自動進入 PARAM_EXCHANGE
-- 故障後不清除 `fault_latched`（仍須手動 START 確認）
+- 一般故障（`TES_STATE_FAULT`）10 秒後自動復歸並清除 `fault_latched`，auto_start 可再次觸發
 - 充電完成後（`charge_complete_latched=true`）直到 CP 連續兩次讀取為 OFF 才清除，防止重複觸發
 
 **CP 更新與邊緣偵測：**
@@ -536,7 +541,8 @@ bool       last_can_permit; // 上一 tick 的 CAN 許可位元（偵測 0→1 �
 - `last_can_permit` 在 `tes_sm_tick()` 末尾每 tick 更新
 
 **安全特性：**
-- 故障後 `fault_latched=true`，auto_start 被阻擋，必須手動 START 才能清除故障鎖存
+- 一般故障：10 秒後自動清除 `fault_latched` 並回到 IDLE，auto_start 可再觸發
+- 硬體緊急停止鈕：`fault_latched=true` 且 `emergency_hw_triggered=true`，必須手動 Reset Fault 才能解除
 - 充電完成後須斷槍（CP 兩次讀取為 OFF）才允許下一次自動觸發
 - 緊急停止後 VP 仍關閉（`enter_emergency` 強制 `out->vp_relay = false`）
 
