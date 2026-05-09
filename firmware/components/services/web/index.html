@@ -47,10 +47,11 @@ button:active{opacity:.65}
 .ota-prog-bar::-webkit-progress-value{background:linear-gradient(90deg,#1a3a6a,#48f);border-radius:6px;transition:width .4s}
 .ver{color:#444;font-size:.75em;margin-top:6px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px}
-input[type=text],input[type=number],input[type=password]{
+input[type=text],input[type=number],input[type=password],input[type=time]{
   width:100%;padding:9px 10px;margin-top:5px;
   background:#222;border:1px solid #3a3a3a;color:#ddd;border-radius:6px;font-size:.95em}
 input:focus{outline:none;border-color:#48f}
+input[type=time]::-webkit-calendar-picker-indicator{filter:invert(.6)}
 label.lbl2{display:block;color:#666;font-size:.82em;margin-top:10px}
 .chk-row{display:flex;align-items:center;gap:8px;margin-top:12px;color:#aaa;font-size:.9em}
 input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#48f}
@@ -254,6 +255,23 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       MQTT 設定變更後需重啟生效
     </div>
   </div>
+  <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
+    <label class="lbl2" style="margin-bottom:8px;display:block">⏰ 定時充電</label>
+    <div class="chk-row">
+      <input type="checkbox" id="sched-en">
+      <span>啟用定時充電</span>
+    </div>
+    <label class="lbl2">開始充電時間</label>
+    <input type="time" id="sched-start" value="00:00">
+    <label class="lbl2" style="margin-top:10px">結束充電時間</label>
+    <input type="time" id="sched-stop" value="06:00">
+    <div class="chk-row" style="margin-top:10px">
+      <input type="checkbox" id="sched-stop-en">
+      <span>到時自動停止充電</span>
+    </div>
+    <div id="ntp-status" style="font-size:.78em;color:#555;margin-top:8px">NTP：讀取中…</div>
+    <div style="font-size:.75em;color:#444;margin-top:3px;line-height:1.5">時區 UTC+8 ∙ 隔夜窗口（如 23:00–06:00）自動支援</div>
+  </div>
   <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
   <div id="msg"></div>
 </div>
@@ -427,6 +445,18 @@ async function poll(){
     document.getElementById('ip').textContent=d.ip||'--';
     document.getElementById('ts').textContent=new Date().toLocaleTimeString();
 
+    // NTP 狀態
+    const ntpEl=document.getElementById('ntp-status');
+    if(ntpEl){
+      if(d.ntp_synced){
+        ntpEl.textContent='NTP：已同步（'+(d.local_time||'')+'）';
+        ntpEl.style.color='#4d4';
+      }else{
+        ntpEl.textContent='NTP：等待同步…（WiFi 連線後自動同步）';
+        ntpEl.style.color='#555';
+      }
+    }
+
     // 韌體版本
     if(d.firmware_version)
       document.getElementById('fw-ver').textContent='目前版本：'+d.firmware_version;
@@ -528,6 +558,15 @@ function toggleCan(){
   }
 }
 
+function minToTime(m){
+  m=m||0;
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+}
+function timeToMin(t){
+  if(!t)return 0;
+  const p=t.split(':');
+  return (parseInt(p[0])||0)*60+(parseInt(p[1])||0);
+}
 function updateAutoVoltUI(){
   const on=document.getElementById('cav').checked;
   document.getElementById('cv-lbl').textContent=on?'電壓安全上限 (V)':'最大電壓 (V)';
@@ -563,6 +602,10 @@ async function loadCfg(){
     refreshNtfyUI();updateNotifyUI();
     updateAutoVoltUI();
     updateStopModeUI();
+    document.getElementById('sched-en').checked=d.sched_enabled||false;
+    document.getElementById('sched-start').value=minToTime(d.sched_start_min||0);
+    document.getElementById('sched-stop-en').checked=d.sched_stop_en||false;
+    document.getElementById('sched-stop').value=minToTime(d.sched_stop_min||360);
   }catch(e){}
 }
 
@@ -581,7 +624,11 @@ async function save(){
     beacon:document.getElementById('cb').checked,
     notify_url:getNotifyUrl(),
     mqtt_broker_url:document.getElementById('mqtt-url').value.trim(),
-    mqtt_topic_prefix:document.getElementById('mqtt-topic').value.trim()||'tes/charger'
+    mqtt_topic_prefix:document.getElementById('mqtt-topic').value.trim()||'tes/charger',
+    sched_enabled:document.getElementById('sched-en').checked,
+    sched_start_min:timeToMin(document.getElementById('sched-start').value),
+    sched_stop_en:document.getElementById('sched-stop-en').checked,
+    sched_stop_min:timeToMin(document.getElementById('sched-stop').value)
   };
   const p=document.getElementById('cp').value;
   if(p)b.wifi_pass=p;

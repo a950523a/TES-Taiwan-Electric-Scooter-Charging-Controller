@@ -109,6 +109,7 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
 | `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) |
 | `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
+| `task_scheduler` | 2 | 4 KB | 30 s | NTP sync (pool.ntp.org, UTC+8) + charging window edge detection → g_btn_event_queue (v3.4.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
 | `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
 
@@ -248,6 +249,7 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 | 47 | 本機 build 版本號：`CMakeLists.txt` 以 `git describe --always --tags --dirty` 設定 `PROJECT_VER`；本機 dev build 顯示完整 commit hash，tag release 顯示 tag 名稱 | DONE |
 | 48 | 充電倒數計時停止：`STOP_MODE_TIMER`；`charge_timer_min` 設定充電時長上限（NVS key `timer_m`）；OLED 選單 + Web UI；SM `run_monitoring()` 檢查 elapsed ≥ timer；OLED 狀態第三行顯示已充時間/目標時長 | DONE ⚠️ 尚未測試 |
 | 49 | Web UI Volt 模式顯示修正：充電停止條件為「依電壓」時，Web UI 電壓欄改顯示「即時電壓 / 目標停止電壓」（與 OLED 一致），隱藏目標 SOC 欄 | DONE ⚠️ 尚未測試 |
+| 50 | 定時充電：`scheduler_svc`，NTP 同步（UTC+8）+ 窗口進出偵測自動 Start/Stop；`sched_enabled/start/stop_en/stop` 存 NVS；OLED ON/OFF 開關；Web UI 設定卡（時間選擇器）；`/status` 回傳 `ntp_synced`/`local_time` | DONE ⚠️ 尚未測試 |
 
 ### V3 vs V2 Feature Parity for Hardware Testing
 
@@ -407,6 +409,98 @@ case STOP_MODE_TIMER:
   - `stop_mode == 0`（SOC）：顯示 `${soc}% / ${target_soc}%`，標籤「SOC / 目標」
   - 其他模式：顯示 `${soc}%`，標籤「SOC」
 - `/status` JSON 須包含 `stop_mode`（整數 0/1/2）和 `stop_voltage`（float，V）；若目前 `/status` 未回傳這兩個欄位，需在 `network_svc.c` snapshot JSON 中補上
+
+---
+
+### Scheduled Charging Feature (v3.4.0, DONE ⚠️ 尚未測試)
+
+定時充電：設定每日充電時間窗口，到達開始時間自動 Start、到達結束時間自動 Stop（可選）。適合夜間離峰電價或定時補電場景。
+
+**Config 新增欄位（`charger_config_t`）：**
+```c
+bool     sched_enabled;    // NVS key "sched_en"      master switch (default false)
+uint16_t sched_start_min;  // NVS key "sched_start"   minutes from midnight 0-1439 (default 0 = 00:00)
+bool     sched_stop_en;    // NVS key "sched_stop_en" auto-stop switch (default false)
+uint16_t sched_stop_min;   // NVS key "sched_stop"    minutes from midnight 0-1439 (default 360 = 06:00)
+```
+API: `config_svc_set_scheduler(bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min)`
+
+**scheduler_svc 架構：**
+
+- Init: 呼叫 `esp_netif_sntp_init`；設定時區 `setenv("TZ", "CST-8", 1); tzset()`；若 WiFi 已連線則立即啟動 SNTP，否則訂閱 event_bus 等 `EVT_WIFI_CHANGED` 再啟動
+- SNTP server: `pool.ntp.org`（ESP-IDF 內建 `esp_netif` SNTP 支援，無需額外元件）
+- Task 每 30 s 喚醒一次；NTP 未同步時 skip 所有觸發邏輯
+- **邊緣偵測（edge crossing）機制：** 追蹤 `last_minute`（上次執行時的分鐘數 0-1439）
+  - 每次喚醒：取 `current_minute = (hour*60 + minute)`，若與 `last_minute` 不同則掃描是否有 start_min / stop_min 落在 `(last_minute, current_minute]` 區間
+  - 若偵測到 start_min 在區間內 → 送 `EVT_BUTTON_START` 至 `g_btn_event_queue`
+  - 若 `sched_stop_en` 且 stop_min 在區間內 → 送 `EVT_BUTTON_STOP` 至 `g_btn_event_queue`
+  - 更新 `last_minute = current_minute`
+- **隔夜窗口支援**（start_min > stop_min，例如 23:00–06:00）：crossing check 分兩段：`[last_minute+1, 1439]` ∪ `[0, current_minute]`（當 last_minute > current_minute 時代表跨過午夜）
+- **NTP 首次同步後（`first_sync`）：** 若當前時刻已在窗口內（`is_in_window(current_minute, start_min, stop_min)`）→ 立即送 START，避免重開機後漏觸發；`first_sync = false` 之後轉為純邊緣偵測
+- SM 已處理重複 START 指令（IDLE 以外的狀態忽略），不需要在此檢查當前狀態
+
+**`/status` JSON 新增欄位：**
+```json
+"ntp_synced": true,
+"local_time": "2026-05-09 14:30:00"
+```
+
+**`/config` GET/POST 新增欄位：**
+```json
+"sched_enabled": false,
+"sched_start_min": 1380,
+"sched_stop_en": true,
+"sched_stop_min": 360
+```
+
+**OLED 設定選單：**
+- 新增 `MENU_ITEM_SCHEDULER`（ON/OFF toggle），插入 WiFi Info 之後、Reset Fault 之前
+- 選單總項目數：13 可設定項（+Save & Cancel）
+
+**Web UI 設定卡（「定時充電」）：**
+- Master ON/OFF checkbox（`sched_enabled`）
+- 開始充電：`<input type="time">` → 存為 `sched_start_min`（分鐘數）
+- 自動結束 checkbox（`sched_stop_en`）
+- 結束時間：`<input type="time">`（`sched_stop_en` ON 時才顯示）
+- 狀態列：「NTP：已同步（2026-05-09 14:30）」/ 「NTP：等待同步…」（從 `/status` 的 `ntp_synced` + `local_time` 取得）
+- 提示文字：「隔夜窗口（如 23:00–06:00）自動支援」
+
+**Public API（`scheduler_svc.h`）：**
+```c
+esp_err_t scheduler_svc_init(void);
+void      task_scheduler(void *arg);
+void      scheduler_svc_get_time_info(bool *synced_out, char *buf, size_t buflen);
+          // buf → "2026-05-09 14:30:00" 或 "---" (未同步)
+```
+`network_svc.c` 的 `/status` handler 直接呼叫 `scheduler_svc_get_time_info()`，不需擴充 `tes_snapshot_t`。
+
+**Files:**
+- `firmware/components/services/include/services/scheduler_svc.h`
+- `firmware/components/services/scheduler_svc.c`
+
+**CMake（`services/CMakeLists.txt`）：**
+- SRCS 加入 `scheduler_svc.c`
+- REQUIRES 加入 `"lwip"`（SNTP 屬於 lwip stack，`esp_netif` 已在 REQUIRES 中）
+
+**main.c 修改：**
+- `#include "services/scheduler_svc.h"`
+- `scheduler_svc_init()` 在 `network_svc_init()` 之後呼叫（WiFi stack 需先就緒）
+- `xTaskCreate(task_scheduler, "sched", 4096, NULL, 2, NULL)`
+
+**Task table 新增：**
+
+| Task | Priority | Stack | Period | Role |
+|------|----------|-------|--------|------|
+| `task_scheduler` | 2 | 4 KB | 30 s | NTP sync + charging window edge detection → g_btn_event_queue |
+
+**NVS key 一覽：**
+
+| Key | Type | Default | 說明 |
+|-----|------|---------|------|
+| `sched_en` | uint8 (bool) | 0 | master switch |
+| `sched_start` | uint16 | 0 | start time (minutes from midnight) |
+| `sched_stop_en` | uint8 (bool) | 0 | auto-stop switch |
+| `sched_stop` | uint16 | 360 | stop time (minutes from midnight) |
 
 ---
 

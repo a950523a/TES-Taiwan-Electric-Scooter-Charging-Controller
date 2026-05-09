@@ -8,6 +8,7 @@ idf_component_register(
         "notify_svc.c"
         "log_svc.c"
         "mqtt_svc.c"
+        "scheduler_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
@@ -30,5 +31,6 @@ idf_component_register(
         json
         espressif__mdns
         mqtt
+        esp_netif
         freertos
 )
