@@ -117,6 +117,9 @@ typedef struct {
     // 緊急停止來源追蹤
     bool emergency_hw_triggered;   // true=硬體按鈕，false=車端 0x5F0
 
+    // 故障自動復歸逾時（enter_fault 設預設值，特定情況可覆寫）
+    uint32_t   fault_timeout_ms;
+
     // Beta auto_start 邊緣偵測
     cp_state_t cp_prev;            // 上次 CP 更新前的狀態（偵測 OFF→ON 邊緣）
     bool       last_can_permit;    // 上一 tick 的 CAN 許可位元（偵測 0→1 邊緣）
