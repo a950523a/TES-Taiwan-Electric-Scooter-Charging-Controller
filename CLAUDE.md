@@ -199,8 +199,8 @@ GPIO: buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/1
 **2026-05-09 追加修改（未計入版本號）：**
 - **新功能**：v3.4.0 定時充電（`scheduler_svc`），NTP UTC+8 + 每日充電窗口邊緣偵測，自動 Start/Stop；`sched_enabled/start/stop_en/stop` 存 NVS；OLED ON/OFF 開關；Web UI 時間選擇器；`/status` 回傳 `ntp_synced`/`local_time`
 - **新功能**：Beta 自動充電（`auto_start`，NVS key `auto_s`）；IDLE 時 VP 繼電器常通；偵測 CP OFF→ON 邊緣（CP 比 CAN 更早出現）或 CAN 0x500 bit0 上升邊緣（0→1）自動觸發 PARAM_EXCHANGE；充電中 CP 斷開：auto_start 模式 = 正常停止（`enter_ending`），手動模式 = 故障；OLED `[Beta]Auto: ON/OFF`；Web UI 含安全說明；`/config` GET/POST 支援
-- **行為修改**：一般故障（`TES_STATE_FAULT`）10 秒後轉回 IDLE 時同步清除 `fault_latched`，實現自動復歸；硬體緊急停止鈕仍須手動 Reset Fault（不變）；車端 0x5F0 緊急仍 5 秒自動復歸（不變）
-- **協定時序確認（TES-0D-02-01）：** `VP ON → CP ON → CAN bit0=1 → 充電 → CAN ends → CP OFF`；CP 先於 CAN 出現（可作首發觸發）、晚於 CAN 消失（CP 斷開才是真正結束訊號，充電中若先斷則為故障）；`charge_complete_latched` 清除時同步重置 `last_can_permit = false` 確保下次 CP/CAN 邊緣可正確偵測
+- **行為修改**：`TES_STATE_FAULT` 自動復歸時間由 `fault_timeout_ms` 欄位控制（`tes_sm_t`）；`enter_fault()` 預設 10 秒；**手動模式充電中 CP 斷開觸發故障後快速復歸 1 秒**（插槍再插不會卡住）；其餘故障仍 10 秒；硬體緊急停止鈕仍須手動 Reset Fault；車端 0x5F0 緊急仍 5 秒自動復歸（不變）
+- **協定時序確認（TES-0D-02-01，commit c7fa3f8）：** `VP ON → CP ON → CAN bit0=1 → 充電 → CAN ends → CP OFF`；CP 先於 CAN 出現（CP OFF→ON 邊緣為首發觸發，CAN 邊緣為備援）；充電中 CP 斷開：auto_start 模式 = 正常停止（`enter_ending`），手動模式 = 故障（1 秒快速復歸）；`charge_complete_latched` 清除時同步重置 `last_can_permit = false`
 
 ### Implementation Progress
 
@@ -560,8 +560,17 @@ if (sm->cp_state != CP_STATE_ON) {
 - CP 每 50ms 更新一次；更新前先存 `sm->cp_prev = sm->cp_state`（用於觸發邊緣偵測及雙 tick 穩定判斷）
 - `last_can_permit` 在 `tes_sm_tick()` 末尾每 tick 更新
 
+**故障自動復歸（`fault_timeout_ms` 欄位，`tes_sm_t`）：**
+
+| 故障原因 | 復歸時間 |
+|---------|---------|
+| 充電中 CP 斷開（手動模式） | **1 秒** |
+| 其他故障（timeout、BMS fault flags 等） | 10 秒 |
+| auto_start 模式 CP 斷開 | 不進 FAULT，直接 `enter_ending()` |
+| 硬體緊急停止鈕 | 不自動復歸，須手動 Reset Fault |
+
 **安全特性：**
-- 一般故障：10 秒後自動清除 `fault_latched` 並回到 IDLE，auto_start 可再觸發
+- 手動模式充電中 CP 斷開：進 FAULT 1 秒後自動復歸，避免重插槍後卡住
 - 硬體緊急停止鈕：`fault_latched=true` 且 `emergency_hw_triggered=true`，必須手動 Reset Fault 才能解除
 - 充電完成後須 CP 穩定消失（2 tick OFF）+ `last_can_permit` 重置才允許下一次觸發
 - 緊急停止後 VP 仍關閉（`enter_emergency` 強制 `out->vp_relay = false`）
