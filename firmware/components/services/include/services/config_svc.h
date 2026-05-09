@@ -26,6 +26,7 @@ typedef struct {
     uint16_t    sched_start_min;      // 開始時間，分鐘數 from midnight 0-1439
     bool        sched_stop_en;        // 自動結束開關
     uint16_t    sched_stop_min;       // 結束時間，分鐘數 from midnight 0-1439
+    bool        auto_start;           // Beta: VP 常通 + CAN/CP 邊緣自動觸發充電
 } charger_config_t;
 
 esp_err_t                config_svc_init         (void);
@@ -39,4 +40,5 @@ esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_
 esp_err_t config_svc_set_notify_url    (const char *url);
 esp_err_t config_svc_set_mqtt          (const char *broker_url, const char *topic_prefix);
 esp_err_t config_svc_set_scheduler     (bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min);
+esp_err_t config_svc_set_auto_start    (bool enabled);
 void      config_svc_override_voltage   (uint16_t v_01v);  // RAM only, no NVS write

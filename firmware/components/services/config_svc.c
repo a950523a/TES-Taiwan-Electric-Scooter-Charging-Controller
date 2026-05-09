@@ -23,6 +23,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_SCHED_START   "sched_start"
 #define NVS_KEY_SCHED_STOP_EN "sched_stop_en"
 #define NVS_KEY_SCHED_STOP    "sched_stop"
+#define NVS_KEY_AUTO_START    "auto_s"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -90,6 +91,11 @@ esp_err_t config_svc_init(void)
         s_cfg.sched_stop_en  = (hal_nvs_get_bool(NVS_NS, NVS_KEY_SCHED_STOP_EN, &b)   == ESP_OK) && b;
         s_cfg.sched_stop_min  = (hal_nvs_get_u32(NVS_NS, NVS_KEY_SCHED_STOP,    &tmp) == ESP_OK
                                   && tmp < 1440) ? (uint16_t)tmp : 360;
+    }
+
+    {
+        bool b;
+        s_cfg.auto_start = (hal_nvs_get_bool(NVS_NS, NVS_KEY_AUTO_START, &b) == ESP_OK) && b;
     }
 
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u timer=%u",
@@ -176,6 +182,12 @@ esp_err_t config_svc_set_scheduler(bool enabled, uint16_t start_min, bool stop_e
     r |= hal_nvs_set_bool(NVS_NS, NVS_KEY_SCHED_STOP_EN, stop_en);
     r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_SCHED_STOP,    stop_min);
     return r;
+}
+
+esp_err_t config_svc_set_auto_start(bool enabled)
+{
+    s_cfg.auto_start = enabled;
+    return hal_nvs_set_bool(NVS_NS, NVS_KEY_AUTO_START, enabled);
 }
 
 void config_svc_override_voltage(uint16_t v_01v)

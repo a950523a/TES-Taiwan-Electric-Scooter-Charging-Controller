@@ -272,6 +272,14 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <div id="ntp-status" style="font-size:.78em;color:#555;margin-top:8px">NTP：讀取中…</div>
     <div style="font-size:.75em;color:#444;margin-top:3px;line-height:1.5">時區 UTC+8 ∙ 隔夜窗口（如 23:00–06:00）自動支援</div>
   </div>
+  <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
+    <label class="lbl2" style="margin-bottom:8px;display:block">⚡ 自動充電 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
+    <div class="chk-row">
+      <input type="checkbox" id="auto-start-en">
+      <span>插槍或 CAN 信號自動啟動充電</span>
+    </div>
+    <div style="font-size:.75em;color:#888;margin-top:6px;line-height:1.6">啟用後 VP 繼電器常通，偵測到 CP 插入或車端 CAN 許可時自動開始充電。<br>故障後仍需手動按 START 確認；充電完成後須斷槍再重插才能再次觸發。</div>
+  </div>
   <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
   <div id="msg"></div>
 </div>
@@ -606,6 +614,7 @@ async function loadCfg(){
     document.getElementById('sched-start').value=minToTime(d.sched_start_min||0);
     document.getElementById('sched-stop-en').checked=d.sched_stop_en||false;
     document.getElementById('sched-stop').value=minToTime(d.sched_stop_min||360);
+    document.getElementById('auto-start-en').checked=d.auto_start||false;
   }catch(e){}
 }
 
@@ -628,7 +637,8 @@ async function save(){
     sched_enabled:document.getElementById('sched-en').checked,
     sched_start_min:timeToMin(document.getElementById('sched-start').value),
     sched_stop_en:document.getElementById('sched-stop-en').checked,
-    sched_stop_min:timeToMin(document.getElementById('sched-stop').value)
+    sched_stop_min:timeToMin(document.getElementById('sched-stop').value),
+    auto_start:document.getElementById('auto-start-en').checked
   };
   const p=document.getElementById('cp').value;
   if(p)b.wifi_pass=p;

@@ -39,6 +39,9 @@ typedef struct {
     bool stop_requested;
     bool emergency_requested;       // 硬體緊急按鈕，不經 queue
     bool fault_clear_requested;     // 手動復歸緊急停止（設定選單觸發）
+
+    // Beta: 自動充電模式
+    bool auto_start_enabled;        // true = VP 常通 + CAN/CP 邊緣自動觸發充電
 } tes_sm_inputs_t;
 
 // ─── 狀態機輸出（由 task_tes_sm 在 tick 後執行）──────────────────────────────
@@ -113,6 +116,10 @@ typedef struct {
 
     // 緊急停止來源追蹤
     bool emergency_hw_triggered;   // true=硬體按鈕，false=車端 0x5F0
+
+    // Beta auto_start 邊緣偵測
+    cp_state_t cp_prev;            // 上次 CP 更新前的狀態（偵測 OFF→ON 邊緣）
+    bool       last_can_permit;    // 上一 tick 的 CAN 許可位元（偵測 0→1 邊緣）
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────
