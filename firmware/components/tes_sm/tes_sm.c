@@ -100,9 +100,11 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         sm->params_509.remaining_time_min = 0xFFFF;
 
         // Beta: 充電完成後 CP 穩定斷開（兩次讀取皆 OFF）才允許下次自動觸發
+        // 同步重置 last_can_permit，確保下次 CAN bit0=1 能偵測到 0→1 邊緣
         if (in->auto_start_enabled && sm->charge_complete_latched &&
             sm->cp_state == CP_STATE_OFF && sm->cp_prev == CP_STATE_OFF) {
             sm->charge_complete_latched = false;
+            sm->last_can_permit         = false;
         }
 
         // 手動 START（按鈕或遠端）：清除故障鎖存，強制進入流程
@@ -121,12 +123,11 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
         }
 
-        // Beta auto_start：偵測 CP OFF→ON 邊緣（插槍）或 CAN 許可 0→1 邊緣
+        // Beta auto_start：偵測 CAN 許可 0→1 邊緣（CP 在 CAN 之後才有訊號，不作為觸發源）
         // 不清除 fault_latched — 故障後仍須手動按 START 確認
         if (in->auto_start_enabled && !sm->fault_latched && !sm->charge_complete_latched) {
-            bool cp_edge  = (sm->cp_state == CP_STATE_ON && sm->cp_prev != CP_STATE_ON);
             bool can_edge = (in->vehicle_status.status_flags & 0x01) && !sm->last_can_permit;
-            if (cp_edge || can_edge) {
+            if (can_edge) {
                 out->vp_relay = true;
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
                 sm->state_start_ms = in->tick_ms;
@@ -482,7 +483,13 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         enter_fault(sm, out); return;
     }
     if (sm->cp_state != CP_STATE_ON) {
-        enter_fault(sm, out); return;
+        // auto_start 模式：CP 斷開是車端主動結束充電的訊號，正常停止
+        // 一般模式：CP 斷開屬非預期異常，觸發 fault
+        if (in->auto_start_enabled)
+            enter_ending(sm, out);
+        else
+            enter_fault(sm, out);
+        return;
     }
 }
 
