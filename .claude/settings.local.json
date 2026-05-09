@@ -19,7 +19,16 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\esp\\\\v5.5.1\\\\esp-idf\\\\components\" -Name | Where-Object { $_ -match \"mdns|dns\" })",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\v3\\\\build\\\\esp-idf\\\\services\" -Recurse | Select-Object Name | Where-Object { $_.Name -match \"index|html\" })",
       "PowerShell(New-Item *)",
-      "Bash(grep -i -E \"\\\\.\\(cpp|h\\)$\")"
+      "Bash(grep -i -E \"\\\\.\\(cpp|h\\)$\")",
+      "Bash(git ls-tree *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(Get-ChildItem C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\firmware\\\\components\\\\services *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(xargs grep -l \"font_small\\\\|SetFont\\\\|u8g2_font\")",
+      "PowerShell(Remove-Item *)"
     ]
   }
 }
