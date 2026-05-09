@@ -17,8 +17,12 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_STOP_V  "stop_v"
 #define NVS_KEY_TIMER_M "timer_m"
 #define NVS_KEY_NOTIFY     "notify_url"
-#define NVS_KEY_MQTT_URL   "mqtt_url"
-#define NVS_KEY_MQTT_TOPIC "mqtt_topic"
+#define NVS_KEY_MQTT_URL      "mqtt_url"
+#define NVS_KEY_MQTT_TOPIC    "mqtt_topic"
+#define NVS_KEY_SCHED_EN      "sched_en"
+#define NVS_KEY_SCHED_START   "sched_start"
+#define NVS_KEY_SCHED_STOP_EN "sched_stop_en"
+#define NVS_KEY_SCHED_STOP    "sched_stop"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -75,6 +79,17 @@ esp_err_t config_svc_init(void)
     }
     if (hal_nvs_get_str(NVS_NS, NVS_KEY_MQTT_TOPIC, s_cfg.mqtt_topic_prefix, sizeof(s_cfg.mqtt_topic_prefix)) != ESP_OK) {
         strncpy(s_cfg.mqtt_topic_prefix, "tes/charger", sizeof(s_cfg.mqtt_topic_prefix) - 1);
+    }
+
+    {
+        bool b;
+        uint32_t tmp;
+        s_cfg.sched_enabled  = (hal_nvs_get_bool(NVS_NS, NVS_KEY_SCHED_EN,      &b)   == ESP_OK) && b;
+        s_cfg.sched_start_min = (hal_nvs_get_u32(NVS_NS, NVS_KEY_SCHED_START,   &tmp) == ESP_OK
+                                  && tmp < 1440) ? (uint16_t)tmp : 0;
+        s_cfg.sched_stop_en  = (hal_nvs_get_bool(NVS_NS, NVS_KEY_SCHED_STOP_EN, &b)   == ESP_OK) && b;
+        s_cfg.sched_stop_min  = (hal_nvs_get_u32(NVS_NS, NVS_KEY_SCHED_STOP,    &tmp) == ESP_OK
+                                  && tmp < 1440) ? (uint16_t)tmp : 360;
     }
 
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u timer=%u",
@@ -147,6 +162,19 @@ esp_err_t config_svc_set_mqtt(const char *broker_url, const char *topic_prefix)
     s_cfg.mqtt_topic_prefix[sizeof(s_cfg.mqtt_topic_prefix) - 1] = '\0';
     esp_err_t r = hal_nvs_set_str(NVS_NS, NVS_KEY_MQTT_URL,   s_cfg.mqtt_broker_url);
     r |= hal_nvs_set_str(NVS_NS, NVS_KEY_MQTT_TOPIC, s_cfg.mqtt_topic_prefix);
+    return r;
+}
+
+esp_err_t config_svc_set_scheduler(bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min)
+{
+    s_cfg.sched_enabled   = enabled;
+    s_cfg.sched_start_min = start_min;
+    s_cfg.sched_stop_en   = stop_en;
+    s_cfg.sched_stop_min  = stop_min;
+    esp_err_t r = hal_nvs_set_bool(NVS_NS, NVS_KEY_SCHED_EN,      enabled);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_SCHED_START,   start_min);
+    r |= hal_nvs_set_bool(NVS_NS, NVS_KEY_SCHED_STOP_EN, stop_en);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_SCHED_STOP,    stop_min);
     return r;
 }
 

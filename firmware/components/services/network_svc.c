@@ -10,6 +10,7 @@
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
 #include "services/log_svc.h"
+#include "services/scheduler_svc.h"
 #include "tes_protocol/tes_types.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -177,6 +178,13 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     // 0x5F8 Charger → Vehicle
     cJSON_AddNumberToObject(can, "c5f8_flags",        snap.can.c5f8_flags);
 
+    // NTP / 定時充電時間
+    bool ntp_synced;
+    char local_time[20];
+    scheduler_svc_get_time_info(&ntp_synced, local_time, sizeof(local_time));
+    cJSON_AddBoolToObject  (root, "ntp_synced",  ntp_synced);
+    cJSON_AddStringToObject(root, "local_time",  local_time);
+
     // 韌體版本
     const esp_app_desc_t *app = esp_app_get_description();
     cJSON_AddStringToObject(root, "firmware_version", app->version);
@@ -219,6 +227,10 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
     cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
     cJSON_AddStringToObject(root, "mqtt_topic_prefix", cfg->mqtt_topic_prefix);
+    cJSON_AddBoolToObject  (root, "sched_enabled",   cfg->sched_enabled);
+    cJSON_AddNumberToObject(root, "sched_start_min", cfg->sched_start_min);
+    cJSON_AddBoolToObject  (root, "sched_stop_en",   cfg->sched_stop_en);
+    cJSON_AddNumberToObject(root, "sched_stop_min",  cfg->sched_stop_min);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -355,6 +367,27 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         notify_url_changed = true;
     }
 
+    bool     new_sched_enabled   = cur->sched_enabled;
+    uint16_t new_sched_start_min = cur->sched_start_min;
+    bool     new_sched_stop_en   = cur->sched_stop_en;
+    uint16_t new_sched_stop_min  = cur->sched_stop_min;
+    bool     sched_changed       = false;
+
+    item = cJSON_GetObjectItem(root, "sched_enabled");
+    if (cJSON_IsBool(item)) { new_sched_enabled = cJSON_IsTrue(item); sched_changed = true; }
+    item = cJSON_GetObjectItem(root, "sched_start_min");
+    if (cJSON_IsNumber(item)) {
+        int v = item->valueint;
+        if (v >= 0 && v < 1440) { new_sched_start_min = (uint16_t)v; sched_changed = true; }
+    }
+    item = cJSON_GetObjectItem(root, "sched_stop_en");
+    if (cJSON_IsBool(item)) { new_sched_stop_en = cJSON_IsTrue(item); sched_changed = true; }
+    item = cJSON_GetObjectItem(root, "sched_stop_min");
+    if (cJSON_IsNumber(item)) {
+        int v = item->valueint;
+        if (v >= 0 && v < 1440) { new_sched_stop_min = (uint16_t)v; sched_changed = true; }
+    }
+
     char new_mqtt_broker_url[128]   = {0};
     char new_mqtt_topic_prefix[64]  = {0};
     bool mqtt_changed = false;
@@ -385,6 +418,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (notify_url_changed)   config_svc_set_notify_url(new_notify_url);
     if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage, new_charge_timer);
     if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
+    if (sched_changed)        config_svc_set_scheduler(new_sched_enabled, new_sched_start_min, new_sched_stop_en, new_sched_stop_min);
 
     if (wifi_changed || mqtt_changed)
         ESP_LOGI(TAG, "WiFi/MQTT config updated — reboot to apply");

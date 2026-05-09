@@ -22,6 +22,10 @@ typedef struct {
     char        notify_url[128];      // Webhook / ntfy URL（空字串 = 停用）
     char        mqtt_broker_url[128]; // MQTT broker URI，e.g. "mqtt://broker.hivemq.com:1883"（空字串 = 停用）
     char        mqtt_topic_prefix[64];// MQTT topic prefix，e.g. "tes/charger"
+    bool        sched_enabled;        // 定時充電 master switch
+    uint16_t    sched_start_min;      // 開始時間，分鐘數 from midnight 0-1439
+    bool        sched_stop_en;        // 自動結束開關
+    uint16_t    sched_stop_min;       // 結束時間，分鐘數 from midnight 0-1439
 } charger_config_t;
 
 esp_err_t                config_svc_init         (void);
@@ -34,4 +38,5 @@ esp_err_t config_svc_set_auto_voltage   (bool enabled);
 esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_01v, uint16_t charge_timer_min);
 esp_err_t config_svc_set_notify_url    (const char *url);
 esp_err_t config_svc_set_mqtt          (const char *broker_url, const char *topic_prefix);
+esp_err_t config_svc_set_scheduler     (bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min);
 void      config_svc_override_voltage   (uint16_t v_01v);  // RAM only, no NVS write
