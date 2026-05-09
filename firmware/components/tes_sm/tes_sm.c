@@ -288,7 +288,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         out->relay_on     = false;
         out->coupler_lock = false;
         if (in->tick_ms - sm->state_start_ms > 10000u) {
-            sm->state = TES_STATE_IDLE;
+            sm->fault_latched          = false;
+            sm->state                  = TES_STATE_IDLE;
             sm->status_508.fault_flags = 0;
         }
         break;
