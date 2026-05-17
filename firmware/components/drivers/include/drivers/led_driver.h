@@ -11,4 +11,5 @@ void led_driver_init             (void);
 void led_driver_set_state        (led_state_t state);
 void led_driver_set_beacon_enable(bool enabled);     // beacon_unlocked 旗標
 void led_driver_set_beacon_soc   (int soc);          // 更新 LuxBeacon 數值
+void led_driver_set_psu_warn     (bool warn);        // ESP-NOW 配對但失連時：STANDBY 下每 5s 短閃紅燈一次
 void led_driver_tick             (void);             // 每 50ms 由 task_display 呼叫

@@ -6,6 +6,7 @@
 
 #include "services/network_svc.h"
 #include "services/config_svc.h"
+#include "drivers/psu_driver.h"
 #include "services/event_bus.h"
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
@@ -143,6 +144,15 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg_snap->stop_voltage_01v / 10.0);
     cJSON_AddNumberToObject(root, "charge_timer_min", cfg_snap->charge_timer_min);
 
+    // PSU 連線資訊（transport/pairing 來自 config；rssi/fail_streak 來自 driver 即時狀態）
+    cJSON_AddNumberToObject(root, "psu_transport",  (int)cfg_snap->psu_transport);
+    cJSON_AddBoolToObject  (root, "psu_has_peer",   cfg_snap->psu_paired);
+    {
+        psu_status_t psu_st = psu_driver_get_status();
+        cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
+        cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
+    }
+
     // OTA 狀態
     ota_state_t ota_st = ota_svc_get_state();
     cJSON_AddBoolToObject  (root, "ota_running",  ota_st == OTA_STATE_RUNNING);
@@ -232,6 +242,16 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddBoolToObject  (root, "sched_stop_en",   cfg->sched_stop_en);
     cJSON_AddNumberToObject(root, "sched_stop_min",  cfg->sched_stop_min);
     cJSON_AddBoolToObject  (root, "auto_start",      cfg->auto_start);
+    cJSON_AddNumberToObject(root, "psu_transport",   cfg->psu_transport);
+    cJSON_AddBoolToObject  (root, "psu_paired",      cfg->psu_paired);
+    char mac_str[18] = "";
+    if (cfg->psu_paired) {
+        snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 cfg->psu_peer_mac[0], cfg->psu_peer_mac[1], cfg->psu_peer_mac[2],
+                 cfg->psu_peer_mac[3], cfg->psu_peer_mac[4], cfg->psu_peer_mac[5]);
+    }
+    cJSON_AddStringToObject(root, "psu_peer_mac",    mac_str);
+    cJSON_AddBoolToObject  (root, "psu_pairing",     psu_driver_is_pairing());
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -415,6 +435,14 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "auto_start");
     if (cJSON_IsBool(item)) { new_auto_start = cJSON_IsTrue(item); auto_start_changed = true; }
 
+    uint8_t new_psu_transport = cur->psu_transport;
+    bool    psu_transport_changed = false;
+    item = cJSON_GetObjectItem(root, "psu_transport");
+    if (cJSON_IsNumber(item)) {
+        int t = item->valueint;
+        if (t == 0 || t == 1) { new_psu_transport = (uint8_t)t; psu_transport_changed = true; }
+    }
+
     cJSON_Delete(root);
 
     if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
@@ -426,6 +454,8 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
     if (sched_changed)        config_svc_set_scheduler(new_sched_enabled, new_sched_start_min, new_sched_stop_en, new_sched_stop_min);
     if (auto_start_changed)   config_svc_set_auto_start(new_auto_start);
+    if (psu_transport_changed)
+        config_svc_set_psu(new_psu_transport, cur->psu_peer_mac, cur->psu_paired);
 
     if (wifi_changed || mqtt_changed)
         ESP_LOGI(TAG, "WiFi/MQTT config updated — reboot to apply");
@@ -737,6 +767,25 @@ static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
 };
 
+// ── POST /psu/pair ────────────────────────────────────────────────────────────
+
+static esp_err_t handle_post_psu_pair(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    if (config_svc_get()->psu_transport != PSU_TRANSPORT_ESPNOW) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"psu_transport is not ESP-NOW\"}");
+        return ESP_OK;
+    }
+    psu_driver_start_pairing(NULL);   // callback 在 psu_driver_set_transport() 時已由 main.c 登錄
+    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"pairing window open (10s)\"}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_psu_pair = {
+    .uri = "/psu/pair", .method = HTTP_POST, .handler = handle_post_psu_pair
+};
+
 // ── GET /mqtt/link ────────────────────────────────────────────────────────────
 // Returns the Cloud PWA URL pre-filled with broker hostname, WS port, and topic.
 // WS port mapping: HiveMQ→8000, Mosquitto→8080, others→8083 (EMQX default).
@@ -859,7 +908,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 16;
+    cfg.max_uri_handlers  = 17;
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
@@ -881,6 +930,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_wifi_scan);
     httpd_register_uri_handler(s_server, &s_uri_get_history);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
+    httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
