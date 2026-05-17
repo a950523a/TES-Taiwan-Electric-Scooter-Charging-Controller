@@ -24,6 +24,8 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_SCHED_STOP_EN "sched_stop_en"
 #define NVS_KEY_SCHED_STOP    "sched_stop"
 #define NVS_KEY_AUTO_START    "auto_s"
+#define NVS_KEY_PSU_TRANS     "psu_trans"
+#define NVS_KEY_PSU_MAC       "psu_mac"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -96,6 +98,15 @@ esp_err_t config_svc_init(void)
     {
         bool b;
         s_cfg.auto_start = (hal_nvs_get_bool(NVS_NS, NVS_KEY_AUTO_START, &b) == ESP_OK) && b;
+    }
+
+    {
+        uint32_t tmp;
+        s_cfg.psu_transport = (hal_nvs_get_u32(NVS_NS, NVS_KEY_PSU_TRANS, &tmp) == ESP_OK && tmp <= 1)
+                              ? (uint8_t)tmp : 0;
+        size_t mac_len = 6;
+        s_cfg.psu_paired = (hal_nvs_get_blob(NVS_NS, NVS_KEY_PSU_MAC,
+                                             s_cfg.psu_peer_mac, &mac_len) == ESP_OK && mac_len == 6);
     }
 
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u timer=%u",
@@ -188,6 +199,16 @@ esp_err_t config_svc_set_auto_start(bool enabled)
 {
     s_cfg.auto_start = enabled;
     return hal_nvs_set_bool(NVS_NS, NVS_KEY_AUTO_START, enabled);
+}
+
+esp_err_t config_svc_set_psu(uint8_t transport, const uint8_t *peer_mac_6, bool paired)
+{
+    s_cfg.psu_transport = transport;
+    s_cfg.psu_paired    = paired;
+    if (peer_mac_6) memcpy(s_cfg.psu_peer_mac, peer_mac_6, 6);
+    esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_PSU_TRANS, transport);
+    if (peer_mac_6) r |= hal_nvs_set_blob(NVS_NS, NVS_KEY_PSU_MAC, peer_mac_6, 6);
+    return r;
 }
 
 void config_svc_override_voltage(uint16_t v_01v)

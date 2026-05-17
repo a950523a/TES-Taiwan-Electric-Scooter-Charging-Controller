@@ -176,7 +176,11 @@ v3.0.0 released 2026-05-02. All 51 features implemented; `idf.py build` zero err
 
 **Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
-**⚠️ Not yet vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan, mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge timer stop, scheduler, beta auto-start.
+**ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
+
+**In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
+
+**⚠️ Not yet vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan, mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
 
 **Known issue:** iOS Safari `App-prefs:root=WIFI` URL scheme shows "Invalid URL" -- WiFi switch button does not work in Safari browser (may work in WKWebView/PWA mode).
 
@@ -213,13 +217,41 @@ Web UI voltage/SOC display mirrors OLED: Volt mode shows `voltage / stop_voltage
 
 ---
 
-## PSU UART Protocol
+## PSU Protocol
 
-Two frame types from PSU:
-- `V=xx.x,I=xx.x` -- actual output; only sent when PSU actively outputting
-- `CMD_ACK:SET_V:xx.x` / `CMD_ACK:SET_I:xx.x` -- command ack; sent in standby
+Text protocol shared by both transports:
+- RX: `V=xx.x,I=xx.x\n` -- actual output (PSU actively outputting, ~100ms interval)
+- RX: `HB\n` -- heartbeat (PSU standby, ~1s interval; **ESP-NOW only**)
+- RX: `CMD_ACK:SET_V:xx.x\n` / `CMD_ACK:SET_I:xx.x\n` -- command ack (standby)
+- TX: `SET:V=xx.x\n` / `SET:I=xx.x\n` -- setpoint commands
+
+`HB\n` is parsed in `parse_frame()`; it updates `s_last_valid_ticks` and sets `connected=true` without changing voltage/current. This is the primary liveness signal for ESP-NOW idle state.
 
 When `psu_voltage == 0` (PSU standby), SM falls back to ADC voltage for OLED display and 0x509 CAN output — prevents vehicle from seeing 0V/0A and aborting.
+
+**ESP-NOW safety constraints (`psu_driver.c`):**
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Receive timeout | 2s | vs 3s for UART；MAC-ACK 連敗 3 次仍 30ms 快斷 |
+| MAC-ACK fail limit | 3 consecutive | → immediate disconnect |
+| SET command throttle | Δ > 0.05 **or** 500ms elapsed | reduces 100Hz → ~2Hz in steady state |
+| RSSI warn threshold | −80 dBm | logs LOGW on threshold crossing |
+
+`psu_status_t` new fields: `rssi` (last received dBm, 0 for UART), `fail_streak` (consecutive send failures, 0 for UART).
+
+**Transport selection** (`psu_transport` NVS key, default 0=UART):
+- `PSU_TRANSPORT_UART=0`: UART pins 43/44, always available
+- `PSU_TRANSPORT_ESPNOW=1`: wireless, PSU also uses ESP32; init after `network_svc_init()`
+
+**ESP-NOW pairing flow:**
+1. PSU enters pairing mode → broadcasts `"PSU_HELLO\n"` every 500 ms
+2. TES enters pairing mode (`POST /psu/pair` or button combo)
+3. TES receives `PSU_HELLO` → saves sender MAC to NVS (`psu_mac` blob) → adds as peer
+4. Both sides use stored MAC for all subsequent communication
+5. Pairing window = 10 s; timeout logs warning and clears pairing flag
+
+**ESP-NOW init constraint:** `psu_driver_set_transport()` must be called after `network_svc_init()` (ESP-NOW needs WiFi driver started). In `main.c`, called immediately after `network_svc_init()`.
 
 ---
 
@@ -241,6 +273,8 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `sched_stop_en` | uint8 | 0 | Auto-stop enable |
 | `sched_stop` | uint16 | 360 | Stop time (minutes from midnight, default 06:00) |
 | `auto_s` | bool | false | Beta auto-start |
+| `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
+| `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
 
 Charge history: namespace `"tes_hist"`, blob key `"log"` (324 bytes, 20 × `charge_session_t` circular buffer).
 
@@ -314,6 +348,31 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ---
 
+## Mobile App (In Progress)
+
+**技術：** React Native + Expo（Managed Workflow）+ EAS Build → Android APK（側載）
+
+**目標：** 非技術使用者也能輕鬆使用，支援多台控制器管理。
+
+**連線方式：**
+- 本地（同 WiFi）：HTTP REST API，`http://<ip>/`
+- 遠端：MQTT WebSocket（透過 broker）
+
+**控制器配對（首次新增）：**
+- 掃描區域網路子網路，對每個 IP 嘗試 `GET /status`，回應含充電器特徵欄位者視為 TES 控制器
+- 使用者點選後命名，MAC/IP 儲存至 AsyncStorage
+
+**主要畫面：**
+1. 引導流程（首次開啟）：歡迎 → 連線說明 → 自動掃描 → 命名 → 完成
+2. 控制器列表：每台狀態卡片（在線/充電中/離線）
+3. 儀表板：大字電壓/電流/SOC + 開始/停止
+4. 設定：對應現有 REST `/config` API
+5. 充電歷史：對應 `GET /history`
+
+**開發狀態：** 尚未開始，ESP-NOW 韌體完成後進行。
+
+---
+
 ## Scheduler + Auto-Start Integration (Planned)
 
 **Problem:** when both `sched_enabled` and `auto_start` are on, CP/CAN edges outside the charging window could trigger unintended charging.
@@ -357,12 +416,14 @@ mDNS starts in both AP and STA mode; always use `tes-charger.local`.
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
 | POST | `/notify/test` | Send test push notification |
+| POST | `/psu/pair` | Start 10 s ESP-NOW pairing window (requires psu_transport=1) |
 | GET | `/mqtt/link` | Cloud PWA URL with broker/topic fragment |
 
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 16`; currently 14 handlers registered
+- `max_uri_handlers = 17`; currently 15 handlers registered
+- `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
 
 **PWA note:** Service Worker requires HTTPS. On `http://tes-charger.local` (plain HTTP), SW registration is silently blocked — offline caching does not work. "Add to Home Screen" shortcut works over HTTP.
 

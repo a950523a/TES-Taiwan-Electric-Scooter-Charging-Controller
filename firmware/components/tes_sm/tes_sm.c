@@ -441,6 +441,12 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
 {
     const tes_vehicle_status_t *vs = &in->vehicle_status;
 
+    // PSU 斷線（ESP-NOW 或 UART）→ 立即停止輸出並進入 FAULT（10s 自動復歸）
+    if (!in->psu_connected) {
+        enter_fault(sm, out);
+        return;
+    }
+
     if (!(vs->status_flags & 0x01)) {
         enter_ending(sm, out); return;
     }
@@ -506,7 +512,7 @@ static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out)
     if (sm->status_508.fault_flags == 0) sm->status_508.fault_flags = 0x01;
     if (sm->last_fault_flags == 0) sm->last_fault_flags = sm->status_508.fault_flags;
     out->set_psu_current    = true;
-    out->psu_current_target = 5.0f;
+    out->psu_current_target = 0.0f;
 }
 
 static void enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out)

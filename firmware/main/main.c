@@ -19,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdatomic.h>
+#include <string.h>
 
 #define AUTO_VOLT_SETTLE_MS  1000   // ADC 穩定等待時間
 #define AUTO_VOLT_MIN_V      40.0f
@@ -70,6 +71,11 @@ static void draw_auto_volt_screen(void)
 }
 
 static const char *TAG = "main";
+
+static void on_psu_paired(const uint8_t peer_mac[6])
+{
+    config_svc_set_psu(PSU_TRANSPORT_ESPNOW, peer_mac, true);
+}
 
 // ── Global definitions ───────────────────────────────────────────────────────
 
@@ -136,6 +142,16 @@ void app_main(void)
     }
 
     ESP_ERROR_CHECK(network_svc_init());
+
+    // ESP-NOW transport init — must come after WiFi is started by network_svc_init()
+    {
+        const charger_config_t *cfg = config_svc_get();
+        psu_driver_set_pair_callback(on_psu_paired);
+        psu_driver_set_transport(
+            (psu_transport_t)cfg->psu_transport,
+            cfg->psu_paired ? cfg->psu_peer_mac : NULL
+        );
+    }
 
     // IPC objects
     g_can_rx_queue      = xQueueCreate(16, sizeof(can_frame_t));
