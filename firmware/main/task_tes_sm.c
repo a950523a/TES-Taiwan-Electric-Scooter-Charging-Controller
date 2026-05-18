@@ -204,6 +204,12 @@ void task_tes_sm(void *arg)
                      inputs.psu_connected, inputs.cp_voltage);
             s_last_state = curr;
 
+            // Clear stale CAN data from IDLE auto-start broadcast period on session start
+            if (curr == TES_STATE_PARAM_EXCHANGE && prev == TES_STATE_IDLE) {
+                memset(&inputs.vehicle_status, 0, sizeof(inputs.vehicle_status));
+                memset(&inputs.vehicle_params, 0, sizeof(inputs.vehicle_params));
+            }
+
             // Session start
             if (curr == TES_STATE_CHARGING && !s_session_active) {
                 s_session_active    = true;

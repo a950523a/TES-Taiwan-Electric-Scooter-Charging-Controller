@@ -181,7 +181,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <label class="lbl2" id="cv-lbl">最大電壓 (V)</label>
   <input type="number" id="cv" step="0.1" min="40" max="120">
   <label class="lbl2">最大電流 (A)</label>
-  <input type="number" id="ca" step="0.1" min="1" max="100">
+  <input type="number" id="ca" step="0.1" min="1" max="100" oninput="checkAutoStart()">
   <label class="lbl2">充電停止條件</label>
   <div class="chk-row" style="gap:16px;flex-wrap:wrap">
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -298,9 +298,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
     <label class="lbl2" style="margin-bottom:8px;display:block">⚡ 自動充電 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <div class="chk-row">
-      <input type="checkbox" id="auto-start-en">
+      <input type="checkbox" id="auto-start-en" onchange="checkAutoStart()">
       <span>插槍或 CAN 信號自動啟動充電</span>
     </div>
+    <div id="auto-start-warn" style="display:none;font-size:.75em;color:#f88;margin-top:6px;padding:5px 8px;background:#3a1010;border-radius:4px;border:1px solid #a33">⚠️ 最大電流超過 15A，自動充電已停用。請將最大電流降至 15A 以內才可使用此功能。</div>
     <div style="font-size:.75em;color:#888;margin-top:6px;line-height:1.6">啟用後 VP 繼電器常通，偵測到 CP 插入或車端 CAN 許可時自動開始充電。<br>一般故障 10 秒後自動復歸；按下緊急停止鈕後仍需手動 Reset Fault；充電完成後須斷槍再重插才能再次觸發。</div>
   </div>
   <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
@@ -665,6 +666,7 @@ async function loadCfg(){
     document.getElementById('sched-stop-en').checked=d.sched_stop_en||false;
     document.getElementById('sched-stop').value=minToTime(d.sched_stop_min||360);
     document.getElementById('auto-start-en').checked=d.auto_start||false;
+    checkAutoStart();
     s_psu_transport_loaded=d.psu_transport||0;
     document.getElementById('pt'+s_psu_transport_loaded).checked=true;
     updatePsuUI();
@@ -892,6 +894,16 @@ async function loadHistory(){
   }catch(e){
     tbody.innerHTML='<tr><td colspan="4" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
   }
+}
+
+function checkAutoStart(){
+  const a=parseFloat(document.getElementById('ca').value)||0;
+  const cb=document.getElementById('auto-start-en');
+  const warn=document.getElementById('auto-start-warn');
+  const over=(a>15);
+  warn.style.display=over?'block':'none';
+  if(over)cb.checked=false;
+  cb.disabled=over;
 }
 
 function updatePsuUI(){
