@@ -28,7 +28,16 @@
       "Bash(git tag *)",
       "Bash(git push *)",
       "Bash(xargs grep -l \"font_small\\\\|SetFont\\\\|u8g2_font\")",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\TES-Taiwan-Electric-Scooter-Charging-Controller\\\\firmware\\\\components\\\\services\\\\web\\\\index.html\")",
+      "Bash(Select-String -Pattern \"sched|Scheduler|定時|mqtt_broker\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(gh repo *)",
+      "PowerShell(gh repo *)",
+      "Bash(git submodule *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
