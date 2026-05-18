@@ -277,6 +277,25 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <div style="font-size:.75em;color:#444;margin-top:3px;line-height:1.5">時區 UTC+8 ∙ 隔夜窗口（如 23:00–06:00）自動支援</div>
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
+    <label class="lbl2" style="margin-bottom:8px;display:block">🔌 PSU 電源設定</label>
+    <div class="chk-row" style="gap:16px;flex-wrap:wrap;margin-bottom:8px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="psu_transport" id="pt0" value="0" onchange="updatePsuUI()" style="accent-color:#48f">
+        <span>UART（有線）</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="psu_transport" id="pt1" value="1" onchange="updatePsuUI()" style="accent-color:#48f">
+        <span>ESP-NOW（無線）</span>
+      </label>
+    </div>
+    <div id="psu-espnow-panel" style="display:none">
+      <div id="psu-pair-status" style="font-size:.82em;color:#555;margin-bottom:8px">配對狀態：讀取中…</div>
+      <button class="b-scan" id="psu-pair-btn" onclick="startPsuPair()">📡 開始配對（10 秒）</button>
+      <div style="font-size:.75em;color:#444;margin-top:5px;line-height:1.5">確認 PSU 端已進入配對模式後再點擊</div>
+    </div>
+    <div style="font-size:.75em;color:#444;margin-top:6px">Transport 變更後需儲存設定並重啟生效</div>
+  </div>
+  <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
     <label class="lbl2" style="margin-bottom:8px;display:block">⚡ 自動充電 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <div class="chk-row">
       <input type="checkbox" id="auto-start-en">
@@ -646,6 +665,19 @@ async function loadCfg(){
     document.getElementById('sched-stop-en').checked=d.sched_stop_en||false;
     document.getElementById('sched-stop').value=minToTime(d.sched_stop_min||360);
     document.getElementById('auto-start-en').checked=d.auto_start||false;
+    s_psu_transport_loaded=d.psu_transport||0;
+    document.getElementById('pt'+s_psu_transport_loaded).checked=true;
+    updatePsuUI();
+    const pps=document.getElementById('psu-pair-status');
+    if(pps){
+      if(d.psu_paired){
+        pps.textContent='配對狀態：已配對 MAC '+(d.psu_peer_mac||'(未知)');
+        pps.style.color='#4d4';
+      }else{
+        pps.textContent='配對狀態：未配對';
+        pps.style.color='#f55';
+      }
+    }
   }catch(e){}
 }
 
@@ -669,7 +701,8 @@ async function save(){
     sched_start_min:timeToMin(document.getElementById('sched-start').value),
     sched_stop_en:document.getElementById('sched-stop-en').checked,
     sched_stop_min:timeToMin(document.getElementById('sched-stop').value),
-    auto_start:document.getElementById('auto-start-en').checked
+    auto_start:document.getElementById('auto-start-en').checked,
+    psu_transport:document.getElementById('pt1').checked?1:0
   };
   const p=document.getElementById('cp').value;
   if(p)b.wifi_pass=p;
@@ -684,6 +717,9 @@ async function save(){
       m.className='ok';
       m.innerHTML='✓ 已儲存。設備將重啟連接至 <b>'+ssid+'</b>。<br>'
         +'請將手機 WiFi 切換至相同網路，再開啟 <a href="http://tes-charger.local" style="color:#4a9eff">tes-charger.local</a>';
+    }else if(r.ok&&b.psu_transport!==s_psu_transport_loaded){
+      m.className='ok';
+      m.textContent='✓ 已儲存。PSU 傳輸模式變更後需手動重啟設備生效。';
     }else{
       m.className=r.ok?'ok':'err';
       m.textContent=r.ok?'✓ 已儲存':'✗ 儲存失敗';
@@ -858,6 +894,32 @@ async function loadHistory(){
   }
 }
 
+function updatePsuUI(){
+  const en=document.getElementById('pt1').checked;
+  document.getElementById('psu-espnow-panel').style.display=en?'block':'none';
+}
+
+async function startPsuPair(){
+  const btn=document.getElementById('psu-pair-btn');
+  const st=document.getElementById('psu-pair-status');
+  btn.disabled=true;
+  if(st){st.textContent='配對中（10 秒）…';st.style.color='#db4';}
+  try{
+    const r=await(await fetch('/psu/pair',{method:'POST'})).json();
+    if(r.ok){
+      if(st){st.textContent='配對視窗已開啟，請在 10 秒內操作 PSU 端';st.style.color='#db4';}
+      setTimeout(()=>loadCfg(),11000);
+    }else{
+      if(st){st.textContent='✗ '+(r.error||'配對失敗');st.style.color='#f55';}
+      btn.disabled=false;
+    }
+  }catch(e){
+    if(st){st.textContent='✗ 連線錯誤';st.style.color='#f55';}
+    btn.disabled=false;
+  }
+}
+
+let s_psu_transport_loaded=0;
 let mqttMonitorUrl='';
 
 async function loadMqttLink(){
