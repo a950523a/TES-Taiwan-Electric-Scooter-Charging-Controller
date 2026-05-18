@@ -144,6 +144,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <span class="lbl">主機名稱</span>
     <span style="font-family:monospace;color:#555">tes-charger.local</span>
   </div>
+  <div class="row">
+    <span class="lbl">PSU 電源</span>
+    <span id="psu-status"><span class="dot" style="background:#555"></span>讀取中</span>
+  </div>
   <button class="b-wifi-sw" onclick="openPhoneWifi()">📶 切換手機 WiFi</button>
 </div>
 
@@ -452,6 +456,33 @@ async function poll(){
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
     document.getElementById('ip').textContent=d.ip||'--';
     document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+
+    // PSU 連線狀態
+    const psEl=document.getElementById('psu-status');
+    if(psEl){
+      const pt=d.psu_transport||0;
+      const pc=d.psu_connected;
+      const ph=d.psu_has_peer;
+      const rssi=d.psu_rssi||0;
+      const fs=d.psu_fail_streak||0;
+      let pdot,ptxt;
+      if(pt===1){
+        if(pc){
+          // RSSI 三色：> -70 綠，> -80 黃，≤ -80 紅
+          pdot=rssi>-70?'#4d4':rssi>-80?'#db4':'#f55';
+          ptxt=`ESP-NOW ${rssi}dBm`;
+        }else if(ph){
+          pdot='#f55';
+          ptxt=fs>0?`ESP-NOW TxFail(${fs})`:'ESP-NOW 失連';
+        }else{
+          pdot='#555';ptxt='ESP-NOW 未配對';
+        }
+      }else{
+        pdot=pc?'#4d4':'#555';
+        ptxt='UART '+(pc?'✓':'---');
+      }
+      psEl.innerHTML=`<span class="dot" style="background:${pdot}"></span>${ptxt}`;
+    }
 
     // NTP 狀態
     const ntpEl=document.getElementById('ntp-status');

@@ -8,6 +8,7 @@
 #include "services/network_svc.h"
 #include "drivers/display_driver.h"
 #include "drivers/led_driver.h"
+#include "drivers/psu_driver.h"
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
 #include "esp_app_desc.h"
@@ -41,6 +42,7 @@ typedef enum {
     MENU_ITEM_CHARGE_TIMER,  // 充電時長（stop_mode=TIMER 時顯示，分鐘）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
+    MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
@@ -180,6 +182,22 @@ static void item_label(int item, char *buf, size_t bufsz)
             snprintf(buf, bufsz, "IP: %s", ip);
         else
             snprintf(buf, bufsz, "WiFi: ---");
+        break;
+    }
+    case MENU_ITEM_PSU_STATUS: {
+        const charger_config_t *cfg = config_svc_get();
+        psu_status_t pst = psu_driver_get_status();
+        if (cfg->psu_transport == PSU_TRANSPORT_ESPNOW) {
+            if (!cfg->psu_paired)
+                snprintf(buf, bufsz, "PSU NOW: NoPair");
+            else if (pst.connected)
+                snprintf(buf, bufsz, "PSU NOW:%ddBm", (int)pst.rssi);
+            else
+                snprintf(buf, bufsz, "PSU NOW: %s",
+                         pst.fail_streak > 0 ? "TxFail" : "Lost");
+        } else {
+            snprintf(buf, bufsz, "PSU UART: %s", pst.connected ? "OK" : "---");
+        }
         break;
     }
     case MENU_ITEM_SCHEDULER:
@@ -615,6 +633,10 @@ void display_svc_tick(void)
     const charger_config_t *cfg = config_svc_get();
     led_driver_set_beacon_enable(cfg->beacon_unlocked);
     led_driver_set_beacon_soc(snap.soc);
+    // ESP-NOW 配對但失連 → STANDBY 下每 5s 短閃紅燈
+    led_driver_set_psu_warn(cfg->psu_transport == PSU_TRANSPORT_ESPNOW
+                            && psu_driver_has_peer()
+                            && !psu_driver_get_status().connected);
     led_driver_tick();
 
     if (!display_driver_is_ok()) return;

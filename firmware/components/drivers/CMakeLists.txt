@@ -14,4 +14,5 @@ idf_component_register(
         driver
         freertos
         u8g2_idf
+        esp_wifi
 )
