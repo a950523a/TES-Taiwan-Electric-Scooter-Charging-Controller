@@ -151,6 +151,9 @@ static void poll_espnow(void)
                 s_has_peer = true;
                 s_pairing  = false;
                 add_peer(s_peer_mac);
+                // PSU learns TES MAC from the Src MAC of this reply (any payload works)
+                const char reply[] = "TES_HELLO\n";
+                esp_now_send(s_peer_mac, (const uint8_t *)reply, sizeof(reply) - 1);
                 ESP_LOGI(TAG, "PSU paired: %02X:%02X:%02X:%02X:%02X:%02X",
                          s_peer_mac[0], s_peer_mac[1], s_peer_mac[2],
                          s_peer_mac[3], s_peer_mac[4], s_peer_mac[5]);
@@ -242,9 +245,11 @@ void psu_driver_start_pairing(psu_pair_done_cb_t cb)
         return;
     }
     if (cb) s_pair_cb = cb;   // 覆蓋；NULL 表示沿用已設定的持久回呼
+    // PSU AP is fixed on channel 1; switch to ch1 so broadcast is receivable
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     s_pairing     = true;
     s_pairing_end = s_poll_ticks + PAIRING_TIMEOUT_TICKS;
-    ESP_LOGI(TAG, "ESP-NOW pairing started (10s window)");
+    ESP_LOGI(TAG, "ESP-NOW pairing started (10s window, switched to ch1)");
 }
 
 bool psu_driver_is_pairing(void)
