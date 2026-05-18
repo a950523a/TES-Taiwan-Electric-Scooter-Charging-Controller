@@ -36,6 +36,9 @@ static struct {
 
     uint32_t     blink_ticks;
     bool         blink_on;
+
+    bool         psu_warn;       // ESP-NOW 配對但失連：觸發 STANDBY 下短閃紅燈
+    uint32_t     psu_warn_ticks; // 計時器，100 ticks = 5s 週期
 } s;
 
 // Load digits from SOC without touching phase/timing (called mid-run to refresh SOC).
@@ -104,6 +107,12 @@ void led_driver_set_beacon_soc(int soc)
     // Pattern refreshes with new SOC at the start of each sequence in led_driver_tick().
 }
 
+void led_driver_set_psu_warn(bool warn)
+{
+    s.psu_warn = warn;
+    if (!warn) s.psu_warn_ticks = 0;
+}
+
 void led_driver_tick(void)
 {
     hal_gpio_led_standby_set(true);  // orange always on
@@ -111,7 +120,13 @@ void led_driver_tick(void)
     switch (s.state) {
     case LED_STATE_STANDBY:
         hal_gpio_led_charging_set(false);
-        hal_gpio_led_error_set(false);
+        if (s.psu_warn) {
+            // 每 5s（100 ticks × 50ms）短閃紅燈 100ms（2 ticks）
+            if (++s.psu_warn_ticks >= 100) s.psu_warn_ticks = 0;
+            hal_gpio_led_error_set(s.psu_warn_ticks < 2);
+        } else {
+            hal_gpio_led_error_set(false);
+        }
         break;
 
     case LED_STATE_CHARGING:
