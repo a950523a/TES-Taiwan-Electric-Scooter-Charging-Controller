@@ -412,7 +412,9 @@ static bool check_battery_compatibility(tes_sm_t *sm, const tes_sm_inputs_t *in)
     if (vs->max_charge_voltage > 0 &&
         vs->charge_voltage_limit > vs->max_charge_voltage) return false;
 
-    uint16_t limit = vs->max_charge_voltage < in->max_voltage_01v
+    // If max_charge_voltage=0 (not yet received), fall back to our own max to avoid VLIM2=0
+    // which would cause the vehicle to flag fault_flags=0x01 whenever output voltage > 0
+    uint16_t limit = (vs->max_charge_voltage > 0 && vs->max_charge_voltage < in->max_voltage_01v)
                      ? vs->max_charge_voltage : in->max_voltage_01v;
     sm->status_508.fault_detect_voltage = limit;
     return true;
@@ -493,7 +495,11 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         sm->elapsed_seconds >= sm->total_seconds) {
         enter_ending(sm, out); return;
     }
-    if (vs->fault_flags != 0) {
+    // 忽略充電開始後 2 秒內的車端故障旗標：
+    // 車端 fault_flags=0x01 可能在充電初期因 IDLE 廣播期間殘留的協議狀態而短暫出現，
+    // 待車端確認充電樁 status_flags=0x06（充電中+電磁鎖）後才穩定清除
+    if (vs->fault_flags != 0 &&
+        in->tick_ms - sm->state_start_ms > 2u * VOLTAGE_CHECK_DELAY_MS) {
         sm->last_fault_flags = vs->fault_flags;
         enter_fault(sm, out); return;
     }
