@@ -98,6 +98,9 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         sm->timer_running          = false;
         sm->precharge_step         = PRECHARGE_STEP_INIT;
         sm->params_509.remaining_time_min = 0xFFFF;
+        // 確保 IDLE 時 status_508 保持乾淨的待機狀態
+        sm->status_508.status_flags = 0x01u;  // standby/ready
+        sm->status_508.fault_flags  = 0;
 
         // Beta: 充電完成後 CP 穩定斷開（兩次讀取皆 OFF）才允許下次自動觸發
         // 同步重置 last_can_permit，確保下次 CAN bit0=1 能偵測到 0→1 邊緣
@@ -261,27 +264,26 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         }
         out->relay_on = false;
 
-        static uint32_t relay_open_delay_ms = 0;
-        if (relay_open_delay_ms == 0) {
-            relay_open_delay_ms = in->tick_ms;
+        if (sm->relay_open_delay_ms == 0) {
+            sm->relay_open_delay_ms = in->tick_ms;
         }
 
         const tes_vehicle_status_t *vs = &in->vehicle_status;
-        if (in->tick_ms - relay_open_delay_ms >= 250u) {
+        if (in->tick_ms - sm->relay_open_delay_ms >= 250u) {
             sm->status_508.status_flags |=  0x01u;
             sm->status_508.status_flags &= ~0x02u;
             if ((vs->status_flags & 0x02) && sm->cp_state == CP_STATE_OFF) {
                 out->coupler_lock = false;
                 sm->status_508.status_flags &= ~0x04u;
-                relay_open_delay_ms = 0;
-                sm->state           = TES_STATE_FINALIZE;
-                sm->state_start_ms  = in->tick_ms;
+                sm->relay_open_delay_ms = 0;
+                sm->state               = TES_STATE_FINALIZE;
+                sm->state_start_ms      = in->tick_ms;
             } else if (in->tick_ms - sm->state_start_ms > 10000u) {
                 out->coupler_lock = false;
                 sm->status_508.status_flags &= ~0x04u;
-                relay_open_delay_ms = 0;
-                sm->state           = TES_STATE_FINALIZE;
-                sm->state_start_ms  = in->tick_ms;
+                sm->relay_open_delay_ms = 0;
+                sm->state               = TES_STATE_FINALIZE;
+                sm->state_start_ms      = in->tick_ms;
             }
         }
         break;
@@ -327,8 +329,12 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         break;
     }
 
-    // 週期性 CAN 廣播（協議要求 100ms，僅在 PARAM_EXCHANGE 以後）
-    if (sm->state >= TES_STATE_PARAM_EXCHANGE && sm->state < TES_STATE_FAULT) {
+    // 週期性 CAN 廣播（協議要求 100ms）
+    // auto_start IDLE 也廣播 0x508：VP 常通時車端插槍即可立刻收到充電樁回應，
+    // 避免車端在 CP ON 後等待 0x508 而超時（等同手動按下 START 後 VP ON 即開始廣播）
+    bool should_broadcast = (sm->state >= TES_STATE_PARAM_EXCHANGE && sm->state < TES_STATE_FAULT)
+                         || (sm->state == TES_STATE_IDLE && in->auto_start_enabled);
+    if (should_broadcast) {
         prepare_periodic_tx(sm, in, out);
         if (in->vehicle_status.charge_voltage_limit > 0)
             sm->last_vehicle_voltage_01v = in->vehicle_status.charge_voltage_limit;
@@ -519,6 +525,7 @@ static void enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out)
 {
     sm->charge_complete_latched = true;
     sm->timer_running           = false;
+    sm->relay_open_delay_ms     = 0;
     sm->state                   = TES_STATE_ENDING;
     out->set_psu_current        = true;
     out->psu_current_target     = 0.0f;
