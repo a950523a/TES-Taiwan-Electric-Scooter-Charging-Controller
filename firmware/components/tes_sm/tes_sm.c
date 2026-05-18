@@ -92,8 +92,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_IDLE:
         out->relay_on     = false;
         out->coupler_lock = false;
-        // Beta auto_start: VP 常通，讓車端上電後能送 CAN
-        out->vp_relay     = in->auto_start_enabled;
+        // Beta auto_start: VP 常通，讓車端上電後能送 CAN（電流 > 15A 時禁用）
+        out->vp_relay     = in->auto_start_enabled && (in->max_current_01a <= 150u);
         sm->vehicle_ready          = false;
         sm->timer_running          = false;
         sm->precharge_step         = PRECHARGE_STEP_INIT;
@@ -129,7 +129,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         // Beta auto_start：CP OFF→ON 邊緣（CP 比 CAN 更早出現）或 CAN bit0 0→1 邊緣皆可觸發
         // 時序：VP ON → CP ON → CAN bit0=1 → 充電 → CAN ends → CP OFF
         // 不清除 fault_latched — 故障後仍須手動按 START 確認
-        if (in->auto_start_enabled && !sm->fault_latched && !sm->charge_complete_latched) {
+        if (in->auto_start_enabled && (in->max_current_01a <= 150u) &&
+            !sm->fault_latched && !sm->charge_complete_latched) {
             bool cp_edge  = (sm->cp_state == CP_STATE_ON && sm->cp_prev != CP_STATE_ON);
             bool can_edge = (in->vehicle_status.status_flags & 0x01) && !sm->last_can_permit;
             if (cp_edge || can_edge) {
@@ -292,7 +293,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_FAULT:
         out->relay_on     = false;
         out->coupler_lock = false;
-        out->vp_relay     = in->auto_start_enabled;  // keep vehicle powered for auto-retry
+        out->vp_relay     = in->auto_start_enabled && (in->max_current_01a <= 150u);
         if (in->tick_ms - sm->state_start_ms > sm->fault_timeout_ms) {
             sm->fault_latched          = false;
             sm->state                  = TES_STATE_IDLE;
@@ -333,7 +334,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // auto_start IDLE 也廣播 0x508：VP 常通時車端插槍即可立刻收到充電樁回應，
     // 避免車端在 CP ON 後等待 0x508 而超時（等同手動按下 START 後 VP ON 即開始廣播）
     bool should_broadcast = (sm->state >= TES_STATE_PARAM_EXCHANGE && sm->state < TES_STATE_FAULT)
-                         || (sm->state == TES_STATE_IDLE && in->auto_start_enabled);
+                         || (sm->state == TES_STATE_IDLE && in->auto_start_enabled && in->max_current_01a <= 150u);
     if (should_broadcast) {
         prepare_periodic_tx(sm, in, out);
         if (in->vehicle_status.charge_voltage_limit > 0)
