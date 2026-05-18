@@ -123,6 +123,9 @@ typedef struct {
     // Beta auto_start 邊緣偵測
     cp_state_t cp_prev;            // 上次 CP 更新前的狀態（偵測 OFF→ON 邊緣）
     bool       last_can_permit;    // 上一 tick 的 CAN 許可位元（偵測 0→1 邊緣）
+
+    // ENDING 狀態繼電器延遲計時（曾為 local static，移至此處以確保 re-entrancy）
+    uint32_t   relay_open_delay_ms;
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────
