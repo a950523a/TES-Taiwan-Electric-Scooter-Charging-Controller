@@ -182,6 +182,11 @@ v3.0.0 released 2026-05-02. All 51 features implemented; `idf.py build` zero err
 
 **⚠️ Not yet vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan, mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
 
+**⚠️ Beta auto-start bug (not yet confirmed fixed, 2026-05-18):** Vehicle sends `fault_flags=0x01` in 0x500 shortly after charging starts, causing false FAULT. Two fixes applied but not yet vehicle-tested:
+1. `check_battery_compatibility()`: prevented `fault_detect_voltage` (VLIM2 in 0x508) from being set to 0 when `max_charge_voltage=0` — vehicle interprets VLIM2=0 as "fault when output voltage ≥ 0V".
+2. `run_monitoring()`: added 2-second grace period before acting on `fault_flags` — vehicle may send residual `fault_flags=0x01` frames during early CHARGING while its state machine stabilises on `status_flags=0x06`.
+Also: max current > 15A now blocks auto-start (SM guard + web UI warning). Stale `vehicle_status` cleared on IDLE→PARAM_EXCHANGE transition.
+
 **Known issue:** iOS Safari `App-prefs:root=WIFI` URL scheme shows "Invalid URL" -- WiFi switch button does not work in Safari browser (may work in WKWebView/PWA mode).
 
 ---
