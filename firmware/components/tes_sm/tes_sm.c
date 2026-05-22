@@ -217,12 +217,13 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
 
         case PRECHARGE_STEP_COMPLETE:
-            sm->state          = TES_STATE_CHARGING;
-            sm->state_start_ms = in->tick_ms;
-            sm->timer_running  = true;
-            sm->elapsed_seconds = 0;
-            sm->total_seconds   = 0;
-            sm->last_timer_ms   = in->tick_ms;
+            sm->state                 = TES_STATE_CHARGING;
+            sm->state_start_ms        = in->tick_ms;
+            sm->timer_running         = true;
+            sm->elapsed_seconds       = 0;
+            sm->total_seconds         = 0;
+            sm->last_timer_ms         = in->tick_ms;
+            sm->psu_session_connected = in->psu_connected; // 快照：決定本次充電是否依賴 PSU
             break;
 
         default:
@@ -450,8 +451,9 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
 {
     const tes_vehicle_status_t *vs = &in->vehicle_status;
 
-    // PSU 斷線（ESP-NOW 或 UART）→ 立即停止輸出並進入 FAULT（10s 自動復歸）
-    if (!in->psu_connected) {
+    // PSU 斷線：只有充電開始時已連線的情況才 FAULT（中途斷線）；
+    // 開始時本就無 PSU 則維持 ADC-only 模式，不中斷充電
+    if (sm->psu_session_connected && !in->psu_connected) {
         enter_fault(sm, out);
         return;
     }
