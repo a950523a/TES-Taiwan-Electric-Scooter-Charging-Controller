@@ -178,6 +178,8 @@ Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP o
 
 **ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
 
+**PSU disconnect fault fix (commit 89bc1c4, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
+
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
 **⚠️ Not yet vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan, mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
@@ -305,7 +307,9 @@ eMoving iE125 sends 0x5F0 after every normal charge end. `emergency_hw_triggered
 - **Re-entry guard**: in IDLE with `charge_complete_latched=true`, further 0x5F0 is ignored
 
 ### Beta Auto-Start
-NVS key `auto_s`. VP relay held ON in IDLE. Triggers `PARAM_EXCHANGE` on CP OFF→ON edge (primary) or CAN 0x500 bit0 rising edge (backup). Fields added to `tes_sm_t`: `cp_prev`, `last_can_permit`. CP updates every 50 ms; `cp_prev` saved before update for edge detection.
+NVS key `auto_s`. VP relay held ON in IDLE. Triggers `PARAM_EXCHANGE` on CP OFF→ON edge (primary) or CAN 0x500 bit0 rising edge (backup). Fields added to `tes_sm_t`: `cp_prev`, `last_can_permit`, `psu_session_connected`. CP updates every 50 ms; `cp_prev` saved before update for edge detection.
+
+**PSU-less (ADC-only) mode:** `psu_session_connected` is snapshotted at `PRECHARGE_STEP_COMPLETE`. If PSU was absent at session start, `run_monitoring()` skips the PSU disconnect fault — charging continues using ADC voltage for display and 0x509 output. If PSU was present at session start and later disconnects mid-charge, FAULT is triggered as normal (safety preserved).
 
 **CP disconnect during charging:**
 - auto_start mode → `enter_ending()` (normal stop; vehicle initiated)
@@ -390,7 +394,6 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ## Known Technical Debt
 
-- `TES_STATE_ENDING`: `relay_open_delay_ms` is a local static inside the case block; should move to `tes_sm_t` for full re-entrancy
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
 
 ---
