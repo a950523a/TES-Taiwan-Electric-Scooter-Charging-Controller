@@ -222,7 +222,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <span>LuxBeacon SOC 燈號</span>
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
-    <label class="lbl2" style="margin-bottom:8px;display:block">🔔 推播通知</label>
+    <label class="lbl2" style="margin-bottom:8px;display:block">🔔 推播通知 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <div class="chk-row" style="gap:14px;flex-wrap:wrap;margin-bottom:10px">
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-ntfy" value="ntfy" onchange="updateNotifyUI()" style="accent-color:#48f"><span>ntfy.sh（推薦）</span></label>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-custom" value="custom" onchange="updateNotifyUI()" style="accent-color:#48f"><span>自定義 Webhook</span></label>
@@ -249,7 +249,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     </div>
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
-    <label class="lbl2" style="margin-bottom:8px;display:block">📡 MQTT 遠端監控</label>
+    <label class="lbl2" style="margin-bottom:8px;display:block">📡 MQTT 遠端監控 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <label class="lbl2">Broker URL（空白 = 停用）</label>
     <input type="url" id="mqtt-url" autocomplete="off" placeholder="mqtt://broker.hivemq.com:1883">
     <label class="lbl2">Topic Prefix</label>
@@ -260,7 +260,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     </div>
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
-    <label class="lbl2" style="margin-bottom:8px;display:block">⏰ 定時充電</label>
+    <label class="lbl2" style="margin-bottom:8px;display:block">⏰ 定時充電 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <div class="chk-row">
       <input type="checkbox" id="sched-en">
       <span>啟用定時充電</span>
@@ -285,7 +285,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="radio" name="psu_transport" id="pt1" value="1" onchange="updatePsuUI()" style="accent-color:#48f">
-        <span>ESP-NOW（無線）</span>
+        <span>ESP-NOW（無線）<span style="font-size:.7em;background:#553300;color:#ffa;padding:1px 4px;border-radius:3px;vertical-align:middle;margin-left:4px">Beta</span></span>
       </label>
     </div>
     <div id="psu-espnow-panel" style="display:none">
@@ -310,7 +310,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 
 <!-- 遠端監控 -->
 <div class="card" id="mqtt-card" style="display:none">
-  <section-title>📡 遠端監控</section-title>
+  <section-title>📡 遠端監控 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></section-title>
   <div style="font-size:.82em;color:#aaa;margin-bottom:10px;line-height:1.6">
     透過 MQTT 在任何網路環境即時監控充電狀態並遠端 Start / Stop
   </div>
@@ -383,7 +383,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 
 <!-- 充電紀錄 -->
 <div class="card">
-  <section-title>📋 充電紀錄 <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
+  <section-title>📋 充電紀錄 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span> <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
   <div id="hist-body">
     <table class="hist-table">
       <thead><tr><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
