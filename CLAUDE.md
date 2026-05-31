@@ -172,7 +172,7 @@ Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP o
 
 ## Current Status
 
-v3.0.0 released 2026-05-02. All 51 features implemented; `idf.py build` zero errors (confirmed 2026-05-09). v3.1.0–v3.4.0 and Beta auto-start implemented but **not yet tested with a vehicle**.
+**v3.4.0 released 2026-05-31.** v3.0.0 base (vehicle-tested) + v3.1.0–v3.4.0 features implemented. Web UI labels untested features as Beta. `idf.py build` zero errors.
 
 **Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
