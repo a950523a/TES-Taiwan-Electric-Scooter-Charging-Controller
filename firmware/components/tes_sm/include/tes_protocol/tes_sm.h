@@ -126,6 +126,9 @@ typedef struct {
 
     // ENDING 狀態繼電器延遲計時（曾為 local static，移至此處以確保 re-entrancy）
     uint32_t   relay_open_delay_ms;
+
+    // PSU 連線模式：進入 CHARGING 時快照；true = 有 PSU，斷線須 FAULT；false = PSU-less ADC 模式
+    bool       psu_session_connected;
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────
