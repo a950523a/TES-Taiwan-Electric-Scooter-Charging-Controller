@@ -8,8 +8,9 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 
-volatile float g_adc_cp_voltage     = 0.f;
-volatile float g_adc_output_voltage = 0.f;
+volatile float    g_adc_cp_voltage     = 0.f;
+volatile float    g_adc_output_voltage = 0.f;
+volatile uint32_t g_adc_cp_seq         = 0;   // 每取得一次新的 CP 取樣就 +1
 
 // Timing constants (tick = 10 ms)
 #define DEBOUNCE_TICKS    3    // 30 ms
@@ -122,10 +123,12 @@ void task_hal_poll(void *arg)
         if (ev_set == BTN_LONG)
             send_btn(g_display_btn_queue, EVT_BUTTON_SETTING_LONG);
 
-        // ADC: interleave across ticks so 9 ms conversion doesn't blow 10 ms budget
+        // ADC: interleave across ticks so 9 ms conversion doesn't blow 10 ms budget.
+        // 每個通道實際更新週期 = 100ms（CP 在 tick 5、輸出電壓在 tick 10）。
         adc_divider++;
         if (adc_divider == 5) {
             g_adc_cp_voltage = adc_driver_read_cp_voltage();
+            g_adc_cp_seq++;   // 通知 TES SM：這是一筆新的 CP 取樣
         } else if (adc_divider >= 10) {
             g_adc_output_voltage = adc_driver_read_voltage();
             adc_divider = 0;

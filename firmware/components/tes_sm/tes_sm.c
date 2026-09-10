@@ -1,4 +1,4 @@
-#include "tes_protocol/tes_sm.h"
+﻿#include "tes_protocol/tes_sm.h"
 #include <string.h>
 
 // CP 電壓判斷門檻（與 V2 config.h 一致）
@@ -14,7 +14,6 @@
 
 // CAN 週期發送間隔（協議要求 100ms ± 10ms）
 #define PERIODIC_SEND_MS    100u
-#define CP_READ_MS           50u
 
 // ─── 私有函數原型 ──────────────────────────────────────────────────────────────
 
@@ -22,10 +21,19 @@ static cp_state_t  update_cp_state(tes_sm_t *sm, float cp_v);
 static bool        check_battery_compatibility(tes_sm_t *sm, const tes_sm_inputs_t *in);
 static void        prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out);
 static void        run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out);
-static void        enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out);
-static void        enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out);
-static void        enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out);
 static void        update_timer(tes_sm_t *sm, const tes_sm_inputs_t *in);
+
+// enter_*() 一律自行設定 state_start_ms —— 呼叫端不得再另外設定。
+// （舊版由呼叫端負責，run_monitoring 的路徑漏設，導致 FAULT/ENDING 沿用
+//   進入 CHARGING 的時間戳而立刻逾時。）
+//
+// ctx_a / ctx_b 是故障當下的情境數值，意義依 src 而定（見 fault_source_t）。
+// 顯示層靠它把「Code:0x01」變成「車端要求 72.0V，超過設定上限 60.0V」。
+static void enter_fault    (tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms,
+                            uint8_t src, uint16_t ctx_a, uint16_t ctx_b);
+static void enter_ending   (tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms, uint8_t reason);
+static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms,
+                            uint8_t src, uint16_t ctx_a);
 
 // ─── 公開 API ─────────────────────────────────────────────────────────────────
 
@@ -65,11 +73,12 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     // 更新計時器
     update_timer(sm, in);
 
-    // CP 更新（每 50ms 一次）— 記錄前一狀態供觸發邊緣偵測及充電完成清除判斷
-    if (in->tick_ms - sm->last_cp_read_ms >= CP_READ_MS) {
-        sm->last_cp_read_ms = in->tick_ms;
-        sm->cp_prev  = sm->cp_state;
-        sm->cp_state = update_cp_state(sm, in->cp_voltage);
+    // CP 更新：只在 ADC 真的取得新取樣時才跑一次
+    // （記錄前一狀態供 auto_start 邊緣偵測及充電完成清除判斷）
+    if (in->cp_sample_seq != sm->last_cp_seq) {
+        sm->last_cp_seq = in->cp_sample_seq;
+        sm->cp_prev     = sm->cp_state;
+        sm->cp_state    = update_cp_state(sm, in->cp_voltage);
     }
 
     // 緊急停止：最高優先，任何狀態都處理
@@ -80,8 +89,10 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         if (in->emergency_requested || vehicle_emerg) {
             if (sm->state != TES_STATE_EMERGENCY) {
                 sm->emergency_hw_triggered = in->emergency_requested;
-                enter_emergency(sm, out);
-                sm->state_start_ms = in->tick_ms;
+                enter_emergency(sm, out, in->tick_ms,
+                                in->emergency_requested ? FAULT_SRC_EMERGENCY_BTN
+                                                        : FAULT_SRC_EMERGENCY_VEHICLE,
+                                in->emergency_requested ? 0u : 1u);
             }
         }
     }
@@ -99,7 +110,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         sm->precharge_step         = PRECHARGE_STEP_INIT;
         sm->params_509.remaining_time_min = 0xFFFF;
         // 確保 IDLE 時 status_508 保持乾淨的待機狀態
-        sm->status_508.status_flags = 0x01u;  // standby/ready
+        sm->status_508.status_flags = C508_ST_STOP_CONTROL;  // 停止狀態（非充電中、鎖已解除）
         sm->status_508.fault_flags  = 0;
 
         // Beta: 充電完成後 CP 穩定斷開（兩次讀取皆 OFF）才允許下次自動觸發
@@ -115,6 +126,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->remote_start            = false;
             sm->fault_latched           = false;
             sm->last_fault_flags        = 0;
+            sm->fault_source            = FAULT_SRC_NONE;
             sm->charge_complete_latched = false;
             out->vp_relay = true;
             if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
@@ -132,7 +144,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         if (in->auto_start_enabled && (in->max_current_01a <= 150u) &&
             !sm->fault_latched && !sm->charge_complete_latched) {
             bool cp_edge  = (sm->cp_state == CP_STATE_ON && sm->cp_prev != CP_STATE_ON);
-            bool can_edge = (in->vehicle_status.status_flags & 0x01) && !sm->last_can_permit;
+            bool can_edge = (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT) && !sm->last_can_permit;
             if (cp_edge || can_edge) {
                 out->vp_relay = true;
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
@@ -145,7 +157,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
 
     case TES_STATE_PARAM_EXCHANGE:
         out->vp_relay = true;
-        if (!sm->vehicle_ready && (in->vehicle_status.status_flags & 0x01)) {
+        if (!sm->vehicle_ready && (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT)) {
             sm->vehicle_ready = true;
         }
         if (sm->vehicle_ready) {
@@ -155,29 +167,30 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
                 out->set_psu_voltage    = true;
                 out->psu_voltage_target = (float)sm->status_508.fault_detect_voltage / 10.0f;
             } else {
-                sm->status_508.fault_flags |= 0x04;
-                enter_fault(sm, out);
-                sm->state_start_ms = in->tick_ms;
+                // 0x508 故障位元由 enter_fault() 依 fault_source 統一決定
+                // 留下「車端要多少 / 我們只給到多少」，使用者才知道要把上限調高
+                enter_fault(sm, out, in->tick_ms, FAULT_SRC_VOLTAGE_INCOMPAT,
+                            in->vehicle_status.charge_voltage_limit, in->max_voltage_01v);
             }
         } else if (in->tick_ms - sm->state_start_ms > 15000u) {
-            sm->status_508.fault_flags |= 0x01;
-            enter_fault(sm, out);
-            sm->state_start_ms = in->tick_ms;
+            enter_fault(sm, out, in->tick_ms, FAULT_SRC_VEHICLE_TIMEOUT,
+                        (uint16_t)((in->tick_ms - sm->state_start_ms) / 1000u),
+                        in->vehicle_status.status_flags);
         }
         break;
 
     case TES_STATE_PRE_CHARGE: {
         const tes_vehicle_status_t *vs = &in->vehicle_status;
 
-        if (vs->status_flags & 0x08) {
-            enter_ending(sm, out);
-            sm->state_start_ms = in->tick_ms;
+        if (vs->status_flags & V500_ST_NORMAL_STOP_REQ) {
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_NORMAL);
             break;
         }
-        if (!(sm->cp_state == CP_STATE_ON && (vs->status_flags & 0x01))) {
+        if (!(sm->cp_state == CP_STATE_ON && (vs->status_flags & V500_ST_CHARGE_PERMIT))) {
             if (in->tick_ms - sm->state_start_ms > 20000u) {
-                enter_fault(sm, out);
-                sm->state_start_ms = in->tick_ms;
+                // CP 電壓 + 車端 status：可分辨是槍沒插好還是車還沒給許可
+                enter_fault(sm, out, in->tick_ms, FAULT_SRC_PRECHARGE_TIMEOUT,
+                            (uint16_t)(in->cp_voltage * 10.0f), vs->status_flags);
             }
             break;
         }
@@ -188,8 +201,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         switch (sm->precharge_step) {
         case PRECHARGE_STEP_INIT:
             out->coupler_lock = true;
-            sm->status_508.status_flags &= ~0x01u;
-            sm->status_508.status_flags |=  0x04u;
+            sm->status_508.status_flags &= ~C508_ST_STOP_CONTROL;
+            sm->status_508.status_flags |=  C508_ST_COUPLER_LOCKED;
             out->tx_charger_status  = true;
             out->status_508         = sm->status_508;
             sm->precharge_step      = PRECHARGE_STEP_CONTACTOR_WAIT;
@@ -197,19 +210,20 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             break;
 
         case PRECHARGE_STEP_CONTACTOR_WAIT:
-            if (!(vs->status_flags & 0x02)) {
+            if (!(vs->status_flags & V500_ST_CONTACTOR_OPEN)) {
                 sm->relay_delay_start_ms = in->tick_ms;
                 sm->precharge_step       = PRECHARGE_STEP_RELAY_DELAY;
             } else if (in->tick_ms - sm->state_start_ms > 10000u) {
-                enter_fault(sm, out);
-                sm->state_start_ms = in->tick_ms;
+                enter_fault(sm, out, in->tick_ms, FAULT_SRC_CONTACTOR_TIMEOUT,
+                            (uint16_t)((in->tick_ms - sm->state_start_ms) / 1000u),
+                            vs->status_flags);
             }
             break;
 
         case PRECHARGE_STEP_RELAY_DELAY:
             if (in->tick_ms - sm->relay_delay_start_ms >= 250u) {
                 out->relay_on           = true;
-                sm->status_508.status_flags |= 0x02u;
+                sm->status_508.status_flags |= C508_ST_CHARGING;
                 out->tx_charger_status  = true;
                 out->status_508         = sm->status_508;
                 sm->precharge_step      = PRECHARGE_STEP_COMPLETE;
@@ -272,17 +286,17 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
 
         const tes_vehicle_status_t *vs = &in->vehicle_status;
         if (in->tick_ms - sm->relay_open_delay_ms >= 250u) {
-            sm->status_508.status_flags |=  0x01u;
-            sm->status_508.status_flags &= ~0x02u;
-            if ((vs->status_flags & 0x02) && sm->cp_state == CP_STATE_OFF) {
+            sm->status_508.status_flags |=  C508_ST_STOP_CONTROL;
+            sm->status_508.status_flags &= ~C508_ST_CHARGING;
+            if ((vs->status_flags & V500_ST_CONTACTOR_OPEN) && sm->cp_state == CP_STATE_OFF) {
                 out->coupler_lock = false;
-                sm->status_508.status_flags &= ~0x04u;
+                sm->status_508.status_flags &= ~C508_ST_COUPLER_LOCKED;
                 sm->relay_open_delay_ms = 0;
                 sm->state               = TES_STATE_FINALIZE;
                 sm->state_start_ms      = in->tick_ms;
             } else if (in->tick_ms - sm->state_start_ms > 10000u) {
                 out->coupler_lock = false;
-                sm->status_508.status_flags &= ~0x04u;
+                sm->status_508.status_flags &= ~C508_ST_COUPLER_LOCKED;
                 sm->relay_open_delay_ms = 0;
                 sm->state               = TES_STATE_FINALIZE;
                 sm->state_start_ms      = in->tick_ms;
@@ -309,12 +323,14 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         if (in->fault_clear_requested || sm->remote_fault_clear) {
             sm->remote_fault_clear            = false;
             sm->fault_latched                 = false;
+            sm->fault_source                  = FAULT_SRC_NONE;
             sm->state                         = TES_STATE_IDLE;
             sm->status_508.fault_flags        = 0;
             sm->params_509.remaining_time_min = 0xFFFF;
         } else if (!sm->emergency_hw_triggered &&
                    in->tick_ms - sm->state_start_ms > 5000u) {
             sm->fault_latched                 = false;
+            sm->fault_source                  = FAULT_SRC_NONE;
             sm->state                         = TES_STATE_IDLE;
             sm->status_508.fault_flags        = 0;
             sm->params_509.remaining_time_min = 0xFFFF;
@@ -352,7 +368,14 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     }
 
     // Beta auto_start: update CAN permit edge-detection latch for next tick
-    sm->last_can_permit = (in->vehicle_status.status_flags & 0x01) != 0;
+    sm->last_can_permit = (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT) != 0;
+
+    // Remote flags 一律只存活一個 tick。
+    // 若某狀態沒有消耗它（例如在 IDLE 收到 remote_stop），舊版會永久殘留，
+    // 導致下一次進入 CHARGING 時立刻被停止。
+    sm->remote_start       = false;
+    sm->remote_stop        = false;
+    sm->remote_fault_clear = false;
 }
 
 tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
@@ -375,10 +398,22 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
     snap.max_current_01a        = sm->cfg.max_current_01a;
     snap.target_soc             = sm->cfg.target_soc;
     snap.last_fault_flags       = sm->last_fault_flags;
+    snap.fault_source           = sm->fault_source;
+    snap.fault_ctx_a            = sm->fault_ctx_a;
+    snap.fault_ctx_b            = sm->fault_ctx_b;
+    snap.stop_reason            = sm->last_stop_reason;
+    snap.cp_state               = (uint8_t)sm->cp_state;
     snap.last_valid_req_current = sm->last_valid_req_current;
 
+    // charge_complete_latched 同時扮演 auto_start 的重入防護，使用者手動停止時
+    // 也會被設起來 —— 但那不算「充電完成」，LED 不應該亮綠燈。
+    bool completed_ok = sm->charge_complete_latched &&
+                        (sm->last_stop_reason == STOP_REASON_NORMAL  ||
+                         sm->last_stop_reason == STOP_REASON_TIMER   ||
+                         sm->last_stop_reason == STOP_REASON_VOLTAGE);
+
     if (sm->fault_latched)                               snap.led_state = LED_STATE_FAULT;
-    else if (sm->charge_complete_latched)                snap.led_state = LED_STATE_COMPLETE;
+    else if (completed_ok)                               snap.led_state = LED_STATE_COMPLETE;
     else if (sm->state == TES_STATE_CHARGING)            snap.led_state = LED_STATE_CHARGING;
     else                                                  snap.led_state = LED_STATE_STANDBY;
 
@@ -454,48 +489,48 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
     // PSU 斷線：只有充電開始時已連線的情況才 FAULT（中途斷線）；
     // 開始時本就無 PSU 則維持 ADC-only 模式，不中斷充電
     if (sm->psu_session_connected && !in->psu_connected) {
-        enter_fault(sm, out);
+        enter_fault(sm, out, in->tick_ms, FAULT_SRC_PSU_LOST, (uint16_t)sm->elapsed_seconds, 0);
         return;
     }
 
-    if (!(vs->status_flags & 0x01)) {
-        enter_ending(sm, out); return;
+    if (!(vs->status_flags & V500_ST_CHARGE_PERMIT)) {
+        enter_ending(sm, out, in->tick_ms, STOP_REASON_BMS); return;
     }
-    if (vs->status_flags & 0x08) {
-        enter_ending(sm, out); return;
+    if (vs->status_flags & V500_ST_NORMAL_STOP_REQ) {
+        enter_ending(sm, out, in->tick_ms, STOP_REASON_NORMAL); return;
     }
-    if (vs->status_flags & 0x04) {
-        enter_ending(sm, out); return;
+    if (vs->status_flags & V500_ST_POSTURE_NG) {
+        enter_ending(sm, out, in->tick_ms, STOP_REASON_BMS); return;
     }
     if (in->stop_requested || sm->remote_stop) {
         sm->remote_stop = false;
-        enter_ending(sm, out); return;
+        enter_ending(sm, out, in->tick_ms, STOP_REASON_USER); return;
     }
     if (in->stop_mode == STOP_MODE_VOLTAGE) {
         float v_out = (in->psu_connected && in->psu_voltage > 0.0f)
                       ? in->psu_voltage : in->measured_voltage;
         if (v_out >= (float)in->stop_voltage_01v / 10.0f) {
-            enter_ending(sm, out); return;
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_VOLTAGE); return;
         }
     } else if (in->stop_mode == STOP_MODE_TIMER) {
         if (sm->elapsed_seconds >= (uint32_t)in->charge_timer_min * 60u) {
-            enter_ending(sm, out); return;
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_TIMER); return;
         }
     } else {
         if (sm->soc >= (uint8_t)sm->cfg.target_soc) {
-            enter_ending(sm, out); return;
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_NORMAL); return;
         }
     }
     if (in->tick_ms - sm->state_start_ms > VOLTAGE_CHECK_DELAY_MS) {
         float v_limit = (float)vs->charge_voltage_limit / 10.0f;
         float v_out   = in->psu_connected ? in->psu_voltage : in->measured_voltage;
         if (v_limit > 0.1f && v_out >= v_limit + VOLTAGE_CHECK_TOLERANCE) {
-            enter_ending(sm, out); return;
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_VOLTAGE); return;
         }
     }
     if (sm->timer_running && sm->total_seconds > 0 &&
         sm->elapsed_seconds >= sm->total_seconds) {
-        enter_ending(sm, out); return;
+        enter_ending(sm, out, in->tick_ms, STOP_REASON_TIMER); return;
     }
     // 忽略充電開始後 2 秒內的車端故障旗標：
     // 車端 fault_flags=0x01 可能在充電初期因 IDLE 廣播期間殘留的協議狀態而短暫出現，
@@ -503,57 +538,94 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
     if (vs->fault_flags != 0 &&
         in->tick_ms - sm->state_start_ms > 2u * VOLTAGE_CHECK_DELAY_MS) {
         sm->last_fault_flags = vs->fault_flags;
-        enter_fault(sm, out); return;
+        enter_fault(sm, out, in->tick_ms, FAULT_SRC_BMS_FAULT,
+                    vs->fault_flags, vs->status_flags);
+        return;
     }
     if (sm->cp_state != CP_STATE_ON) {
-        if (in->auto_start_enabled)
-            enter_ending(sm, out);       // auto_start 模式：CP 斷開視為正常停止
-        else {
-            enter_fault(sm, out);
+        if (in->auto_start_enabled) {
+            // auto_start 模式：CP 斷開視為車端主動結束的正常停止
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_NORMAL);
+        } else {
+            enter_fault(sm, out, in->tick_ms, FAULT_SRC_CP_LOST,
+                        (uint16_t)(in->cp_voltage * 10.0f), (uint16_t)sm->cp_state);
             sm->fault_timeout_ms = 1000u; // 手動模式：CP 斷開快速復歸（1 秒）
         }
         return;
     }
 }
 
-static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out)
+// 依故障來源選出要送給車端的 0x508 故障位元。
+// 協定只給三個位元（供電系統 / 裝置本體 / 電池不適合），對不上的一律歸到
+// bit0 供電系統異常 —— 它語意最廣、最不會誤導；絕不把車端的問題謊報成
+// bit1「直流供電裝置異常」（那等於自認充電樁壞掉）。
+static uint8_t c508_fault_bit(uint8_t src)
+{
+    switch ((fault_source_t)src) {
+    case FAULT_SRC_VOLTAGE_INCOMPAT:
+        // 車端要的電壓超出我們能給的範圍 → 對車端而言就是「電池不適合」
+        return C508_FAULT_BATTERY_UNSUIT;
+    case FAULT_SRC_PSU_LOST:
+    case FAULT_SRC_EMERGENCY_BTN:
+        // PSU 就是「直流供電裝置」；緊急停止也是本機主動切斷
+        return C508_FAULT_DEVICE_ABNORMAL;
+    default:
+        return C508_FAULT_SUPPLY_SYSTEM;
+    }
+}
+
+static void enter_fault(tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms,
+                        uint8_t src, uint16_t ctx_a, uint16_t ctx_b)
 {
     sm->fault_latched     = true;
     sm->timer_running     = false;
     sm->fault_timeout_ms  = 10000u;
     sm->state             = TES_STATE_FAULT;
+    sm->state_start_ms    = tick_ms;   // 必須在此設定：FAULT 逾時以進入 FAULT 的時刻為基準
+    sm->fault_source      = src;
+    sm->fault_ctx_a       = ctx_a;
+    sm->fault_ctx_b       = ctx_b;
+    sm->last_stop_reason  = STOP_REASON_FAULT;
     out->relay_on         = false;
     out->coupler_lock     = false;
-    if (sm->status_508.fault_flags == 0) sm->status_508.fault_flags = 0x01;
+    sm->status_508.fault_flags |= c508_fault_bit(src);
     if (sm->last_fault_flags == 0) sm->last_fault_flags = sm->status_508.fault_flags;
     out->set_psu_current    = true;
     out->psu_current_target = 0.0f;
 }
 
-static void enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out)
+static void enter_ending(tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms, uint8_t reason)
 {
     sm->charge_complete_latched = true;
     sm->timer_running           = false;
     sm->relay_open_delay_ms     = 0;
     sm->state                   = TES_STATE_ENDING;
+    sm->state_start_ms          = tick_ms;  // ENDING 的 10s 逃生逾時以此為基準
+    sm->last_stop_reason        = reason;
     out->set_psu_current        = true;
     out->psu_current_target     = 0.0f;
 }
 
-static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out)
+static void enter_emergency(tes_sm_t *sm, tes_sm_outputs_t *out, uint32_t tick_ms,
+                            uint8_t src, uint16_t ctx_a)
 {
     sm->fault_latched  = true;
     sm->timer_running  = false;
     sm->state          = TES_STATE_EMERGENCY;
+    sm->state_start_ms = tick_ms;   // 車端 0x5F0 的 5s 自動復歸以此為基準
+    sm->fault_source   = src;
+    sm->fault_ctx_a    = ctx_a;
+    sm->fault_ctx_b    = 0;
+    sm->last_stop_reason = STOP_REASON_EMERG;
     out->relay_on      = false;
     out->coupler_lock  = false;
     out->vp_relay      = false;
     out->set_psu_current    = true;
     out->psu_current_target = 0.0f;
 
-    sm->status_508.fault_flags   |= 0x01;
+    sm->status_508.fault_flags   |= c508_fault_bit(src);
     sm->last_fault_flags          = sm->status_508.fault_flags;
-    sm->status_508.status_flags  |= 0x01;
+    sm->status_508.status_flags  |= C508_ST_STOP_CONTROL;
     out->tx_charger_status  = true;
     out->tx_emergency       = true;
     out->status_508         = sm->status_508;

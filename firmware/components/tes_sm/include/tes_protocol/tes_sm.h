@@ -21,6 +21,10 @@ typedef struct {
 
     // 來自 ADC / PSU（由 hal_poll_task 更新後傳入）
     float    cp_voltage;            // V，ADS1115 量測
+    uint32_t cp_sample_seq;         // 每次 cp_voltage 取得新取樣就 +1
+                                    // SM 用它判斷「這是不是新資料」——tick 頻率（10ms）
+                                    // 遠高於 ADC 取樣頻率（100ms），若不分辨就會把同一個
+                                    // 壞取樣重複計入 cp_error_count，使去抖形同虛設。
     float    measured_voltage;      // V，輸出側電壓（繼電器閉合後）
     bool     psu_connected;         // PSU UART 連線狀態
     float    psu_voltage;           // V，PSU 回報
@@ -90,7 +94,7 @@ typedef struct {
     // 計時器
     uint32_t state_start_ms;
     uint32_t last_periodic_ms;
-    uint32_t last_cp_read_ms;
+    uint32_t last_cp_seq;          // 最後處理過的 cp_sample_seq
 
     bool     timer_running;
     uint32_t elapsed_seconds;
@@ -107,6 +111,10 @@ typedef struct {
     uint16_t live_voltage_01v;
     uint16_t live_current_01a;
     uint8_t  last_fault_flags;
+    uint8_t  fault_source;         // fault_source_t，enter_fault/enter_emergency 設定
+    uint16_t fault_ctx_a;          // 故障當下的情境數值，意義依 fault_source 而定
+    uint16_t fault_ctx_b;
+    uint8_t  last_stop_reason;     // stop_reason_t，enter_ending/fault/emergency 設定
     uint8_t  soc;
 
     // remote control flags（由 network / web 設定，tick 內讀取後清除）

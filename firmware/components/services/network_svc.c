@@ -1,8 +1,21 @@
 // network_svc.c — WiFi + REST API
 //
-// No SSID configured → AP mode, broadcasts "TES-Charger" (open), IP 192.168.4.1
-// SSID configured    → STA mode, auto-reconnect, mDNS hostname "tes-charger.local"
+// No SSID configured → AP mode, broadcasts "TES-Charger-<id>" (open), IP 192.168.4.1
+// SSID configured    → STA mode, auto-reconnect
 // HTTP server runs in both modes on port 80.
+//
+// ── 同一個網段放兩台機器 ──────────────────────────────────────────────────────
+// 舊版把 mDNS 主機名 "tes-charger" 和 AP SSID "TES-Charger" 都寫死，兩台機器
+// 會同時搶同一個名字，誰也連不準。現在每台都用 MAC 後 3 bytes 當 device_id：
+//
+//   主機名   tes-<id>.local        永遠唯一，改名字也不會變（可以放書籤）
+//   AP SSID  TES-Charger-<id>      設定模式下兩台才分得出來
+//   服務名稱 使用者自訂的 device_name，給 Bonjour / 服務瀏覽器看的
+//   TXT      id / name / ver，未來 App 掃描區網時可直接辨識
+//
+// 另外用 delegated hostname 額外掛一個 "tes-charger"，讓單機使用者原本的
+// tes-charger.local 繼續能用；兩台都掛時會由其中一台回應，但兩台各自的
+// tes-<id>.local 一定準確，所以不影響。
 
 #include "services/network_svc.h"
 #include "services/config_svc.h"
@@ -11,6 +24,7 @@
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
 #include "services/log_svc.h"
+#include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
 #include "tes_protocol/tes_types.h"
 #include "esp_app_desc.h"
@@ -40,6 +54,26 @@ static bool           s_connected = false;
 static bool           s_ap_mode   = false;
 static bool           s_mdns_ok   = false;
 static char           s_ip_str[20] = "";   // "" = not yet known
+static char           s_hostname[24] = ""; // "tes-<id>"，唯一
+static char           s_ap_ssid[32]  = ""; // "TES-Charger-<id>"
+
+static bool           s_legacy_svc_ok = false;
+
+#define LEGACY_HOSTNAME "tes-charger"      // 相容用的別名，見檔頭說明
+#define MDNS_DEV_MARKER "tes-charger"      // mDNS TXT "dev=" 的值，用來辨識本產品
+
+// 沒取名字時顯示的名稱
+static void friendly_name(const charger_config_t *cfg, char *out, size_t len)
+{
+    if (cfg->device_name[0]) snprintf(out, len, "%s", cfg->device_name);
+    else                     snprintf(out, len, "TES Charger %s", cfg->device_id);
+}
+
+void network_svc_get_hostname(char *buf, size_t len)
+{
+    if (!buf || len == 0) return;
+    snprintf(buf, len, "%s", s_hostname);
+}
 
 #define MAX_BODY 512
 
@@ -83,10 +117,26 @@ static void set_cors(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 }
 
+// 充電流程進行中（含 ENDING 收尾）→ true。
+// OTA 會直接 esp_restart()，在這些狀態下重開機會讓繼電器/電磁鎖失去控制，
+// 而且 PSU 仍保持最後的 setpoint 繼續輸出。
+static bool charger_is_busy(void)
+{
+    tes_state_t st = TES_STATE_IDLE;
+    if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        st = g_snapshot.state;
+        xSemaphoreGive(g_snapshot_mutex);
+    }
+    return st == TES_STATE_PARAM_EXCHANGE || st == TES_STATE_PRE_CHARGE ||
+           st == TES_STATE_CHARGING       || st == TES_STATE_ENDING;
+}
+
 // ── GET / (embedded web UI) ───────────────────────────────────────────────────
 
 extern const uint8_t s_index_html_start[]   asm("_binary_index_html_start");
 extern const uint8_t s_index_html_end[]     asm("_binary_index_html_end");
+extern const uint8_t s_devices_html_start[] asm("_binary_devices_html_start");
+extern const uint8_t s_devices_html_end[]   asm("_binary_devices_html_end");
 extern const uint8_t s_manifest_json_start[] asm("_binary_manifest_json_start");
 extern const uint8_t s_manifest_json_end[]   asm("_binary_manifest_json_end");
 extern const uint8_t s_sw_js_start[]        asm("_binary_sw_js_start");
@@ -94,7 +144,22 @@ extern const uint8_t s_sw_js_end[]          asm("_binary_sw_js_end");
 extern const uint8_t s_icon_svg_start[]     asm("_binary_icon_svg_start");
 extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
 
+// "/"        → 裝置列表（先看到有哪幾台，再點進去）
+// "/control" → 原本的控制介面
 static esp_err_t handle_get_root(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400, stale-if-error=604800");
+    httpd_resp_send(req, (const char *)s_devices_html_start,
+                    s_devices_html_end - s_devices_html_start);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_root = {
+    .uri = "/", .method = HTTP_GET, .handler = handle_get_root
+};
+
+static esp_err_t handle_get_control(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400, stale-if-error=604800");
@@ -103,8 +168,8 @@ static esp_err_t handle_get_root(httpd_req_t *req)
     return ESP_OK;
 }
 
-static const httpd_uri_t s_uri_get_root = {
-    .uri = "/", .method = HTTP_GET, .handler = handle_get_root
+static const httpd_uri_t s_uri_get_control = {
+    .uri = "/control", .method = HTTP_GET, .handler = handle_get_control
 };
 
 // ── GET /status ───────────────────────────────────────────────────────────────
@@ -135,8 +200,24 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "elapsed_seconds",   snap.elapsed_seconds);
     cJSON_AddNumberToObject(root, "remaining_seconds", snap.remaining_seconds);
     cJSON_AddNumberToObject(root, "fault_flags",       snap.last_fault_flags);
+    cJSON_AddNumberToObject(root, "fault_source",      snap.fault_source);   // fault_source_t
+    cJSON_AddNumberToObject(root, "fault_ctx_a",       snap.fault_ctx_a);    // 意義依 fault_source
+    cJSON_AddNumberToObject(root, "fault_ctx_b",       snap.fault_ctx_b);
+    cJSON_AddNumberToObject(root, "stop_reason",       snap.stop_reason);    // stop_reason_t
     cJSON_AddBoolToObject  (root, "wifi_connected",    s_connected);
     cJSON_AddStringToObject(root, "ip",                s_ip_str);
+
+    // 裝置識別（多台同網段時用來分辨是哪一台）
+    {
+        const charger_config_t *dc = config_svc_get();
+        char nice[40];
+        friendly_name(dc, nice, sizeof(nice));
+        cJSON_AddStringToObject(root, "device_id",    dc->device_id);
+        cJSON_AddStringToObject(root, "device_name",  dc->device_name);
+        cJSON_AddStringToObject(root, "display_name", nice);
+        cJSON_AddStringToObject(root, "hostname",     s_hostname);
+        cJSON_AddStringToObject(root, "ap_ssid",      s_ap_ssid);
+    }
 
     // 充電停止條件（供 Web UI 顯示邏輯使用）
     const charger_config_t *cfg_snap = config_svc_get();
@@ -170,10 +251,13 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(can, "v500_max_voltage",  snap.can.v500_max_voltage);
     // 0x501 Vehicle → Charger
     cJSON_AddNumberToObject(can, "v501_seq",          snap.can.v501_seq);
+    cJSON_AddNumberToObject(can, "v501_soc",          snap.can.v501_soc);
     cJSON_AddNumberToObject(can, "v501_max_time",     snap.can.v501_max_time);
     cJSON_AddNumberToObject(can, "v501_eta",          snap.can.v501_eta);
     // 0x5F0 Vehicle → Charger
     cJSON_AddNumberToObject(can, "v5f0_flags",        snap.can.v5f0_flags);
+    cJSON_AddNumberToObject(can, "v5f0_max_current",  snap.can.v5f0_max_current);
+    cJSON_AddNumberToObject(can, "v5f0_maker",        snap.can.v5f0_maker);
     // 0x508 Charger → Vehicle
     cJSON_AddNumberToObject(can, "c508_fault",        snap.can.c508_fault);
     cJSON_AddNumberToObject(can, "c508_status",       snap.can.c508_status);
@@ -181,12 +265,32 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(can, "c508_avail_current",snap.can.c508_avail_current);
     cJSON_AddNumberToObject(can, "c508_fault_voltage",snap.can.c508_fault_voltage);
     // 0x509 Charger → Vehicle
+    cJSON_AddNumberToObject(can, "c509_seq",          snap.can.c509_seq);
     cJSON_AddNumberToObject(can, "c509_rated_kw",     snap.can.c509_rated_kw);
     cJSON_AddNumberToObject(can, "c509_voltage",      snap.can.c509_voltage);
     cJSON_AddNumberToObject(can, "c509_current",      snap.can.c509_current);
     cJSON_AddNumberToObject(can, "c509_remaining",    snap.can.c509_remaining);
     // 0x5F8 Charger → Vehicle
     cJSON_AddNumberToObject(can, "c5f8_flags",        snap.can.c5f8_flags);
+    cJSON_AddNumberToObject(can, "c5f8_maker",        snap.can.c5f8_maker);
+    // 收發活性（age = 距離最後一次收到的毫秒；4294967295 表示從未收到）
+    cJSON_AddNumberToObject(can, "rx_500_count",  snap.can.rx_500_count);
+    cJSON_AddNumberToObject(can, "rx_501_count",  snap.can.rx_501_count);
+    cJSON_AddNumberToObject(can, "rx_5f0_count",  snap.can.rx_5f0_count);
+    cJSON_AddNumberToObject(can, "rx_500_age_ms", snap.can.rx_500_age_ms);
+    cJSON_AddNumberToObject(can, "rx_501_age_ms", snap.can.rx_501_age_ms);
+    cJSON_AddNumberToObject(can, "rx_5f0_age_ms", snap.can.rx_5f0_age_ms);
+    cJSON_AddNumberToObject(can, "tx_508_count",  snap.can.tx_508_count);
+    cJSON_AddNumberToObject(can, "tx_509_count",  snap.can.tx_509_count);
+    cJSON_AddNumberToObject(can, "tx_5f8_count",  snap.can.tx_5f8_count);
+    cJSON_AddNumberToObject(can, "tx_fail_count", snap.can.tx_fail_count);
+    // TWAI 控制器健康度
+    cJSON_AddNumberToObject(can, "bus_state",     snap.can.bus_state);
+    cJSON_AddNumberToObject(can, "bus_tx_err",    snap.can.bus_tx_err);
+    cJSON_AddNumberToObject(can, "bus_rx_err",    snap.can.bus_rx_err);
+    cJSON_AddNumberToObject(can, "bus_arb_lost",  snap.can.bus_arb_lost);
+    cJSON_AddNumberToObject(can, "bus_err_count", snap.can.bus_err_count);
+    cJSON_AddNumberToObject(can, "bus_rx_missed", snap.can.bus_rx_missed);
 
     // NTP / 定時充電時間
     bool ntp_synced;
@@ -225,6 +329,10 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     const charger_config_t *cfg = config_svc_get();
 
     cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "device_id",      cfg->device_id);
+    cJSON_AddStringToObject(root, "device_name",    cfg->device_name);
+    cJSON_AddStringToObject(root, "hostname",       s_hostname);
+    cJSON_AddStringToObject(root, "ap_ssid",        s_ap_ssid);
     cJSON_AddBoolToObject  (root, "auto_voltage",   cfg->auto_voltage);
     cJSON_AddNumberToObject(root, "max_voltage",    (double)cfg->max_voltage_01v / 10.0);
     cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
@@ -342,6 +450,14 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         int s = item->valueint;
         if (s >= 20 && s <= 100) { new_soc = (int8_t)s; charging_changed = true; }
     }
+    char new_device_name[25] = {0};
+    bool device_name_changed = false;
+    item = cJSON_GetObjectItem(root, "device_name");
+    if (cJSON_IsString(item) && item->valuestring) {
+        strncpy(new_device_name, item->valuestring, sizeof(new_device_name) - 1);
+        device_name_changed = true;
+    }
+
     item = cJSON_GetObjectItem(root, "wifi_ssid");
     if (cJSON_IsString(item) && item->valuestring) {
         strncpy(new_ssid, item->valuestring, sizeof(new_ssid) - 1);
@@ -445,6 +561,18 @@ static esp_err_t handle_post_config(httpd_req_t *req)
 
     cJSON_Delete(root);
 
+    if (device_name_changed) {
+        config_svc_set_device_name(new_device_name);
+        // mDNS 的 instance name 與 TXT 是廣告出去的內容，改名要立刻反映，
+        // 否則服務瀏覽器上還是舊名字。主機名 tes-<id> 不受影響（刻意保持穩定）。
+        if (s_mdns_ok) {
+            char nice[40];
+            friendly_name(config_svc_get(), nice, sizeof(nice));
+            mdns_instance_name_set(nice);
+            mdns_service_txt_item_set("_http", "_tcp", "name", nice);
+            ESP_LOGI(TAG, "device renamed to \"%s\"", nice);
+        }
+    }
     if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
     if (wifi_changed)         config_svc_set_wifi(new_ssid, new_pass);
     if (beacon_changed)       config_svc_set_beacon(new_beacon);
@@ -457,12 +585,18 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (psu_transport_changed)
         config_svc_set_psu(new_psu_transport, cur->psu_peer_mac, cur->psu_paired);
 
-    if (wifi_changed || mqtt_changed)
-        ESP_LOGI(TAG, "WiFi/MQTT config updated — reboot to apply");
+    // 這三項都只在開機時被讀取一次（WiFi 在 network_svc_init、MQTT 在 task_mqtt
+    // 啟動時、PSU transport 在 app_main 末端），改完必須重開機才會生效。
+    bool reboot_required = wifi_changed || mqtt_changed || psu_transport_changed;
+    if (reboot_required)
+        ESP_LOGI(TAG, "WiFi/MQTT/PSU-transport config updated — reboot to apply");
 
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
-    httpd_resp_sendstr(req, "{\"ok\":true,\"note\":\"reboot to apply wifi changes\"}");
+    httpd_resp_sendstr(req, reboot_required
+        ? "{\"ok\":true,\"reboot_required\":true,"
+          "\"note\":\"reboot to apply wifi / mqtt / psu_transport changes\"}"
+        : "{\"ok\":true,\"reboot_required\":false}");
     return ESP_OK;
 }
 
@@ -509,6 +643,13 @@ static esp_err_t handle_post_ota(httpd_req_t *req)
 {
     char url[256] = "";
 
+    if (charger_is_busy()) {
+        set_cors(req);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                            "charging in progress — stop the session before updating");
+        return ESP_FAIL;
+    }
+
     if (req->content_len > 0 && req->content_len <= MAX_BODY) {
         char body[MAX_BODY + 1];
         int len = httpd_req_recv(req, body, req->content_len);
@@ -550,6 +691,12 @@ static const httpd_uri_t s_uri_post_ota = {
 
 static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 {
+    if (charger_is_busy()) {
+        set_cors(req);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                            "charging in progress — stop the session before updating");
+        return ESP_FAIL;
+    }
     if (ota_svc_get_state() == OTA_STATE_RUNNING) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
         return ESP_FAIL;
@@ -721,6 +868,7 @@ static esp_err_t handle_get_history(httpd_req_t *req)
         cJSON_AddNumberToObject(obj, "soc_start",        buf[i].soc_start);
         cJSON_AddNumberToObject(obj, "soc_end",          buf[i].soc_end);
         cJSON_AddNumberToObject(obj, "stop_reason",      buf[i].stop_reason);
+        cJSON_AddNumberToObject(obj, "session_id",       buf[i].session_id);
         cJSON_AddItemToArray(arr, obj);
     }
 
@@ -741,6 +889,232 @@ static esp_err_t handle_get_history(httpd_req_t *req)
 
 static const httpd_uri_t s_uri_get_history = {
     .uri = "/history", .method = HTTP_GET, .handler = handle_get_history
+};
+
+// ── GET /devices ──────────────────────────────────────────────────────────────
+// 用 mDNS PTR 查詢列出區網上的 TES 控制器（含自己）。
+// 只有 TXT 帶 dev=tes-charger 的才算，用來濾掉 NAS / 印表機之類的 _http._tcp 服務。
+//
+// 這件事必須在裝置端做：瀏覽器沒有 mDNS 瀏覽 API，逐一掃 IP 又慢又容易被擋。
+
+static const char *txt_get(const mdns_result_t *r, const char *key)
+{
+    for (size_t i = 0; i < r->txt_count; i++) {
+        if (r->txt[i].key && strcmp(r->txt[i].key, key) == 0)
+            return r->txt[i].value ? r->txt[i].value : "";
+    }
+    return NULL;
+}
+
+static esp_err_t handle_get_devices(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+
+    const charger_config_t *cfg = config_svc_get();
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "self_id", cfg->device_id);
+    cJSON *arr = cJSON_AddArrayToObject(root, "devices");
+
+    bool self_seen = false;
+    mdns_result_t *results = NULL;
+    // 2 秒足夠涵蓋一般家用網段；HTTP handler 阻塞這段時間可以接受
+    if (s_mdns_ok && mdns_query_ptr("_http", "_tcp", 2000, 20, &results) == ESP_OK) {
+        for (mdns_result_t *r = results; r; r = r->next) {
+            const char *mark = txt_get(r, "dev");
+            if (!mark || strcmp(mark, MDNS_DEV_MARKER) != 0) continue;   // 不是我們的裝置
+
+            const char *id = txt_get(r, "id");
+            if (id && strcmp(id, cfg->device_id) == 0) self_seen = true;
+
+            cJSON *o = cJSON_CreateObject();
+            cJSON_AddStringToObject(o, "id",       id ? id : "");
+            cJSON_AddStringToObject(o, "name",     txt_get(r, "name") ? txt_get(r, "name") : "");
+            cJSON_AddStringToObject(o, "version",  txt_get(r, "ver")  ? txt_get(r, "ver")  : "");
+            cJSON_AddStringToObject(o, "hostname", r->hostname ? r->hostname : "");
+            cJSON_AddNumberToObject(o, "port",     r->port ? r->port : 80);
+            cJSON_AddBoolToObject  (o, "self",     id && strcmp(id, cfg->device_id) == 0);
+
+            char ipbuf[16] = "";
+            for (mdns_ip_addr_t *a = r->addr; a; a = a->next) {
+                if (a->addr.type == ESP_IPADDR_TYPE_V4) {
+                    snprintf(ipbuf, sizeof(ipbuf), IPSTR, IP2STR(&a->addr.u_addr.ip4));
+                    break;
+                }
+            }
+            cJSON_AddStringToObject(o, "ip", ipbuf);
+            cJSON_AddItemToArray(arr, o);
+        }
+        mdns_query_results_free(results);
+    }
+
+    // 自己不一定會出現在查詢結果裡（多數 mDNS 實作不回應自己發出的查詢），
+    // 沒看到就補上，否則列表會少一台。
+    if (!self_seen) {
+        char nice[40];
+        friendly_name(cfg, nice, sizeof(nice));
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "id",       cfg->device_id);
+        cJSON_AddStringToObject(o, "name",     nice);
+        cJSON_AddStringToObject(o, "version",  esp_app_get_description()->version);
+        cJSON_AddStringToObject(o, "hostname", s_hostname);
+        cJSON_AddNumberToObject(o, "port",     80);
+        cJSON_AddBoolToObject  (o, "self",     true);
+        cJSON_AddStringToObject(o, "ip",       s_ip_str);
+        cJSON_AddItemToArray(arr, o);
+    }
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (json) { httpd_resp_sendstr(req, json); free(json); }
+    else      { httpd_resp_sendstr(req, "{\"devices\":[]}"); }
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_devices = {
+    .uri = "/devices", .method = HTTP_GET, .handler = handle_get_devices
+};
+
+// ── GET /trace ────────────────────────────────────────────────────────────────
+// 充電曲線取樣。?session=<id> 省略時取最新一筆 session。
+// 回應同時附上 sessions 清單，前端可直接用來做下拉選單。
+// samples 用緊湊陣列格式 [t_ms, V*10, I*10, BMSreq*10, soc, state] 以縮小體積。
+
+static uint32_t query_u32(httpd_req_t *req, const char *key, uint32_t defval)
+{
+    char q[96];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) != ESP_OK) return defval;
+    char v[24];
+    if (httpd_query_key_value(q, key, v, sizeof(v)) != ESP_OK) return defval;
+    return (uint32_t)strtoul(v, NULL, 10);
+}
+
+static void trace_emit_sessions(httpd_req_t *req)
+{
+    trace_session_info_t list[TRACE_MAX_SESSIONS];
+    int n = trace_svc_get_sessions(list, TRACE_MAX_SESSIONS);
+    char buf[160];
+
+    httpd_resp_sendstr_chunk(req, "\"sessions\":[");
+    for (int i = 0; i < n; i++) {
+        snprintf(buf, sizeof(buf),
+                 "%s{\"id\":%lu,\"start_epoch\":%lu,\"start_uptime_ms\":%lu,"
+                 "\"samples\":%lu,\"events\":%lu}",
+                 i ? "," : "",
+                 (unsigned long)list[i].session_id,
+                 (unsigned long)list[i].start_epoch_s,
+                 (unsigned long)list[i].start_t_ms,
+                 (unsigned long)list[i].sample_count,
+                 (unsigned long)list[i].event_count);
+        httpd_resp_sendstr_chunk(req, buf);
+    }
+    httpd_resp_sendstr_chunk(req, "]");
+}
+
+static esp_err_t handle_get_trace(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+
+    if (!trace_svc_is_ready()) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"trace buffer unavailable\"}");
+        return ESP_OK;
+    }
+
+    uint32_t sid = query_u32(req, "session", 0);
+    if (sid == 0) sid = trace_svc_newest_session();
+
+    uint32_t total = trace_svc_sample_count(sid);
+    uint32_t limit = query_u32(req, "limit", 2000);
+    if (limit == 0 || limit > 8192) limit = 8192;
+
+    // 超過上限時等間隔抽樣，維持曲線形狀
+    uint32_t step = (total > limit) ? ((total + limit - 1) / limit) : 1;
+
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+             "{\"ok\":true,\"session\":%lu,\"total\":%lu,\"step\":%lu,",
+             (unsigned long)sid, (unsigned long)total, (unsigned long)step);
+    httpd_resp_sendstr_chunk(req, buf);
+    trace_emit_sessions(req);
+
+    httpd_resp_sendstr_chunk(req, ",\"samples\":[");
+    bool first = true;
+    for (uint32_t i = 0; i < total; i += step) {
+        trace_sample_t s;
+        if (!trace_svc_get_sample(sid, i, &s)) continue;   // 已被環形覆蓋則跳過
+        snprintf(buf, sizeof(buf), "%s[%lu,%u,%u,%u,%u,%u]",
+                 first ? "" : ",",
+                 (unsigned long)s.t_ms,
+                 (unsigned)s.voltage_01v, (unsigned)s.current_01a,
+                 (unsigned)s.req_current_01a, (unsigned)s.soc, (unsigned)s.state);
+        httpd_resp_sendstr_chunk(req, buf);
+        first = false;
+    }
+    httpd_resp_sendstr_chunk(req, "]}");
+    httpd_resp_sendstr_chunk(req, NULL);   // 結束 chunked 回應
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_trace = {
+    .uri = "/trace", .method = HTTP_GET, .handler = handle_get_trace
+};
+
+// ── GET /tracelog ─────────────────────────────────────────────────────────────
+// 數值變動事件 Log。?session=<id>&limit=N（預設回傳最新的 N 筆）
+
+static esp_err_t handle_get_tracelog(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+
+    if (!trace_svc_is_ready()) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"trace buffer unavailable\"}");
+        return ESP_OK;
+    }
+
+    uint32_t sid = query_u32(req, "session", 0);
+    if (sid == 0) sid = trace_svc_newest_session();
+
+    uint32_t total = trace_svc_event_count(sid);
+    uint32_t limit = query_u32(req, "limit", 1000);
+    if (limit == 0 || limit > 6144) limit = 6144;
+
+    uint32_t start = (total > limit) ? (total - limit) : 0;   // 取最新的 limit 筆
+
+    char buf[256];
+    snprintf(buf, sizeof(buf),
+             "{\"ok\":true,\"session\":%lu,\"total\":%lu,\"from\":%lu,\"events\":[",
+             (unsigned long)sid, (unsigned long)total, (unsigned long)start);
+    httpd_resp_sendstr_chunk(req, buf);
+
+    bool first = true;
+    for (uint32_t i = start; i < total; i++) {
+        trace_event_t e;
+        if (!trace_svc_get_event(sid, i, &e)) continue;
+
+        // JSON 字串轉義：文字由韌體自行產生，只可能出現 " 與 \，處理這兩個即可
+        char esc[TRACE_LOG_TEXT_LEN * 2];
+        size_t k = 0;
+        for (size_t j = 0; e.text[j] && k < sizeof(esc) - 2; j++) {
+            if (e.text[j] == '"' || e.text[j] == '\\') esc[k++] = '\\';
+            esc[k++] = e.text[j];
+        }
+        esc[k] = '\0';
+
+        snprintf(buf, sizeof(buf), "%s[%lu,%lu,\"%s\"]",
+                 first ? "" : ",",
+                 (unsigned long)e.t_ms, (unsigned long)e.epoch_s, esc);
+        httpd_resp_sendstr_chunk(req, buf);
+        first = false;
+    }
+    httpd_resp_sendstr_chunk(req, "]}");
+    httpd_resp_sendstr_chunk(req, NULL);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_tracelog = {
+    .uri = "/tracelog", .method = HTTP_GET, .handler = handle_get_tracelog
 };
 
 // ── POST /notify/test ─────────────────────────────────────────────────────────
@@ -861,6 +1235,54 @@ static const httpd_uri_t s_uri_get_mqtt_link = {
 
 // ── WiFi event handler ────────────────────────────────────────────────────────
 
+// 建立（或更新）mDNS 廣告。AP 與 STA 兩條路徑共用。
+// ip4 = 目前這個介面的 IPv4，delegated hostname 必須明確給位址。
+static void mdns_publish(uint32_t ip4_addr)
+{
+    const charger_config_t *cfg = config_svc_get();
+    char nice[40];
+    friendly_name(cfg, nice, sizeof(nice));
+
+    if (!s_mdns_ok) {
+        if (mdns_init() != ESP_OK) {
+            ESP_LOGE(TAG, "mdns_init failed");
+            return;
+        }
+        mdns_hostname_set(s_hostname);
+        mdns_instance_name_set(nice);
+        mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+        // 讓區網掃描能直接辨識是哪一台，不必逐一開網頁確認。
+        // "dev" 是我們自己的標記，GET /devices 用它把本產品和區網上其他
+        // _http._tcp 服務（NAS、印表機…）區分開。
+        mdns_service_txt_item_set("_http", "_tcp", "dev",  MDNS_DEV_MARKER);
+        mdns_service_txt_item_set("_http", "_tcp", "id",   cfg->device_id);
+        mdns_service_txt_item_set("_http", "_tcp", "name", nice);
+        mdns_service_txt_item_set("_http", "_tcp", "ver",
+                                  esp_app_get_description()->version);
+        s_mdns_ok = true;
+        ESP_LOGI(TAG, "mDNS: %s.local (\"%s\")", s_hostname, nice);
+    }
+
+    // 相容別名 tes-charger.local —— 兩台都掛時由其中一台回應，
+    // 但各自的 tes-<id>.local 一定準確。失敗不影響主要主機名。
+    mdns_ip_addr_t a = {0};
+    a.addr.type            = ESP_IPADDR_TYPE_V4;
+    a.addr.u_addr.ip4.addr = ip4_addr;
+    a.next                 = NULL;
+    esp_err_t dr = mdns_delegate_hostname_add(LEGACY_HOSTNAME, &a);
+    if (dr != ESP_OK) dr = mdns_delegate_hostname_set_address(LEGACY_HOSTNAME, &a);
+
+    // 光註冊 delegated hostname 不一定足夠 —— 掛一個服務在它底下，
+    // 確保 mDNS 會為這個名字回應 A 查詢（否則 tes-charger.local 可能查不到）。
+    if (dr == ESP_OK && !s_legacy_svc_ok) {
+        if (mdns_service_add_for_host("TES Charger", "_http", "_tcp",
+                                      LEGACY_HOSTNAME, 80, NULL, 0) == ESP_OK) {
+            s_legacy_svc_ok = true;
+            ESP_LOGI(TAG, "mDNS alias: %s.local -> %s", LEGACY_HOSTNAME, s_ip_str);
+        }
+    }
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t base,
                                 int32_t id, void *data)
 {
@@ -868,15 +1290,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         if (id == WIFI_EVENT_AP_START) {
             // AP mode is up — our IP is always 192.168.4.1
             strncpy(s_ip_str, "192.168.4.1", sizeof(s_ip_str) - 1);
-            ESP_LOGI(TAG, "AP \"TES-Charger\" started @ %s", s_ip_str);
-            if (!s_mdns_ok) {
-                mdns_init();
-                mdns_hostname_set("tes-charger");
-                mdns_instance_name_set("TES Charger");
-                mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
-                s_mdns_ok = true;
-                ESP_LOGI(TAG, "mDNS: tes-charger.local -> %s", s_ip_str);
-            }
+            ESP_LOGI(TAG, "AP \"%s\" started @ %s", s_ap_ssid, s_ip_str);
+            mdns_publish(ESP_IP4TOADDR(192, 168, 4, 1));
         } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
             s_connected  = false;
             s_ip_str[0]  = '\0';
@@ -887,18 +1302,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         s_connected = true;
         snprintf(s_ip_str, sizeof(s_ip_str), IPSTR, IP2STR(&ev->ip_info.ip));
 
-        if (!s_mdns_ok) {
-            mdns_init();
-            mdns_hostname_set("tes-charger");
-            mdns_instance_name_set("TES Charger");
-            mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
-            s_mdns_ok = true;
-            ESP_LOGI(TAG, "mDNS: tes-charger.local -> %s", s_ip_str);
-        }
+        // DHCP 換過 IP 也會再進來一次，delegated hostname 的位址要跟著更新
+        mdns_publish(ev->ip_info.ip.addr);
 
         charger_event_t evt = { .type = EVT_WIFI_CHANGED };
         event_bus_publish(&evt);
-        ESP_LOGI(TAG, "STA connected, IP: %s", s_ip_str);
+        ESP_LOGI(TAG, "STA connected, IP: %s  (%s.local)", s_ip_str, s_hostname);
     }
 }
 
@@ -908,7 +1317,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 17;
+    cfg.max_uri_handlers  = 24;   // 目前註冊 18 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
@@ -917,6 +1326,8 @@ static void start_http_server(void)
     }
 
     httpd_register_uri_handler(s_server, &s_uri_get_root);
+    httpd_register_uri_handler(s_server, &s_uri_get_control);
+    httpd_register_uri_handler(s_server, &s_uri_get_devices);
     httpd_register_uri_handler(s_server, &s_uri_get_status);
     httpd_register_uri_handler(s_server, &s_uri_get_config);
     httpd_register_uri_handler(s_server, &s_uri_post_config);
@@ -929,6 +1340,8 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_icon);
     httpd_register_uri_handler(s_server, &s_uri_get_wifi_scan);
     httpd_register_uri_handler(s_server, &s_uri_get_history);
+    httpd_register_uri_handler(s_server, &s_uri_get_trace);
+    httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
@@ -949,23 +1362,29 @@ esp_err_t network_svc_init(void)
     esp_event_handler_register(IP_EVENT,   IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL);
 
     const charger_config_t *cfg = config_svc_get();
+
+    // 每台唯一的識別字串，mDNS 主機名與 AP SSID 都由它衍生
+    snprintf(s_hostname, sizeof(s_hostname), "tes-%s",         cfg->device_id);
+    snprintf(s_ap_ssid,  sizeof(s_ap_ssid),  "TES-Charger-%s", cfg->device_id);
+
     if (cfg->wifi_ssid[0] == '\0') {
         // No SSID: start open AP for initial WiFi configuration via POST /config
         esp_netif_create_default_wifi_ap();
         esp_netif_create_default_wifi_sta();   // STA interface needed for /wifi/scan
         wifi_config_t ap_cfg = {
             .ap = {
-                .ssid           = "TES-Charger",
-                .ssid_len       = 11,
                 .channel        = 1,
                 .authmode       = WIFI_AUTH_OPEN,
                 .max_connection = 4,
             }
         };
+        size_t ssid_len = strlen(s_ap_ssid);
+        memcpy(ap_cfg.ap.ssid, s_ap_ssid, ssid_len);
+        ap_cfg.ap.ssid_len = (uint8_t)ssid_len;
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));   // APSTA enables scanning
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
         s_ap_mode = true;
-        ESP_LOGI(TAG, "no SSID — AP+STA mode: TES-Charger (open)");
+        ESP_LOGI(TAG, "no SSID — AP+STA mode: %s (open)", s_ap_ssid);
     } else {
         esp_netif_create_default_wifi_sta();
         wifi_config_t wcfg = {};

@@ -36,6 +36,9 @@ firmware/build/
 firmware/sdkconfig
 firmware/sdkconfig.old
 
+# Local verification-build artifacts (see CLAUDE.md "non-ASCII path" note)
+build-output/
+
 # ESP-IDF managed components (downloaded at build time)
 firmware/managed_components/
 firmware/dependencies.lock

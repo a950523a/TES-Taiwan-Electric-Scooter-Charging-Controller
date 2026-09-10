@@ -12,7 +12,7 @@
 #define PSU_UART_TIMEOUT_TICKS    300   // 300 × 10ms = 3s   (UART，有線可寬鬆)
 #define PSU_ESPNOW_TIMEOUT_TICKS  200   // 200 × 10ms = 2s  (ESP-NOW；MAC-ACK 連敗仍 30ms 快斷)
 #define PSU_ESPNOW_FAIL_LIMIT       3   // 連續 MAC-ACK 失敗 N 次 → 立即標記斷線
-#define PSU_ESPNOW_TX_MIN_TICKS    50   //  50 × 10ms = 500ms：同值 SET 最短發送間隔
+#define PSU_ESPNOW_TX_MIN_TICKS    50   //  50 × 10ms = 500ms：同值 SET 最短發送間隔（UART 與 ESP-NOW 共用）
 #define PSU_ESPNOW_RSSI_WARN      -80   // dBm，低於此值印 LOGW
 #define PAIRING_TIMEOUT_TICKS    1000   // 1000 × 10ms = 10s pairing window
 
@@ -24,6 +24,26 @@ static psu_status_t    s_status           = { .voltage = 0.f, .current = 0.f, .c
 static uint32_t        s_poll_ticks       = 0;
 static uint32_t        s_last_valid_ticks = 0;
 static psu_transport_t s_transport        = PSU_TRANSPORT_UART;
+
+// s_status 由 task_hal_poll 寫入，由 task_tes_sm / HTTP / display 讀取。
+// struct copy 不是原子操作，沒有保護時可能讀到「新電壓 + 舊電流」的組合。
+static portMUX_TYPE s_status_mux = portMUX_INITIALIZER_UNLOCKED;
+
+static inline void status_set(float v, float a, bool connected)
+{
+    taskENTER_CRITICAL(&s_status_mux);
+    s_status.voltage   = v;
+    s_status.current   = a;
+    s_status.connected = connected;
+    taskEXIT_CRITICAL(&s_status_mux);
+}
+
+static inline void status_set_connected(bool connected)
+{
+    taskENTER_CRITICAL(&s_status_mux);
+    s_status.connected = connected;
+    taskEXIT_CRITICAL(&s_status_mux);
+}
 
 // ── UART state ────────────────────────────────────────────────────────────────
 
@@ -64,20 +84,18 @@ static void parse_frame(const char *frame)
 {
     float v = 0.f, a = 0.f;
     if (sscanf(frame, "V=%f,I=%f", &v, &a) == 2) {
-        s_status.voltage   = v;
-        s_status.current   = a;
-        s_status.connected = true;
+        status_set(v, a, true);
         s_last_valid_ticks = s_poll_ticks;
     } else if (strncmp(frame, "CMD_ACK:", 8) == 0) {
         if (!s_status.connected)
             ESP_LOGI(TAG, "PSU connected (CMD_ACK)");
-        s_status.connected = true;
+        status_set_connected(true);
         s_last_valid_ticks = s_poll_ticks;
     } else if (strncmp(frame, "HB", 2) == 0) {
         // PSU 待機心跳：只更新 liveness，不改 voltage/current
         if (!s_status.connected)
             ESP_LOGI(TAG, "PSU connected (HB)");
-        s_status.connected = true;
+        status_set_connected(true);
         s_last_valid_ticks = s_poll_ticks;
     } else {
         ESP_LOGW(TAG, "bad frame: %s", frame);
@@ -143,6 +161,8 @@ static void poll_uart(void)
 
 static void poll_espnow(void)
 {
+    if (!s_espnow_rx_q) return;
+
     espnow_rx_item_t item;
     while (xQueueReceive(s_espnow_rx_q, &item, 0) == pdTRUE) {
         if (s_pairing) {
@@ -173,9 +193,7 @@ static void poll_espnow(void)
 
     // 連續 MAC-ACK 失敗 → 立即斷線（不等 timeout）
     if (s_has_peer && s_send_fail_streak >= PSU_ESPNOW_FAIL_LIMIT && s_status.connected) {
-        s_status.connected = false;
-        s_status.voltage   = 0.f;
-        s_status.current   = 0.f;
+        status_set(0.f, 0.f, false);
         ESP_LOGE(TAG, "ESP-NOW: %u consecutive MAC-ACK failures — PSU disconnected",
                  (unsigned)s_send_fail_streak);
     }
@@ -201,8 +219,10 @@ esp_err_t psu_driver_init(void)
 
 esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
 {
-    s_transport = t;
-    if (t != PSU_TRANSPORT_ESPNOW) return ESP_OK;
+    if (t != PSU_TRANSPORT_ESPNOW) {
+        s_transport = PSU_TRANSPORT_UART;
+        return ESP_OK;
+    }
     // pair_cb 若已由外部設定則保留，否則等 start_pairing() 時再設定
 
     s_espnow_rx_q = xQueueCreate(8, sizeof(espnow_rx_item_t));
@@ -211,7 +231,9 @@ esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
     esp_err_t r = esp_now_init();
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "esp_now_init: %s", esp_err_to_name(r));
-        s_transport = PSU_TRANSPORT_UART;
+        vQueueDelete(s_espnow_rx_q);      // 舊版在此洩漏 queue
+        s_espnow_rx_q = NULL;
+        s_transport   = PSU_TRANSPORT_UART;
         return r;
     }
     esp_now_register_recv_cb(espnow_recv_cb);
@@ -230,6 +252,10 @@ esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
     } else {
         ESP_LOGI(TAG, "ESP-NOW transport ready, no peer yet — awaiting pairing");
     }
+
+    // 最後才切換 transport：task_hal_poll 優先權高於 app_main，先切換的話
+    // 它可能在 s_espnow_rx_q 建立完成前就跑進 poll_espnow()。
+    s_transport = PSU_TRANSPORT_ESPNOW;
     return ESP_OK;
 }
 
@@ -245,11 +271,22 @@ void psu_driver_start_pairing(psu_pair_done_cb_t cb)
         return;
     }
     if (cb) s_pair_cb = cb;   // 覆蓋；NULL 表示沿用已設定的持久回呼
-    // PSU AP is fixed on channel 1; switch to ch1 so broadcast is receivable
-    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+
+    // PSU 廣播固定在 channel 1。只有在未連上 AP 時才切換 channel ——
+    // STA 已連線時 esp_wifi_set_channel() 會被 AP 的 channel 覆寫，
+    // 而且強行切換會打斷現有連線（Web UI / MQTT 全斷）。
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        ESP_LOGW(TAG, "pairing while STA connected on ch%u — "
+                      "PSU must broadcast on the same channel", (unsigned)ap.primary);
+    } else {
+        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+        ESP_LOGI(TAG, "switched to ch1 for pairing");
+    }
+
     s_pairing     = true;
     s_pairing_end = s_poll_ticks + PAIRING_TIMEOUT_TICKS;
-    ESP_LOGI(TAG, "ESP-NOW pairing started (10s window, switched to ch1)");
+    ESP_LOGI(TAG, "ESP-NOW pairing started (10s window)");
 }
 
 bool psu_driver_is_pairing(void)
@@ -277,55 +314,56 @@ void psu_driver_poll(void)
                        ? PSU_ESPNOW_TIMEOUT_TICKS : PSU_UART_TIMEOUT_TICKS;
     if (s_status.connected &&
         (s_poll_ticks - s_last_valid_ticks) >= timeout) {
-        s_status.connected = false;
-        s_status.voltage   = 0.f;
-        s_status.current   = 0.f;
+        status_set(0.f, 0.f, false);
         ESP_LOGW(TAG, "PSU timeout — disconnected (%s, %lums)",
                  s_transport == PSU_TRANSPORT_ESPNOW ? "ESP-NOW" : "UART",
                  (unsigned long)(timeout * 10));
     }
 }
 
-void psu_driver_set_voltage(float v)
+// 節流：值沒變（誤差 < 0.05）且距上次發送未滿 500ms → 跳過。
+// 兩種 transport 共用 —— task_tes_sm 在 CHARGING 中每 10ms 就會呼叫一次 setpoint，
+// 舊版 UART 路徑沒有節流，等於用 100Hz 灌 PSU。
+static bool set_due(float value, float *cached, uint32_t *last_tick)
 {
+    bool changed = (value < *cached - 0.05f || value > *cached + 0.05f);
+    bool due     = (s_poll_ticks - *last_tick) >= PSU_ESPNOW_TX_MIN_TICKS;
+    if (!changed && !due) return false;
+    *cached    = value;
+    *last_tick = s_poll_ticks;
+    return true;
+}
+
+static void send_setpoint(const char *fmt, float value)
+{
+    char buf[24];
+    int len = snprintf(buf, sizeof(buf), fmt, value);
+    if (len <= 0) return;
     if (s_transport == PSU_TRANSPORT_ESPNOW) {
-        // 節流：值沒變（誤差 < 0.05V）且距上次發送未滿 500ms → 跳過
-        bool changed = (v < s_cached_v - 0.05f || v > s_cached_v + 0.05f);
-        bool due     = (s_poll_ticks - s_last_v_tx_tick) >= PSU_ESPNOW_TX_MIN_TICKS;
-        if (!changed && !due) return;
-        s_cached_v       = v;
-        s_last_v_tx_tick = s_poll_ticks;
-        char buf[24];
-        int len = snprintf(buf, sizeof(buf), "SET:V=%.1f\n", v);
         if (s_has_peer) esp_now_send(s_peer_mac, (const uint8_t *)buf, (size_t)len);
     } else {
-        char buf[24];
-        int len = snprintf(buf, sizeof(buf), "SET:V=%.1f\n", v);
         hal_uart_psu_write((const uint8_t *)buf, (size_t)len);
     }
+}
+
+void psu_driver_set_voltage(float v)
+{
+    if (!set_due(v, &s_cached_v, &s_last_v_tx_tick)) return;
+    send_setpoint("SET:V=%.1f\n", v);
 }
 
 void psu_driver_set_current(float a)
 {
-    if (s_transport == PSU_TRANSPORT_ESPNOW) {
-        bool changed = (a < s_cached_a - 0.05f || a > s_cached_a + 0.05f);
-        bool due     = (s_poll_ticks - s_last_a_tx_tick) >= PSU_ESPNOW_TX_MIN_TICKS;
-        if (!changed && !due) return;
-        s_cached_a       = a;
-        s_last_a_tx_tick = s_poll_ticks;
-        char buf[24];
-        int len = snprintf(buf, sizeof(buf), "SET:I=%.1f\n", a);
-        if (s_has_peer) esp_now_send(s_peer_mac, (const uint8_t *)buf, (size_t)len);
-    } else {
-        char buf[24];
-        int len = snprintf(buf, sizeof(buf), "SET:I=%.1f\n", a);
-        hal_uart_psu_write((const uint8_t *)buf, (size_t)len);
-    }
+    if (!set_due(a, &s_cached_a, &s_last_a_tx_tick)) return;
+    send_setpoint("SET:I=%.1f\n", a);
 }
 
 psu_status_t psu_driver_get_status(void)
 {
-    psu_status_t st = s_status;
+    psu_status_t st;
+    taskENTER_CRITICAL(&s_status_mux);
+    st = s_status;
+    taskEXIT_CRITICAL(&s_status_mux);
     if (s_transport == PSU_TRANSPORT_ESPNOW) {
         st.rssi        = s_last_rssi;
         st.fail_streak = s_send_fail_streak;

@@ -1,4 +1,4 @@
-#include "services/notify_svc.h"
+﻿#include "services/notify_svc.h"
 #include "services/event_bus.h"
 #include "services/config_svc.h"
 #include "services/network_svc.h"
@@ -15,6 +15,10 @@
 // IPC objects owned by main.c — extern, same pattern as network_svc.c
 extern tes_snapshot_t    g_snapshot;
 extern SemaphoreHandle_t g_snapshot_mutex;
+
+// 由 main.c 提供：自行結束的任務要在 vTaskDelete 前註銷 handle，
+// 否則 task_monitor 會讀到懸空指標
+extern void g_task_unregister_self(void);
 
 static const char *TAG = "notify_svc";
 
@@ -61,6 +65,12 @@ void task_notify(void *arg)
 {
     (void)arg;
     QueueHandle_t q = event_bus_subscribe();
+    if (!q) {
+        ESP_LOGE(TAG, "event_bus_subscribe failed — notify disabled");
+        g_task_unregister_self();
+        vTaskDelete(NULL);
+        return;
+    }
     charger_event_t evt;
     bool was_charging = false;
 

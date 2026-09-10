@@ -1,4 +1,4 @@
-#include "services/log_svc.h"
+﻿#include "services/log_svc.h"
 #include "services/event_bus.h"
 #include "hal/hal_nvs.h"
 #include "esp_log.h"
@@ -9,6 +9,10 @@
 #define NVS_NS   "tes_hist"
 #define NVS_KEY  "log"
 #define LOG_MAX  20
+
+// 由 main.c 提供：自行結束的任務要在 vTaskDelete 前註銷 handle，
+// 否則 task_monitor 會讀到懸空指標
+extern void g_task_unregister_self(void);
 
 static const char *TAG = "log_svc";
 
@@ -65,6 +69,12 @@ void task_log(void *arg)
 {
     (void)arg;
     QueueHandle_t q = event_bus_subscribe();
+    if (!q) {
+        ESP_LOGE(TAG, "event_bus_subscribe failed — charge history disabled");
+        g_task_unregister_self();
+        vTaskDelete(NULL);
+        return;
+    }
     charger_event_t evt;
 
     for (;;) {

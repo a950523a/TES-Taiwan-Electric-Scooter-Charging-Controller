@@ -7,12 +7,14 @@ idf_component_register(
         "ota_svc.c"
         "notify_svc.c"
         "log_svc.c"
+        "trace_svc.c"
         "mqtt_svc.c"
         "scheduler_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
         "web/index.html"
+        "web/devices.html"
         "web/manifest.json"
         "web/sw.js"
         "web/icon.svg"
