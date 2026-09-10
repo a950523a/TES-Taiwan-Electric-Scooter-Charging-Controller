@@ -70,6 +70,12 @@ body.has-cfg-bar{padding-bottom:64px}
 /* 被改過的欄位：左側加一條，捲動時一眼看得出哪幾項還沒存 */
 .cfg-chg{box-shadow:inset 3px 0 0 #d9a03f}
 .cfg-chg-grp{box-shadow:inset 3px 0 0 #d9a03f;border-radius:3px}
+/* 開關即時生效，正常情況不會處於「未儲存」狀態。這條只是保險 ——
+   萬一畫面與裝置真的不同步（例如儲存失敗後還原沒生效），還是要看得出來。
+   inset 線條會畫進圓角藥丸內部、跟圓鈕重疊，所以改用外框環。 */
+input[type=checkbox].cfg-chg{
+  box-shadow:none;outline:2px solid #d9a03f;outline-offset:2px;
+}
 .b-ota{background:#1d3a5e;color:#fff;padding:11px;border:none;border-radius:8px;font-size:.95em;cursor:pointer;font-weight:bold;width:100%;margin-top:10px;transition:opacity .15s}
 .b-ota:active{opacity:.65}
 .b-ota:disabled{opacity:.4;cursor:default}
@@ -86,7 +92,22 @@ input:focus{outline:none;border-color:#48f}
 input[type=time]::-webkit-calendar-picker-indicator{filter:invert(.6)}
 label.lbl2{display:block;color:#666;font-size:.82em;margin-top:10px}
 .chk-row{display:flex;align-items:center;gap:8px;margin-top:12px;color:#aaa;font-size:.9em}
-input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#48f}
+/* 開關樣式。維持原生 <input type=checkbox>，只換外觀 ——
+   .checked / .disabled 等狀態仍由瀏覽器管理，既有 JS 一行都不用改。 */
+input[type=checkbox]{
+  appearance:none;-webkit-appearance:none;margin:0;flex:none;
+  position:relative;width:40px;height:22px;border-radius:11px;
+  background:#3a3a3a;border:1px solid #4a4a4a;cursor:pointer;
+  transition:background .18s,border-color .18s;
+}
+input[type=checkbox]::after{
+  content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
+  border-radius:50%;background:#ddd;transition:transform .18s,background .18s;
+}
+input[type=checkbox]:checked{background:#2f7bea;border-color:#2f7bea}
+input[type=checkbox]:checked::after{transform:translateX(18px);background:#fff}
+input[type=checkbox]:disabled{opacity:.4;cursor:not-allowed}
+input[type=checkbox]:focus-visible{outline:2px solid #6aa4ff;outline-offset:2px}
 #msg{font-size:.85em;margin-top:8px;min-height:1.1em}
 .ok{color:#4d4}.err{color:#f55}
 section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-bottom:8px}
@@ -967,9 +988,70 @@ async function loadCfg(){
 
 // 設定卡片內任何輸入都重算未儲存項目。用事件委派，之後新增欄位不必再接一次；
 // 有些控制項本來就有自己的 onchange（updateStopModeUI 等），委派不會互相干擾。
+// ── 開關即時生效 ─────────────────────────────────────────────────────────────
+// 規則：**滑動開關按下即存，輸入的數值要按儲存。**
+// 滑動開關的視覺慣例就是即時生效，做成「要再按儲存」會一直被誤會。
+// 這個切分是可學習的（iOS 設定同一套），不是隨機的混合行為。
+const TOGGLE_KEY={
+  cav:'auto_voltage', cb:'beacon',
+  'sched-en':'sched_enabled', 'sched-stop-en':'sched_stop_en',
+  'auto-start-en':'auto_start'
+};
+
+// 後果不明顯的開關要先問。判斷標準不是「重不重要」，而是
+// 「使用者按下去之後，會不會發生他沒預期到的事」。
+function toggleConfirmMsg(id,val){
+  if(id==='auto-start-en'&&val){
+    return '啟用後 VP 繼電器將常時通電，偵測到插槍或車端 CAN 許可就會自動開始充電，'
+      +'不需要有人按下開始。\n\n這是 Beta 功能，尚未經過實車驗證。\n\n確定要啟用嗎？';
+  }
+  return null;
+}
+
+// 取消或儲存失敗時要把開關扳回去 —— 畫面絕不能顯示一個裝置上並不存在的狀態
+function revertToggle(el,val){
+  el.checked=!val;
+  if(el.id==='auto-start-en')checkAutoStart();
+  else if(el.id==='cav')updateAutoVoltUI();
+}
+
+async function autoSaveToggle(el){
+  const key=TOGGLE_KEY[el.id];
+  const val=el.checked;
+
+  const msg=toggleConfirmMsg(el.id,val);
+  if(msg&&!confirm(msg)){ revertToggle(el,val); refreshCfgBar(); return; }
+
+  cfgSaving=true;
+  cfgBarSay('儲存中…',true);
+  try{
+    const body={}; body[key]=val;
+    const r=await(await fetch('/config',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    })).json();
+    if(r.ok){
+      if(CFG_BASE)CFG_BASE[key]=val;   // 已是裝置上的值，不該再算成未儲存
+      cfgBarSay('✓ 已儲存');
+    }else{
+      revertToggle(el,val);
+      cfgBarSay('✗ 儲存失敗，開關已還原',true,false);
+    }
+  }catch(e){
+    revertToggle(el,val);
+    cfgBarSay('✗ 連線錯誤，開關已還原',true,false);
+  }finally{ cfgSaving=false; }
+}
+
 // 使用者一動手就解除訊息鎖定，否則失敗訊息會常駐、筆數停在舊值不再更新。
 // 儲存進行中除外 —— 那幾百毫秒的「儲存中…」不該被蓋掉。
-function onCfgEdit(){
+function onCfgEdit(e){
+  const t=e&&e.target;
+  if(t&&t.type==='checkbox'&&TOGGLE_KEY[t.id]){
+    // checkbox 會同時發 input 與 change，只處理 change，否則會送出兩次
+    if(e.type==='change')autoSaveToggle(t);
+    return;
+  }
   if(!cfgSaving)cfgBarLock=false;
   refreshCfgBar();
 }
