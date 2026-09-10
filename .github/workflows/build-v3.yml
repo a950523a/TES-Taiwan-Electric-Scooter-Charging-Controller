@@ -33,12 +33,12 @@ jobs:
           # ── 目前支援的硬體變體 ──────────────────────────────────────────
           - variant: esp32s3-ssd1306
             target: esp32s3
-            idf_version: v5.5.1
+            idf_version: v5.5.5
 
           # 新增硬體時在此加一行，例如：
           # - variant: esp32s3-lvgl-ili9341
           #   target: esp32s3
-          #   idf_version: v5.5.1
+          #   idf_version: v5.5.5
 
     steps:
       - name: Checkout (with submodules)

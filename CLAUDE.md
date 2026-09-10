@@ -70,19 +70,45 @@ large and why repartitioning is off the table for deployed units.
 
 Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only is not sufficient.
 
-**Build environment (PowerShell, Windows):**
+**ESP-IDF version: v5.5.5.** CI and the development machine are pinned to the same
+version on purpose — a mismatch means backtrace addresses decoded locally do not match
+the firmware actually running, which cost real debugging time once already. **Bump both
+or neither.**
 
-Installed via the Espressif online installer to `C:\Espressif` (IDF_TOOLS_PATH),
-framework at `C:\Espressif\frameworks\esp-idf-v5.5.5`. The installer bundles its own
-Git and Python — no system-wide Git/Python is present on this machine.
+Staying on 5.5.x rather than 6.x is a deliberate call, not inertia — see
+**Why not ESP-IDF 6.x** below.
 
-CI (GitHub Actions) pins **v5.5.1**; the online installer only offers the latest patch
-of each series, so local builds use **v5.5.5** (same 5.5.x API).
+**Build environment (PowerShell, Windows):** ESP-IDF is a git checkout at
+`C:\Users\user\esp\v5.5.5\esp-idf` (upgrade = `git checkout <tag>` + `git submodule
+update --init --recursive` + `idf_tools.py install`), tools in `C:\Users\user\.espressif`.
 
-> ### ⚠️ The repo path contains non-ASCII characters — in-place builds FAIL
+```powershell
+$env:IDF_PATH = "C:\Users\user\esp\v5.5.5\esp-idf"
+$py = "C:\Users\user\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
+# 動態取得工具鏈 PATH —— 不要寫死版本號，換 IDF 版本時工具鏈目錄也會變
+# （v5.5.1 用 xtensa-esp-elf/esp-14.2.0_20241119，v5.5.5 用 esp-14.2.0_20260121）
+foreach ($line in (& $py "$env:IDF_PATH\tools\idf_tools.py" export --format key-value)) {
+  if ($line -match '^([A-Z_]+)=(.*)$') {
+    Set-Item -Path "env:$($matches[1])" -Value ($matches[2] -replace '%PATH%', $env:PATH)
+  }
+}
+Set-Location "<repo>\firmware"
+& $py "$env:IDF_PATH\tools\idf.py" build
+```
+
+Changing `IDF_PATH` invalidates the CMake cache — delete `firmware/build` and re-run
+`set-target esp32s3` after any IDF version change, otherwise the stale cache points at
+the previous compiler.
+
+`export.ps1` / `Initialize-Idf.ps1` are best avoided: they define `idf.py` as a
+*PowerShell function*, so they must be dot-sourced and used in the same scope —
+`& export.ps1` silently loses it.
+
+> ### ⚠️ Non-ASCII checkout paths break the build (not an issue on the current machine)
 >
-> The checkout lives at `D:\文件\GitHub\...`. Three separate tools in the ESP-IDF
-> toolchain choke on that path under a cp950 (Traditional Chinese) Windows locale:
+> The current checkout is on an ASCII path, so this does not apply — but a checkout under
+> e.g. `D:\文件\GitHub\...` on a cp950 (Traditional Chinese) Windows locale fails in three
+> separate tools:
 >
 > | Stage | Failure | Workaround |
 > |-------|---------|-----------|
@@ -91,29 +117,30 @@ of each series, so local builds use **v5.5.5** (same 5.5.x API).
 > | `objdump` (link step) | `xtensa-esp32s3-elf-objdump -h .../libxtensa.a` exits 1 | **no workaround** |
 >
 > The first two are fixable with env vars; the **objdump failure at the link stage is
-> not** — GNU binutils resolves filenames through the ANSI codepage. A directory
-> junction does not help either: CMake canonicalises it back to the physical path.
->
-> **To build locally, the source must sit on an ASCII-only path.** Either move the
-> checkout (e.g. `C:\dev\TES-...`), or copy `firmware/` to an ASCII path for a
-> throwaway verification build. GitHub Actions is unaffected (Linux runner).
+> not** — GNU binutils resolves filenames through the ANSI codepage, and a directory
+> junction does not help (CMake canonicalises it back to the physical path). The source
+> must sit on an ASCII-only path. GitHub Actions is unaffected (Linux runner).
 
-Verification-build recipe used from an ASCII path (bypasses `export.ps1`/`Initialize-Idf.ps1`,
-both of which depend on `idf-env` config that points at the wrong `esp_idf.json` here):
+### Why not ESP-IDF 6.x
 
-```powershell
-$env:IDF_PATH       = "C:\Espressif\frameworks\esp-idf-v5.5.5"
-$env:IDF_TOOLS_PATH = "C:\Espressif"
-$env:PYTHONUTF8     = "1"
-$py = "C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
-# apply tool paths, then:
-& $py "$env:IDF_PATH\tools\idf.py" --no-ccache set-target esp32s3
-& $py "$env:IDF_PATH\tools\idf.py" --no-ccache build
-```
+Checked against this codebase, not assumed. v6.0 would be a **port, not an upgrade**, and
+it buys this project almost nothing:
 
-(`idf_tools.py export --format key-value` supplies the PATH entries; `Initialize-Idf.ps1`
-defines `idf.py` as a *PowerShell function*, so it must be dot-sourced and used in the
-same scope — `& export.ps1` silently loses it.)
+| v6.0 change | Impact here |
+|---|---|
+| Legacy TWAI API deprecated | `can_driver.c` uses 13 legacy symbols (`twai_driver_install`, `twai_read_alerts`, `twai_initiate_recovery`, …) — full rewrite onto the node-based driver, then a complete re-validation of the CAN protocol against a real vehicle |
+| cJSON and esp-mqtt moved out of IDF | `network_svc.c` and `mqtt_svc.c` — become managed dependencies to track |
+| mbedTLS v4 / PSA Crypto | `esp_https_ota` + ntfy push; HTTPS costs ~800 bytes more stack, and `task_notify` only has 6 KB |
+| Newlib → Picolibc | `trace_svc` formats floats via `vsnprintf("%f")`; needs re-verification |
+| Warnings become errors, C → gnu23 | Existing warnings become build failures |
+| Picolibc size savings | Irrelevant — the app partition is 17% used |
+
+**Revisit when one of these happens**, not when a firmware major version is declared (the
+IDF version is invisible to users, so it is not a reason for V4 on its own):
+1. ESP-IDF 5.5 reaches end of support (~30-month window from its release)
+2. Something needed lands only in 6.x
+3. **The next hardware revision** — that already requires full re-validation, so folding
+   the migration in costs one validation cycle instead of two
 
 **Git submodules —— 有兩個，不是只有 u8g2:**
 
@@ -362,7 +389,7 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 ## Current Status
 
-**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (b793cf3) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors on ESP-IDF v5.5.1.
+**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (b793cf3) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors. **該版由 ESP-IDF v5.5.1 建置**；v5.5.5 是之後才升的，要解 v3.5.0 韌體的 backtrace 需 `git checkout v5.5.1`。
 
 **v3.5.0 fixes — the two crashes:**
 1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. b793cf3 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
@@ -921,7 +948,7 @@ shows 離線 without affecting the others.
 
 ## Release & OTA
 
-**Release:** `git tag v3.x.x && git push origin v3.x.x` → GitHub Actions builds with ESP-IDF v5.5.1, creates Release with `tes_charger.bin` (OTA) and `tes_charger_flash.bin` (initial flash), deploys GitHub Pages. `docs/manifest.json` uses relative path `./tes_charger_flash.bin`; Pages source must be **GitHub Actions**.
+**Release:** `git tag v3.x.x && git push origin v3.x.x` → GitHub Actions builds with ESP-IDF v5.5.5（與開發機同版，見 Build 一節）, creates Release with `tes_charger.bin` (OTA) and `tes_charger_flash.bin` (initial flash), deploys GitHub Pages. `docs/manifest.json` uses relative path `./tes_charger_flash.bin`; Pages source must be **GitHub Actions**.
 
 **OTA:**
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
