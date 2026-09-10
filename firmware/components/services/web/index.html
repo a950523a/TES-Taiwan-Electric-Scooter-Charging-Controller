@@ -51,6 +51,25 @@ button:active{opacity:.65}
 .b-start{background:#1d5e2a;color:#fff}
 .b-stop{background:#5e1d1d;color:#fff}
 .b-save{background:#1d3a5e;color:#fff;margin-top:10px;width:100%;flex:none}
+
+/* ── 未儲存變更：浮動儲存列 + 欄位標記 ──
+   設定區塊很長，儲存鍵原本只在最底部，改一個值就得捲到底；
+   而且改完之後介面看不出有沒有未存的東西。兩個問題都由這條列解決。 */
+#cfg-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;
+  background:#16202c;border-top:1px solid #2c4460;
+  box-shadow:0 -4px 14px rgba(0,0,0,.45);
+  padding:9px 12px;padding-bottom:calc(9px + env(safe-area-inset-bottom));
+  align-items:center;gap:10px}
+#cfg-bar.on{display:flex}
+#cfg-bar .n{flex:1;font-size:.85em;color:#cfe0f5;min-width:0}
+#cfg-bar .n b{color:#ffd98a}
+#cfg-bar button{flex:none;padding:7px 14px;font-size:.85em}
+#cfg-bar .b-rv{background:#2a2a2a;color:#bbb}
+#cfg-bar .b-sv{background:#1d5e3a;color:#fff}
+body.has-cfg-bar{padding-bottom:64px}
+/* 被改過的欄位：左側加一條，捲動時一眼看得出哪幾項還沒存 */
+.cfg-chg{box-shadow:inset 3px 0 0 #d9a03f}
+.cfg-chg-grp{box-shadow:inset 3px 0 0 #d9a03f;border-radius:3px}
 .b-ota{background:#1d3a5e;color:#fff;padding:11px;border:none;border-radius:8px;font-size:.95em;cursor:pointer;font-weight:bold;width:100%;margin-top:10px;transition:opacity .15s}
 .b-ota:active{opacity:.65}
 .b-ota:disabled{opacity:.4;cursor:default}
@@ -221,7 +240,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 </div>
 
 <!-- 設定 -->
-<div class="card">
+<div class="card" id="cfg-card">
   <section-title>⚙ 設定</section-title>
   <label class="lbl2">裝置名稱</label>
   <input type="text" id="cdn" maxlength="24" placeholder="例如：車庫充電樁">
@@ -239,7 +258,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <label class="lbl2">最大電流 (A)</label>
   <input type="number" id="ca" step="0.1" min="1" max="100" oninput="checkAutoStart()">
   <label class="lbl2">充電停止條件</label>
-  <div class="chk-row" style="gap:16px;flex-wrap:wrap">
+  <div class="chk-row" id="stop-mode-row" style="gap:16px;flex-wrap:wrap">
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
       <input type="radio" name="stop_mode" id="sm0" value="0" onchange="updateStopModeUI()" style="accent-color:#48f">
       <span>依 SOC 停止</span>
@@ -279,7 +298,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
     <label class="lbl2" style="margin-bottom:8px;display:block">🔔 推播通知 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
-    <div class="chk-row" style="gap:14px;flex-wrap:wrap;margin-bottom:10px">
+    <div class="chk-row" id="notify-mode-row" style="gap:14px;flex-wrap:wrap;margin-bottom:10px">
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-ntfy" value="ntfy" onchange="updateNotifyUI()" style="accent-color:#48f"><span>ntfy.sh（推薦）</span></label>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-custom" value="custom" onchange="updateNotifyUI()" style="accent-color:#48f"><span>自定義 Webhook</span></label>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="nmode" id="nm-off" value="off" onchange="updateNotifyUI()" style="accent-color:#48f"><span>停用</span></label>
@@ -334,7 +353,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   </div>
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
     <label class="lbl2" style="margin-bottom:8px;display:block">🔌 PSU 電源設定</label>
-    <div class="chk-row" style="gap:16px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="chk-row" id="psu-transport-row" style="gap:16px;flex-wrap:wrap;margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="radio" name="psu_transport" id="pt0" value="0" onchange="updatePsuUI()" style="accent-color:#48f">
         <span>UART（有線）</span>
@@ -360,8 +379,15 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <div id="auto-start-warn" style="display:none;font-size:.75em;color:#f88;margin-top:6px;padding:5px 8px;background:#3a1010;border-radius:4px;border:1px solid #a33">⚠️ 最大電流超過 15A，自動充電已停用。請將最大電流降至 15A 以內才可使用此功能。</div>
     <div style="font-size:.75em;color:#888;margin-top:6px;line-height:1.6">啟用後 VP 繼電器常通，偵測到 CP 插入或車端 CAN 許可時自動開始充電。<br>一般故障 10 秒後自動復歸；按下緊急停止鈕後仍需手動 Reset Fault；充電完成後須斷槍再重插才能再次觸發。</div>
   </div>
-  <button class="b-save" onclick="save()">💾&nbsp;儲存設定</button>
   <div id="msg"></div>
+</div>
+
+<!-- 儲存入口只有這一個。設定區塊很長，固定在底部才不用為了存檔捲到最下面；
+     原本卡片底部那顆按鈕已移除，兩個做同一件事的按鈕只會讓人猶豫按哪個。 -->
+<div id="cfg-bar">
+  <div class="n"><span id="cfg-txt"><b id="cfg-n">0</b> 項設定未儲存</span></div>
+  <button class="b-rv" id="cfg-rv" onclick="revertCfg()">捨棄</button>
+  <button class="b-sv" id="cfg-sv" onclick="save()">💾 儲存</button>
 </div>
 
 <!-- 遠端監控 -->
@@ -933,22 +959,65 @@ async function loadCfg(){
         pps.style.color='#f55';
       }
     }
+    // 讀完才建立基準 —— 在這之前 collectCfg() 讀到的是空白表單，會被誤判成大量變更
+    CFG_BASE=collectCfg();
+    refreshCfgBar();
   }catch(e){}
 }
 
-async function save(){
+// 設定卡片內任何輸入都重算未儲存項目。用事件委派，之後新增欄位不必再接一次；
+// 有些控制項本來就有自己的 onchange（updateStopModeUI 等），委派不會互相干擾。
+// 使用者一動手就解除訊息鎖定，否則失敗訊息會常駐、筆數停在舊值不再更新。
+// 儲存進行中除外 —— 那幾百毫秒的「儲存中…」不該被蓋掉。
+function onCfgEdit(){
+  if(!cfgSaving)cfgBarLock=false;
+  refreshCfgBar();
+}
+document.getElementById('cfg-card').addEventListener('input',onCfgEdit);
+document.getElementById('cfg-card').addEventListener('change',onCfgEdit);
+
+// ntfy 頻道重新產生會改動 notify_url，但不經過任何 input 事件
+const _genNtfyTopic=genNtfyTopic;
+genNtfyTopic=function(){_genNtfyTopic.apply(this,arguments);refreshCfgBar();};
+
+// 有未儲存變更時關頁面／重新整理先問一下
+window.addEventListener('beforeunload',e=>{
+  if(document.getElementById('cfg-bar').classList.contains('on')){
+    e.preventDefault();e.returnValue='';
+  }
+});
+
+// ── 未儲存變更追蹤 ───────────────────────────────────────────────────────────
+// CFG_BASE 是裝置上目前的值（每次載入／儲存成功後更新）。畫面上的值與它比對，
+// 差異就是「未儲存的變更」—— 既用來顯示浮動列，也用來決定 POST 只送哪幾個欄位。
+let CFG_BASE=null;
+
+// key → 要標記的元素 id。單一欄位就是它自己，選項群組標在外框上。
+const CFG_ANCHOR={
+  device_name:'cdn', auto_voltage:'cav', max_voltage:'cv', max_current:'ca',
+  target_soc:'cs', stop_voltage:'csv', charge_timer_min:'ctm', wifi_ssid:'ci',
+  beacon:'cb', stop_mode:'stop-mode-row', notify_url:'notify-mode-row',
+  mqtt_broker_url:'mqtt-url', mqtt_topic_prefix:'mqtt-topic',
+  sched_enabled:'sched-en', sched_start_min:'sched-start',
+  sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
+  auto_start:'auto-start-en', psu_transport:'psu-transport-row'
+};
+
+// 空欄位的 parseFloat 會是 NaN，而 NaN !== NaN 會讓該欄永遠顯示為「已變更」
+function num(v,dflt){const n=parseFloat(v);return isFinite(n)?n:dflt;}
+
+function collectCfg(){
   const stopMode=document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
-  const ssid=document.getElementById('ci').value;
-  const b={
+  return {
     device_name:document.getElementById('cdn').value.trim(),
     auto_voltage:document.getElementById('cav').checked,
-    max_voltage:parseFloat(document.getElementById('cv').value),
-    max_current:parseFloat(document.getElementById('ca').value),
-    target_soc:parseInt(document.getElementById('cs').value),
+    max_voltage:num(document.getElementById('cv').value,null),
+    max_current:num(document.getElementById('ca').value,null),
+    target_soc:num(document.getElementById('cs').value,null),
     stop_mode:stopMode,
-    stop_voltage:parseFloat(document.getElementById('csv').value),
-    charge_timer_min:parseInt(document.getElementById('ctm').value)||120,
-    wifi_ssid:ssid,
+    stop_voltage:num(document.getElementById('csv').value,null),
+    charge_timer_min:num(document.getElementById('ctm').value,120),
+    wifi_ssid:document.getElementById('ci').value,
     beacon:document.getElementById('cb').checked,
     notify_url:getNotifyUrl(),
     mqtt_broker_url:document.getElementById('mqtt-url').value.trim(),
@@ -960,28 +1029,127 @@ async function save(){
     auto_start:document.getElementById('auto-start-en').checked,
     psu_transport:document.getElementById('pt1').checked?1:0
   };
+}
+
+function cfgChangedKeys(){
+  if(!CFG_BASE)return [];
+  const now=collectCfg();
+  // null = 數字欄位被清空。那不是一項「變更」，也不會送出 —— 若算進去，
+  // 浮動列會顯示一個按下儲存也不會消失的項目。
+  return Object.keys(now).filter(k=>now[k]!==null&&now[k]!==CFG_BASE[k]);
+}
+
+// 儲存結果要顯示在浮動列上。#msg 位在設定卡片底部，用浮動列存檔時人多半停在
+// 頁面中段，訊息出現在那裡等於沒顯示。
+let cfgBarLock=false;   // 顯示結果的那幾秒，不讓 refreshCfgBar 把文字蓋掉
+let cfgSaving=false;    // 送出中：這段期間的編輯不解除鎖定
+// keepOpen : 訊息是否常駐（成功且無後續動作時才自動收起）
+// hideBtns : 是否收起按鈕。儲存中要收（防重複送出）、成功要收（沒東西可存了），
+//            但**失敗絕對不能收** —— 否則使用者看得到錯誤卻沒有重試的入口。
+function cfgBarSay(html,keepOpen,hideBtns){
+  if(hideBtns===undefined)hideBtns=true;
+  cfgBarLock=true;
+  document.getElementById('cfg-txt').innerHTML=html;
+  document.getElementById('cfg-bar').classList.add('on');
+  document.body.classList.add('has-cfg-bar');
+  const rv=document.getElementById('cfg-rv'), sv=document.getElementById('cfg-sv');
+  rv.style.display=hideBtns?'none':'';
+  sv.style.display=hideBtns?'none':'';
+  if(!keepOpen)setTimeout(()=>{
+    cfgBarLock=false;
+    rv.style.display='';sv.style.display='';
+    refreshCfgBar();
+  },2000);
+}
+
+function refreshCfgBar(){
+  if(cfgBarLock)return;
+  document.getElementById('cfg-txt').innerHTML='<b id="cfg-n">0</b> 項設定未儲存';
+  const keys=cfgChangedKeys();
+  // 密碼欄有輸入也算一項變更，但它不在 CFG_BASE 裡（裝置不會回傳密碼）
+  const pw=document.getElementById('cp').value?1:0;
+  const n=keys.length+pw;
+
+  document.querySelectorAll('.cfg-chg,.cfg-chg-grp')
+          .forEach(e=>e.classList.remove('cfg-chg','cfg-chg-grp'));
+  keys.forEach(k=>{
+    const el=document.getElementById(CFG_ANCHOR[k]);
+    if(el)el.classList.add(el.tagName==='INPUT'?'cfg-chg':'cfg-chg-grp');
+  });
+  if(pw)document.getElementById('cp').classList.add('cfg-chg');
+
+  document.getElementById('cfg-n').textContent=n;
+  document.getElementById('cfg-bar').classList.toggle('on',n>0);
+  document.body.classList.toggle('has-cfg-bar',n>0);
+}
+
+async function revertCfg(){
+  document.getElementById('cp').value='';
+  await loadCfg();               // 直接向裝置重讀，不猜測
+  document.getElementById('msg').textContent='';
+}
+
+async function save(){
+  const now=collectCfg();
+  const keys=cfgChangedKeys();
   const p=document.getElementById('cp').value;
-  if(p)b.wifi_pass=p;
   const m=document.getElementById('msg');
+
+  if(!keys.length&&!p)return;   // 浮動列只在有變更時出現，正常情況走不到這裡
+
+  // /config 接受部分更新，所以只送真的改過的欄位。整包送出會連 wifi_ssid
+  // 一起重寫，讓「只調個電流」也走進 WiFi 變更的判斷，並無謂地磨損 NVS。
+  const b={};
+  keys.forEach(k=>{ if(now[k]!==null) b[k]=now[k]; });
+  if(p)b.wifi_pass=p;
+
+  // 只有這次真的改了 SSID 或輸入了密碼，才需要提示重新連線
+  const ssid=('wifi_ssid' in b)?b.wifi_ssid:'';
+  const psuChanged=('psu_transport' in b);
+
+  cfgSaving=true;
+  cfgBarSay('儲存中…',true);
   try{
     const r=await(await fetch('/config',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(b)
     })).json();
-    if(r.ok&&ssid&&p){
+    if(!r.ok){
+      // 變更保留不清，讓使用者能直接重試
+      m.className='err';m.textContent='✗ 儲存失敗';
+      cfgBarSay('✗ 儲存失敗，請重試',true,false);
+      return;
+    }
+
+    // 儲存成功：畫面上的值成為新的基準，浮動列與標記一併清掉
+    CFG_BASE=now;
+    s_psu_transport_loaded=now.psu_transport;
+    document.getElementById('cp').value='';
+
+    // 需要使用者接手處理的情況，訊息要留著、而且要讓人看得到 ——
+    // 這幾種都會斷線或需要重啟，看不到說明就等於失聯。
+    if(ssid&&p){
       m.className='ok';
       m.innerHTML='✓ 已儲存。設備將重啟連接至 <b>'+ssid+'</b>。<br>'
         +'請將手機 WiFi 切換至相同網路，再開啟 <a href="http://tes-charger.local" style="color:#4a9eff">tes-charger.local</a>';
-    }else if(r.ok&&b.psu_transport!==s_psu_transport_loaded){
+      cfgBarSay('✓ 已儲存 — 見下方重新連線說明',true);
+      m.scrollIntoView({block:'center'});
+    }else if(psuChanged){
       m.className='ok';
       m.textContent='✓ 已儲存。PSU 傳輸模式變更後需手動重啟設備生效。';
+      cfgBarSay('✓ 已儲存 — 需重啟生效',true);
+      m.scrollIntoView({block:'center'});
     }else{
-      m.className=r.ok?'ok':'err';
-      m.textContent=r.ok?'✓ 已儲存':'✗ 儲存失敗';
-      if(r.ok)setTimeout(()=>m.textContent='',5000);
+      m.textContent='';
+      cfgBarSay('✓ 已儲存');
     }
-  }catch(e){m.className='err';m.textContent='✗ 連線錯誤';}
+  }catch(e){
+    m.className='err';m.textContent='✗ 連線錯誤';
+    cfgBarSay('✗ 連線錯誤，請重試',true,false);
+  }finally{
+    cfgSaving=false;
+  }
 }
 
 async function act(url){
