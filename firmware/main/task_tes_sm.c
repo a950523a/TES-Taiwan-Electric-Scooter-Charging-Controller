@@ -500,9 +500,16 @@ void task_tes_sm(void *arg)
                     .soc_end          = snap.soc,
                     .stop_reason      = reason,
                     .energy_estimated = s_session_psu_seen ? 0 : 1,
+                    // 故障診斷一併存進紀錄，讓歷史頁面能直接說明停止原因
+                    .fault_source     = snap.fault_source,
+                    .fault_ctx_a      = snap.fault_ctx_a,
                 };
                 charger_event_t sess_evt = { .type = EVT_SESSION_COMPLETE,
                                              .timestamp_ms = inputs.tick_ms };
+                // charge_session_t 目前正好等於 payload 上限。再加欄位的話
+                // 這個 memcpy 會靜默寫過頭，因此在編譯期就擋下來。
+                _Static_assert(sizeof(charge_session_t) <= sizeof(sess_evt.payload),
+                               "charge_session_t exceeds charger_event_t.payload");
                 memcpy(sess_evt.payload, &sess, sizeof(charge_session_t));
                 event_bus_publish(&sess_evt);
                 s_session_active = false;
