@@ -14,6 +14,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_SOC     "target_soc"
 #define NVS_KEY_SSID    "wifi_ssid"
 #define NVS_KEY_PASS    "wifi_pass"
+#define NVS_KEY_STA_EN  "sta_en"
 #define NVS_KEY_BEACON  "beacon"
 #define NVS_KEY_AUTO_V  "auto_v"
 #define NVS_KEY_STOP_M  "stop_m"
@@ -87,6 +88,11 @@ esp_err_t config_svc_init(void)
     if (hal_nvs_get_str(NVS_NS, NVS_KEY_PASS, s_cfg.wifi_pass, sizeof(s_cfg.wifi_pass)) != ESP_OK) {
         s_cfg.wifi_pass[0] = '\0';
     }
+
+    // 預設 true —— 舊機器升級上來時 NVS 沒有這個鍵，必須維持原本會連線的行為，
+    // 否則 OTA 之後全部退回 AP 模式，使用者會以為機器壞了。
+    bool sta_en;
+    s_cfg.sta_enabled = (hal_nvs_get_bool(NVS_NS, NVS_KEY_STA_EN, &sta_en) == ESP_OK) ? sta_en : true;
 
     bool beacon;
     s_cfg.beacon_unlocked = (hal_nvs_get_bool(NVS_NS, NVS_KEY_BEACON, &beacon) == ESP_OK) && beacon;
@@ -192,6 +198,14 @@ esp_err_t config_svc_set_wifi(const char *ssid, const char *pass)
     esp_err_t r = hal_nvs_set_str(NVS_NS, NVS_KEY_SSID, s_cfg.wifi_ssid);
     r |= hal_nvs_set_str(NVS_NS, NVS_KEY_PASS, s_cfg.wifi_pass);
     return r;
+}
+
+esp_err_t config_svc_set_sta_enabled(bool enabled)
+{
+    CFG_WRITE_BEGIN();
+    s_cfg.sta_enabled = enabled;
+    CFG_WRITE_END();
+    return hal_nvs_set_bool(NVS_NS, NVS_KEY_STA_EN, enabled);
 }
 
 esp_err_t config_svc_set_beacon(bool unlocked)

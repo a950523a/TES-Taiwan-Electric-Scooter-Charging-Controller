@@ -20,6 +20,9 @@ typedef struct {
     int8_t   target_soc;         // 0-100 %
     char     wifi_ssid[33];
     char     wifi_pass[64];
+    // false = 不連線至路由器，固定開熱點，但 SSID／密碼保留不清除。
+    // 沒有這個開關的話，想回到 AP 模式只能把 SSID 清空，連帶弄丟密碼。
+    bool     sta_enabled;
     bool        beacon_unlocked;
     bool        auto_voltage;        // true = 依 ADC 自動設定電壓（開機時讀一次）
     stop_mode_t stop_mode;           // STOP_MODE_SOC / STOP_MODE_VOLTAGE / STOP_MODE_TIMER
@@ -50,6 +53,7 @@ void                     config_svc_get_copy     (charger_config_t *out);
 esp_err_t config_svc_set_device_name    (const char *name);
 esp_err_t config_svc_set_charging       (uint16_t v_01v, uint16_t a_01a, int8_t soc);
 esp_err_t config_svc_set_wifi           (const char *ssid, const char *pass);
+esp_err_t config_svc_set_sta_enabled    (bool enabled);   // false = 固定 AP 模式，保留憑證
 esp_err_t config_svc_set_beacon         (bool unlocked);
 esp_err_t config_svc_set_auto_voltage   (bool enabled);
 esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_01v, uint16_t charge_timer_min);
