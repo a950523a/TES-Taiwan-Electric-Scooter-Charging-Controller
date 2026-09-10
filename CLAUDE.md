@@ -537,6 +537,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `sched_stop` | uint16 | 360 | Stop time (minutes from midnight, default 06:00) |
 | `auto_s` | bool | false | Beta auto-start |
 | `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
+| `mqtt_cmd` | bool | **true** | 允許透過 MQTT 遠端啟停。false = 只發佈狀態、不訂閱 cmd。預設 true 是相容考量，見 Security 一節 |
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
 | `sta_en` | bool | **true** | false = 固定 AP 模式但保留 SSID／密碼。預設必須為 true，否則 OTA 上來的舊機器會全部掉進 AP 模式 |
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
@@ -807,6 +808,80 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ---
 
+## Security
+
+This device closes a relay onto a vehicle's HV battery, so "someone can control it"
+is a physical-consequence problem, not just a privacy one. What is implemented, what
+is deliberately not, and why.
+
+### Implemented
+
+**CSRF protection.** The seven state-changing endpoints (`POST /config`, `/start`,
+`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`) require an
+`X-TES-Request` header; `csrf_ok()` in `network_svc.c` rejects the rest with 403.
+
+Why a header works: a custom header forces the browser to send a CORS preflight, and
+this server registers no `OPTIONS` handler, so cross-site requests die there. Same-origin
+requests (the device's own page) never go through CORS at all. Read-only endpoints are
+untouched, so the multi-device dashboard's cross-origin `GET /status` still works.
+
+**This is not authentication.** Anything that speaks HTTP directly — curl, a script,
+any program on the LAN — can set the header itself. It stops a webpage from acting on
+the user's behalf; it stops nothing else. Scripts must send the header (see Release & OTA).
+
+The web UI adds it by wrapping `window.fetch` rather than at each call site — a new
+endpoint would otherwise silently 403 and the cause is not obvious from the symptom.
+
+**MQTT.** `mqtts://` works now (`esp_crt_bundle_attach`; without a CA source TLS could
+only fail, so users were effectively forced onto plaintext). Credentials go in the URI:
+`mqtts://user:pass@host:8883`. `mqtt_cmd_enabled` (NVS `mqtt_cmd`) turns off the `cmd`
+subscription — status keeps publishing, but no path exists to command the charger.
+
+> ⚠️ `mqtt_cmd_enabled` **defaults to true** — compatibility over safe-by-default, so
+> that OTA doesn't silently remove remote start/stop from people already using it. The
+> consequence is that the existing exposure is not fixed automatically; users must turn
+> it off or move to an authenticated broker. Worth revisiting.
+
+### Known gaps — not fixed
+
+| Gap | Exposure | Consequence |
+|---|---|---|
+| **No authentication anywhere** | Anyone on the LAN / in AP range | `/ota/upload` takes arbitrary firmware — full takeover of a device wired to HV |
+| **AP mode is open** (`WIFI_AUTH_OPEN`) | Anyone in radio range | Grants the precondition for the row above |
+| **Plain HTTP** | Same-segment sniffing | Config and status readable and modifiable in transit |
+| **No flash encryption / secure boot / NVS encryption** | Physical access | WiFi password recoverable from flash |
+| **Public MQTT brokers still permitted** | Internet-wide | On a no-account broker, `tes/+/status` enumerates every online unit — the topic never has to be guessed |
+
+`POST /config` deserves attention beyond "someone starts a charge": `max_voltage` feeds
+VLIM2 in 0x508, the vehicle's fault-detection voltage ceiling. Setting it wrong disables
+the vehicle's own overvoltage protection.
+
+### Why not HTTPS
+
+Asked and evaluated; the answer is no, and the reason is certificates, not effort.
+
+- **Self-signed baked into firmware** — the private key ships inside a public binary, so
+  it stops no real attacker, and every visit shows a full-page browser warning.
+- **Per-device self-signed at first boot** — key is no longer shared, still untrusted,
+  still warns.
+- **A real CA (Let's Encrypt)** — needs a public DNS name and reachability or DNS-API
+  credentials, plus 90-day renewal. Not available to a LAN device.
+
+The certificate's SAN would also have to cover `tes-<id>.local`, `tes-charger.local`,
+`192.168.4.1` **and a DHCP address that changes** — the last one cannot be covered, so
+a name-mismatch warning stacks on top of the untrusted-CA one. For non-technical users
+that is worse than HTTP: it trains them to click through security warnings.
+
+Three things would also break: the device-list dashboard (cross-origin fetches to other
+units, each with an untrusted cert), Service Worker registration (a click-through cert is
+not a secure context, so PWA caching still would not work), and every `curl` call would
+need `-k`.
+
+**Most importantly, TLS does not address the actual gap.** The problem is that requests
+are unauthenticated; encrypting them leaves them just as unauthenticated. **Authentication
+first, transport encryption later — if ever.** Where TLS genuinely matters here is traffic
+that leaves the LAN, i.e. MQTT, which is why `mqtts://` was added instead.
+
 ## Network & Web UI
 
 ### Device identity — two units on one LAN
@@ -869,7 +944,9 @@ tens of KB over LAN; re-fetching costs far less than showing an outdated interfa
 does not affect offline support — the Service Worker's Cache API is independent of the
 HTTP cache.
 
-**REST API (port 80, CORS *):**
+**REST API (port 80, CORS `*` on reads).** Every `POST` below requires the
+`X-TES-Request` header — see **Security** above. Reads need nothing.
+
 
 ### Settings UI convention (v3.5.x) — don't undo this by accident
 
@@ -953,7 +1030,11 @@ shows 離線 without affecting the others.
 **OTA:**
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
 - Web UI pull: "更新至最新韌體" → `POST /ota`
-- Manual upload: `POST /ota/upload` or `curl --data-binary @tes_charger.bin http://tes-charger.local/ota/upload`
+- Manual upload: `POST /ota/upload` — **needs the CSRF header** (see Security below):
+  ```bash
+  curl -H "X-TES-Request: 1" --data-binary @tes_charger.bin http://tes-charger.local/ota/upload
+  ```
+  Without the header the device answers `403 missing X-TES-Request header`.
 
 ---
 
