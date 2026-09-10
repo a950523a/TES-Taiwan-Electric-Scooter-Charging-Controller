@@ -2,21 +2,30 @@ name: Build and Release V3
 
 on:
   push:
-    branches: [V3-dev, main]
-    tags: ['v3.*']
+    branches: [dev, main]
+    tags: ['v*']
   pull_request:
-    branches: [main, V3-dev]
+    branches: [dev, main]
   workflow_dispatch:
 
+# 預設唯讀，寫入權限下放到真正需要的 job。
+# workflow 層給 contents:write 會讓 pull_request 觸發的執行也帶著寫入 token。
 permissions:
-  contents: write   # 建立 Release 需要寫入權限
-  pages: write      # 部署 GitHub Pages
-  id-token: write   # Pages OIDC token
+  contents: read
+
+# 連續推送時，同一分支只保留最新一次建置。
+# Pages 部署尤其不能並行 —— 兩次部署競爭會讓上線內容變成先後不定。
+# tag 建置不取消：那是要產出 Release 的，中途取消會留下沒有附件的空 Release。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
     name: Build (${{ matrix.variant }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 建立 Release 需要
     strategy:
       fail-fast: false
       matrix:
@@ -36,14 +45,41 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          # firmware/CMakeLists.txt 用 `git describe --always --tags --dirty`
+          # 產生 PROJECT_VER。預設的淺複製不含 tag 與歷史，describe 會落回
+          # --always 只給短 hash，韌體回報的版本就失去意義。
+          fetch-depth: 0
 
       - name: Build firmware + generate merged binary
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ matrix.idf_version }}
           target: ${{ matrix.target }}
-          command: idf.py build && idf.py merge-bin -o tes_charger_flash.bin
+          # safe.directory：建置在容器內進行，工作目錄的擁有者與容器使用者不同時
+          # git 會拒絕操作，describe 靜默失敗（CMake 端是 ERROR_QUIET），
+          # 版本字串就變成 "dev"。加這行是廉價的保險。
+          command: >-
+            git config --global --add safe.directory '*' &&
+            idf.py build &&
+            idf.py merge-bin -o tes_charger_flash.bin
           path: firmware
+
+      # 把實際編進韌體的版本字串印出來。沒有這行，版本錯了也只有燒進機器
+      # 才會發現 —— 本機就發生過 PROJECT_VER 停在舊值的情況。
+      - name: Report firmware version
+        run: |
+          DESCRIBE="$(git describe --always --tags --dirty 2>&1 || true)"
+          BUILT="$(python3 -c "import json;print(json.load(open('firmware/build/project_description.json'))['project_version'])")"
+          echo "git describe      : $DESCRIBE"
+          echo "compiled into app : $BUILT"
+          # PROJECT_VER 由 CMake 在 configure 階段算一次。真的編進去的值才算數 ——
+          # 若這裡出現 "dev" 或純 hash，代表 git describe 在容器內失敗了。
+          case "$BUILT" in
+            dev|"") echo "::error::PROJECT_VER 是 '$BUILT' —— git describe 在建置環境失敗"; exit 1 ;;
+          esac
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$BUILT" != "${GITHUB_REF_NAME}" ]; then
+            echo "::warning::tag 是 ${GITHUB_REF_NAME} 但韌體回報 $BUILT"
+          fi
 
       # variant 目前只有一種，直接用通用檔名；
       # 未來多 variant 時改為 tes_charger_${{ matrix.variant }}.bin
@@ -98,6 +134,9 @@ jobs:
       github.ref == 'refs/heads/main' ||
       (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-'))
     runs-on: ubuntu-latest
+    permissions:
+      pages: write      # 部署 GitHub Pages
+      id-token: write   # Pages OIDC token
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
