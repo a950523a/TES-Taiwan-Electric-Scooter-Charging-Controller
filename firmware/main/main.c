@@ -185,7 +185,10 @@ void app_main(void)
     atomic_init(&g_emergency_stop, false);
 
     // Spawn tasks (priority 15 = highest used here)
-    spawn(task_can_rx,   "can_rx",   2048,  15);
+    // can_rx 需要 4KB：迴圈裡的 can_driver_service() 在 TWAI 進入 error-passive／
+    // bus-off 時會呼叫 ESP_LOGW，而 esp_log 的 vprintf 一次就要 1KB 以上。
+    // 2KB 時只要按下 START（開始送 0x508／0x509 而匯流排無 ACK）就必定溢位重開機。
+    spawn(task_can_rx,   "can_rx",   4096,  15);
     // tes_sm 需要 8KB：除了 inputs/outputs/snapshot，trace 的變動 Log 會呼叫
     // vsnprintf("%f")，newlib 的浮點格式化本身就要好幾百 bytes。
     // 4KB 時按下 START 會堆疊溢位重開機。
