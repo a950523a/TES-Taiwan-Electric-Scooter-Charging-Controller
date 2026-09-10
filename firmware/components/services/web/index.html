@@ -102,6 +102,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 .hist-table tr.hrow:hover td{background:#1c1c1c}
 .hist-table tr.hrow.open td{background:#1f1f1f}
 .hist-table td.cr{width:14px;color:#666;padding-right:0}
+.hist-table .nocr{color:#333;cursor:help}
 .cr i{display:inline-block;font-style:normal;transition:transform .15s}
 tr.hrow.open .cr i{transform:rotate(90deg)}
 .hist-table tr.hdet>td{padding:0;border-bottom:1px solid #1e1e1e;background:#131313}
@@ -458,7 +459,12 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
       <tbody id="hist-rows"><tr><td colspan="5" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
     </table>
   </div>
-  <div style="color:#3d3d3d;font-size:.7em;margin-top:7px">點一列展開該次的充電曲線與詳細 Log</div>
+  <div style="color:#3d3d3d;font-size:.7em;margin-top:7px">有 ▸ 的列可以展開，看該次的充電曲線與詳細 Log</div>
+  <div style="color:#3d3d3d;font-size:.7em;margin-top:3px;line-height:1.5">
+    曲線與詳細 Log 存放在記憶體，<b style="color:#665">控制器一斷電就會清除</b>，
+    因此重開機之前的紀錄只剩上表的摘要（時長、電量、SOC、停止原因），沒有 ▸ 可以展開。
+    摘要本身存在 NVS，不會消失。
+  </div>
 </div>
 
 <script>
@@ -1354,7 +1360,10 @@ function paintDetail(sid){
 function rowHtml(r){
   const sid=r.session_id||0;
   const can=sid&&TR.haveTrace.has(sid);   // 曲線/Log 只在 RAM，重開機就沒了
-  const cr=can?'<i>▸</i>':'';
+  // 不能展開時給一個帶說明的淡色標記。留白會讓人以為是介面壞了 ——
+  // 實際上是這筆紀錄的曲線已隨斷電清除，只剩 NVS 摘要。
+  const cr=can?'<i>▸</i>'
+              :'<span class="nocr" title="此紀錄的曲線與詳細 Log 已隨控制器斷電清除，僅存摘要">·</span>';
   const click=can?` id="hrow-${sid}" class="hrow" onclick="toggleRow(${sid})"`:'';
 
   let cells;
