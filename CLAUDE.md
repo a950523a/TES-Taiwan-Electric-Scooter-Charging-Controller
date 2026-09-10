@@ -149,9 +149,9 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 
 | Task | Priority | Stack | Period | Role |
 |------|----------|-------|--------|------|
-| `task_can_rx` | 15 | 2 KB | event | TWAI receive -> raw queue |
-| `task_tes_sm` | 12 | 4 KB | 10 ms | SM tick + output execution + snapshot update |
-| `task_hal_poll` | 10 | 2 KB | 10 ms | button debounce + ADC + PSU UART poll |
+| `task_can_rx` | 15 | **4 KB** | event | TWAI receive -> raw queue + `can_driver_service()` |
+| `task_tes_sm` | 12 | **8 KB** | 10 ms | SM tick + output execution + snapshot update |
+| `task_hal_poll` | 10 | 4 KB | 10 ms | button debounce + ADC + PSU UART poll |
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
@@ -163,6 +163,18 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 
 Charge-curve sampling and the value-change log run inline in `task_tes_sm` (no extra
 task) — see `trace_svc` below.
+
+**⚠️ Stack sizing is not cosmetic here.** A single `ESP_LOGx` costs >1 KB of stack
+(`esp_log` → `vprintf`), so any task that can log needs ≥4 KB. `task_can_rx` ran at
+2 KB with 52 bytes to spare and overflowed the moment `can_driver_service()` first
+logged (v3.5.0 fix). When adding a log call to a small task, raise its stack too.
+`task_monitor` prints every task's high-water mark every 10 s — **read that line first
+when debugging any reboot**; it names the culprit directly.
+
+Self-deleting tasks (`mqtt`/`ota`/`log` when unconfigured) must call
+`g_task_unregister_self()` before `vTaskDelete(NULL)`. `spawn()` in `main.c` handles
+the race where the task exits before its handle is even registered — see the comment
+there; do not "simplify" it back to a plain create-then-register.
 
 ### Button Routing
 
@@ -314,7 +326,28 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 ## Current Status
 
-**v3.4.0 released 2026-05-31.** v3.0.0 base (vehicle-tested) + v3.1.0–v3.4.0 features implemented. Web UI labels untested features as Beta. `idf.py build` zero errors.
+**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (b793cf3) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors on ESP-IDF v5.5.1.
+
+**v3.5.0 fixes — the two crashes:**
+1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. b793cf3 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
+2. **Random reboot ~12 s after boot.** `spawn()` registered the task handle *after* `xTaskCreate`, but tasks outrank `app_main` and are unpinned, so a self-deleting task could vanish before registration and leave a dangling handle for `task_monitor` → `LoadProhibited` (EXCVADDR=0).
+
+**v3.5.0 fixes — web UI was unusable ("offline, no data"):** three compounding causes, all fixed —
+WiFi power save was never disabled (`WIFI_PS_MIN_MODEM`, radio woke every ~307 ms);
+`/trace` + `/tracelog` sent one TCP segment *per record* while holding httpd's single
+worker; and Nagle delayed every sub-MSS response by ~1.4 s (`/status` at 1528 B was
+immune, which is why big responses looked fast and small ones looked broken).
+Measured after: `/config` 1.4 s → 0.029 s, `/tracelog` 3.5 s → 0.12 s.
+
+**v3.5.0 — fault reporting now persists.** OLED, LED and web all keyed off
+`fault_latched`, which the SM clears on auto-recovery (10 s, or **1 s** for CP-loss in
+manual mode), so the reason vanished before it could be read. All three now key off
+`fault_source` instead. Charge history stores and displays the actual reason too.
+
+**⚠️ Upgrading to v3.5.0 wipes existing charge history.** `charge_session_t` grew
+20 → 24 bytes, so the NVS blob length no longer matches and `log_svc_init()` starts
+fresh. Deliberate — reading old 20-byte records as 24-byte ones would misalign every
+field. No migration was written.
 
 **Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
@@ -324,9 +357,27 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
-**⚠️ Not yet vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan, mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
+**✅ Vehicle-verified as of v3.5.0:** manual START → full charge sequence; CP transition
+0 V → 8.99 V; `trace_svc` session start; web UI latency (measured with curl, see above).
 
-**⚠️ Beta auto-start bug (not yet confirmed fixed, 2026-05-18):** Vehicle sends `fault_flags=0x01` in 0x500 shortly after charging starts, causing false FAULT. Two fixes applied but not yet vehicle-tested:
+**⚠️ Still not vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan,
+mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge
+timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
+
+**⚠️ Shipped in v3.5.0 but never exercised on hardware** — verify these before trusting them:
+- **Fault display persistence** (OLED / LED / web). Needs a real fault to confirm the
+  screen holds instead of reverting to Standby. Easiest repro: start charging, reach
+  CHARGING, unplug the connector (manual mode auto-recovers in 1 s, so the old build
+  showed nothing).
+- **Fault reason in charge history.** `/history` was emptied by the struct change, so
+  no record with `fault_source` has ever been rendered. Expect "充電槍鬆脫" rather than
+  a bare "故障".
+- **`Reset Fault` in IDLE.** Newly wired up; previously the menu item did nothing in
+  that state.
+
+**⚠️ Beta auto-start bug (still unconfirmed as of v3.5.0):** the v3.5.0 vehicle test used
+**manual START only**, so this remains untested. Vehicle sends `fault_flags=0x01` in 0x500
+shortly after charging starts, causing false FAULT. Two fixes applied but not yet vehicle-tested:
 1. `check_battery_compatibility()`: prevented `fault_detect_voltage` (VLIM2 in 0x508) from being set to 0 when `max_charge_voltage=0` — vehicle interprets VLIM2=0 as "fault when output voltage ≥ 0V".
 2. `run_monitoring()`: added 2-second grace period before acting on `fault_flags` — vehicle may send residual `fault_flags=0x01` frames during early CHARGING while its state machine stabilises on `status_flags=0x06`.
 Also: max current > 15A now blocks auto-start (SM guard + web UI warning). Stale `vehicle_status` cleared on IDLE→PARAM_EXCHANGE transition.
@@ -427,7 +478,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
-Charge history: namespace `"tes_hist"`, blob key `"log"` (324 bytes, 20 × `charge_session_t` circular buffer).
+Charge history: namespace `"tes_hist"`, blob key `"log"` (**484 bytes**, 20 × `charge_session_t` circular buffer). Blob length is the version check — changing `charge_session_t` discards existing history by design (see Charge Session History).
 
 ---
 
@@ -484,7 +535,7 @@ NVS keys: `sched_en`, `sched_start` (minutes from midnight 0-1439), `sched_stop_
 NVS key `notify_url` (empty = disabled). `notify_svc` subscribes to event bus, POSTs `{"title":"...", "message":"...", "priority":3}` on: CHARGING entered, IDLE with charge_complete, FAULT, EMERGENCY. Checks `network_svc_is_connected()` before every send. `POST /notify/test` sends a test notification.
 
 ### Charge Session History
-`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (16 bytes). `log_svc` stores last 20 sessions as NVS blob.
+`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (**24 bytes**). `log_svc` stores last 20 sessions as NVS blob (`session_log_t` = 4 + 20×24 = **484 bytes**).
 
 Key types in `tes_types.h`:
 ```c
@@ -495,12 +546,27 @@ typedef enum {
 
 typedef struct {
     uint32_t duration_s; float energy_wh; float stop_voltage_v;
-    uint8_t soc_start, soc_end, stop_reason, energy_estimated;  // 16 bytes total
-} charge_session_t;
+    uint32_t session_id;
+    uint8_t  soc_start, soc_end, stop_reason, energy_estimated;
+    uint8_t  fault_source;   // fault_source_t — FAULT_SRC_NONE when not a fault stop
+    uint8_t  _pad;
+    uint16_t fault_ctx_a;    // meaning depends on fault_source
+} charge_session_t;          // 24 bytes — exactly charger_event_t.payload's limit
 ```
 
+**⚠️ This struct is at the payload ceiling.** `charger_event_t.payload` is 24 bytes and
+`task_tes_sm.c` `memcpy`s the whole struct into it; a `_Static_assert` at that call site
+blocks any further growth at compile time. To add a field, widen the payload first.
+
+**⚠️ Changing this struct's size discards existing history.** `log_svc_init()` compares
+the stored blob length against `sizeof(session_log_t)` and starts fresh on mismatch —
+deliberate, since reinterpreting old records at the new stride misaligns every field.
+There is no migration path; write one if history ever needs to survive.
+
 `GET /history` returns newest-first JSON array (max 20 entries), each with a
-`session_id` linking to the trace buffers below.
+`session_id` linking to the trace buffers below, plus `fault_source` / `fault_ctx_a`.
+The web UI renders those through the same `FAULTS[]` table as the live fault panel, so
+a fault stop reads "充電槍鬆脫" rather than a bare "故障".
 
 `charge_session_t` is **20 bytes** (was 16 before `session_id` was added), so the NVS
 blob is 404 bytes. Existing history is wiped once on first boot after this change
@@ -550,6 +616,26 @@ which hid every fault that doesn't set one (PSU lost, CP lost, voltage limit).
 OLED keeps English — u8g2 `*_tr` fonts are ASCII-only and adding a CJK font is a large
 change — but now shows a two-line description plus the context values, with the raw code
 demoted to a footnote.
+
+**Visibility is keyed to `fault_source`, never `fault_latched` (v3.5.0).** The SM clears
+`fault_latched` when FAULT auto-recovers — after `fault_timeout_ms`, which is 10 s for most
+faults but only **1 s** for CP-loss in manual mode — so anything gated on it disappeared
+before the user could read it. `fault_source` survives auto-recovery and is cleared only by:
+
+| Cleared by | Where |
+|---|---|
+| Manual START (button or remote) | `TES_STATE_IDLE`, `start_requested` branch |
+| auto_start triggering a new round | `TES_STATE_IDLE`, CP/CAN edge branch |
+| `Reset Fault` menu item | `TES_STATE_IDLE` **and** `TES_STATE_EMERGENCY` |
+
+All three surfaces use the same condition — OLED and LED via
+`fault_latched || fault_source != FAULT_SRC_NONE`, web via
+`src>0 || fault || state==='fault' || state==='emergency'`. Keep them in sync; a mismatch
+produces the exact contradiction v3.5.0 fixed (screen says FAULT STOP, LED says standby).
+
+Note `TES_STATE_IDLE` handles `fault_clear_requested` as of v3.5.0. Before that only
+EMERGENCY consumed the flag, so `Reset Fault` silently did nothing in IDLE — which
+matters now that the fault text persists there and needs a way to be dismissed.
 
 **Change detection lives in `task_tes_sm.c`, not `tes_sm.c`** — `tes_protocol`/`tes_sm`
 must stay zero-dependency (no PSRAM, FreeRTOS or string formatting). Tracked fields:
@@ -638,6 +724,15 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 ## Known Technical Debt
 
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
+- `sw.js` `CACHE_NAME` is a fixed `'tes-v3'` and never changes across firmware versions, so
+  its `activate` handler never purges anything. Harmless today (the shell handler is
+  network-first, and the SW does not even register over plain HTTP on a LAN IP), but it
+  will bite if the strategy ever changes to cache-first. Derive it from the build version.
+- **Comments have drifted from code more than once.** `display_svc.c`, `index.html` and
+  `sw.js` each carried a comment describing the *correct* behaviour while the code below
+  still had the old logic (all three were the same v3.5.0 fault-visibility bug; `sw.js`
+  says "cache-first" over a network-first implementation). When a comment here explains
+  a fix, verify the code actually does it.
 
 ---
 
@@ -677,6 +772,22 @@ The OLED settings menu has a read-only `tes-<id>` row for cross-referencing.
 mDNS starts in both AP and STA mode. `mdns_publish()` is called on every got-IP event, so
 a DHCP address change refreshes the delegated hostname's address too.
 
+**HTTP performance (v3.5.0) — three settings that must stay as they are.** Together they
+took the UI from "looks offline" to sub-50 ms; each was independently sufficient to make
+it feel broken:
+
+| Setting | Where | Why |
+|---|---|---|
+| `esp_wifi_set_ps(WIFI_PS_NONE)` | `network_svc_start()`, after `esp_wifi_start()` | The STA default `WIFI_PS_MIN_MODEM` wakes the radio only every ~307 ms (`li: 3`), so every TCP round trip stalls. Mains-powered device — the saving buys nothing. |
+| `cfg.open_fn = http_sock_open` → `TCP_NODELAY` | `start_http_server()` | httpd sends headers and body as separate `send()`s; Nagle holds the second small segment until the first is ACKed, and lwIP only flushes it on the slow timer (~1.4 s). Sub-MSS responses were the slow ones — `/status` at 1528 B was immune, which made "big fast, small slow" look impossible. |
+| `chunk_out_t` 1 KB buffering | `/trace`, `/tracelog` | One `httpd_resp_sendstr_chunk()` per record = one TCP segment per record. Hundreds of records = hundreds of round trips, all while holding httpd's **single** worker thread, which queues `/status` behind them. |
+
+HTML is served `Cache-Control: no-cache` (`UI_CACHE_CONTROL`). It was `max-age=86400`,
+which left users on a stale UI for a day after each OTA with no way to notice. The page is
+tens of KB over LAN; re-fetching costs far less than showing an outdated interface. This
+does not affect offline support — the Service Worker's Cache API is independent of the
+HTTP cache.
+
 **REST API (port 80, CORS *):**
 
 ### Device list page
@@ -705,7 +816,7 @@ shows 離線 without affecting the others.
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |
 | POST | `/ota/upload` | Upload binary (`application/octet-stream`); progress via `/status` |
-| GET | `/history` | Last 20 charge sessions (newest-first), incl. `session_id` |
+| GET | `/history` | Last 20 charge sessions (newest-first), incl. `session_id`, `fault_source`, `fault_ctx_a` |
 | GET | `/trace` | Charge-curve samples for a session + session list (chunked) |
 | GET | `/tracelog` | Timestamped value-change log for a session (chunked) |
 | GET | `/manifest.json` | PWA manifest |
