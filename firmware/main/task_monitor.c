@@ -31,8 +31,17 @@ void task_monitor(void *arg)
             // uxTaskGetStackHighWaterMark 回傳的單位是 word，換算成 bytes
             unsigned free_b = (unsigned)uxTaskGetStackHighWaterMark(g_tasks[i].handle)
                               * sizeof(StackType_t);
-            if (n < (int)sizeof(line) - 24)
-                n += snprintf(line + n, sizeof(line) - n, "%s=%u ", g_tasks[i].name, free_b);
+            // snprintf 回傳的是「本來要寫的長度」，被截斷時會大於剩餘空間。
+            // 直接 n += 會讓 n 衝出緩衝區，下一輪的 line + n 就越界，
+            // 而 sizeof(line) - n 是 size_t，會下溢成極大值。
+            if (n < (int)sizeof(line) - 1) {
+                int r = snprintf(line + n, sizeof(line) - n, "%s=%u ",
+                                 g_tasks[i].name, free_b);
+                if (r > 0) {
+                    n += r;
+                    if (n > (int)sizeof(line) - 1) n = (int)sizeof(line) - 1;
+                }
+            }
             if (free_b < STACK_WARN_BYTES) {
                 ESP_LOGW(TAG, "task \"%s\" stack low: %u bytes free — raise its stack size",
                          g_tasks[i].name, free_b);

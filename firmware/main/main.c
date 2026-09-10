@@ -90,12 +90,34 @@ volatile bool    g_menu_open = false;
 task_entry_t     g_tasks[G_TASK_MAX];
 int              g_task_count = 0;
 
+// spawn() 與 g_task_unregister_self() 之間有競態：
+// 所有任務的優先權都高於 app_main（預設 1）且未綁核，因此 xTaskCreate 一回傳，
+// 新任務可能已經在另一顆核心上執行完畢。會自我刪除的任務（mqtt/ota/log 在未設定
+// 或訂閱失敗時）就會在自己還沒被登記進 g_tasks 時呼叫 unregister，掃不到而空手返回；
+// 等 app_main 回來，反而把一個已失效的 handle 寫進表裡。
+// task_monitor 之後對它呼叫 uxTaskGetStackHighWaterMark 就是對已釋放的 TCB
+// 解參考 —— 實測會 LoadProhibited（EXCVADDR=0）重開機。
+//
+// 解法：提早結束、還來不及被登記的任務先記進 s_exited，spawn() 登記時據此抵銷。
+// 只比對指標、不解參考，因此 handle 已失效也是安全的。
+static portMUX_TYPE s_task_mux = portMUX_INITIALIZER_UNLOCKED;
+static TaskHandle_t s_exited[G_TASK_MAX];
+static int          s_exited_count = 0;
+
 void g_task_unregister_self(void)
 {
     TaskHandle_t me = xTaskGetCurrentTaskHandle();
+    taskENTER_CRITICAL(&s_task_mux);
     for (int i = 0; i < g_task_count; i++) {
-        if (g_tasks[i].handle == me) { g_tasks[i].handle = NULL; return; }
+        if (g_tasks[i].handle == me) {
+            g_tasks[i].handle = NULL;
+            taskEXIT_CRITICAL(&s_task_mux);
+            return;
+        }
     }
+    // 還沒被登記 —— 留給 spawn() 抵銷
+    if (s_exited_count < G_TASK_MAX) s_exited[s_exited_count++] = me;
+    taskEXIT_CRITICAL(&s_task_mux);
 }
 
 // 建立任務並登記到 g_tasks，讓 task_monitor 能回報堆疊餘裕
@@ -106,11 +128,21 @@ static void spawn(TaskFunction_t fn, const char *name, uint32_t stack, UBaseType
         ESP_LOGE(TAG, "xTaskCreate(%s) failed", name);
         return;
     }
-    if (g_task_count < G_TASK_MAX) {
+    taskENTER_CRITICAL(&s_task_mux);
+    bool already_exited = false;
+    for (int i = 0; i < s_exited_count; i++) {
+        if (s_exited[i] == h) {
+            already_exited   = true;
+            s_exited[i]      = s_exited[--s_exited_count];
+            break;
+        }
+    }
+    if (!already_exited && g_task_count < G_TASK_MAX) {
         g_tasks[g_task_count].name   = name;
         g_tasks[g_task_count].handle = h;
         g_task_count++;
     }
+    taskEXIT_CRITICAL(&s_task_mux);
 }
 
 // ── Task forward declarations ────────────────────────────────────────────────
