@@ -118,6 +118,31 @@ static void set_cors(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 }
 
+// ── 跨站請求防護（CSRF）────────────────────────────────────────────────────────
+//
+// 這些端點沒有任何認證，而 /start、/stop 是不帶 body 的 POST —— 瀏覽器把這種
+// 請求歸類為 simple request，不觸發 preflight。也就是說使用者只要開著某個惡意
+// 網頁，那個網頁就能在背景對同網段的這台機器下指令，使用者完全不會察覺。
+// /config 比「亂按開始充電」更嚴重：max_voltage 決定 0x508 的 VLIM2
+// （車端的異常判定電壓上限），改壞它等於讓車輛的過壓保護失效。
+//
+// 解法：狀態變更端點一律要求一個自訂標頭。自訂標頭會強制瀏覽器先送 preflight
+// (OPTIONS)，而本伺服器沒有註冊 OPTIONS handler，跨站請求就在那一步失敗。
+// 同源請求（裝置自己供的那個網頁）根本不走 CORS，標頭直接送出，不受影響。
+//
+// ⚠️ 這不是認證。任何能直接發 HTTP 的東西（curl、腳本、同網段的程式）都能自己
+// 加上這個標頭。它擋的是瀏覽器替使用者發起的跨站請求，不是有意的攻擊者。
+#define CSRF_HEADER "X-TES-Request"
+
+static bool csrf_ok(httpd_req_t *req)
+{
+    if (httpd_req_get_hdr_value_len(req, CSRF_HEADER) > 0) return true;
+    set_cors(req);
+    httpd_resp_send_err(req, HTTPD_403_FORBIDDEN,
+                        "missing " CSRF_HEADER " header — cross-site request blocked");
+    return false;
+}
+
 // 充電流程進行中（含 ENDING 收尾）→ true。
 // OTA 會直接 esp_restart()，在這些狀態下重開機會讓繼電器/電磁鎖失去控制，
 // 而且 PSU 仍保持最後的 setpoint 繼續輸出。
@@ -400,6 +425,7 @@ static const httpd_uri_t s_uri_get_config = {
 
 static esp_err_t handle_post_config(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     if (req->content_len == 0 || req->content_len > MAX_BODY) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body size invalid");
         return ESP_FAIL;
@@ -625,6 +651,7 @@ static const httpd_uri_t s_uri_post_config = {
 
 static esp_err_t handle_post_start(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     uint8_t evt = EVT_BUTTON_START;
     xQueueSendToBack(g_btn_event_queue, &evt, 0);
     httpd_resp_set_type(req, "application/json");
@@ -641,6 +668,7 @@ static const httpd_uri_t s_uri_post_start = {
 
 static esp_err_t handle_post_stop(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     uint8_t evt = EVT_BUTTON_STOP;
     xQueueSendToBack(g_btn_event_queue, &evt, 0);
     httpd_resp_set_type(req, "application/json");
@@ -658,6 +686,7 @@ static const httpd_uri_t s_uri_post_stop = {
 
 static esp_err_t handle_post_ota(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     char url[256] = "";
 
     if (charger_is_busy()) {
@@ -708,6 +737,7 @@ static const httpd_uri_t s_uri_post_ota = {
 
 static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     if (charger_is_busy()) {
         set_cors(req);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
@@ -1186,6 +1216,7 @@ static const httpd_uri_t s_uri_get_tracelog = {
 
 static esp_err_t handle_post_notify_test(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     const char *url = config_svc_get()->notify_url;
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
@@ -1210,6 +1241,7 @@ static const httpd_uri_t s_uri_post_notify_test = {
 
 static esp_err_t handle_post_psu_pair(httpd_req_t *req)
 {
+    if (!csrf_ok(req)) return ESP_FAIL;
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
     if (config_svc_get()->psu_transport != PSU_TRANSPORT_ESPNOW) {
