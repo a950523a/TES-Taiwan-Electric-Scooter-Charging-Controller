@@ -525,6 +525,26 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 </div>
 
 <script>
+// 所有會改變狀態的請求都要帶 X-TES-Request 標頭，韌體端沒有這個標頭就回 403。
+// 目的是擋 CSRF：自訂標頭會強制瀏覽器先送 preflight，而裝置不處理 OPTIONS，
+// 跨站請求就在那一步失敗；同源請求不走 CORS，不受影響。
+//
+// 集中在這裡攔截，而不是在七個呼叫點各加一次 —— 日後新增端點時不會有人忘記，
+// 而忘記的後果是一個很難聯想的靜默 403。
+(function(){
+  const _fetch=window.fetch;
+  window.fetch=function(input,init){
+    const m=((init&&init.method)||'GET').toUpperCase();
+    if(m!=='GET'&&m!=='HEAD'){
+      init=Object.assign({},init);
+      const h=new Headers(init.headers||{});
+      h.set('X-TES-Request','1');
+      init.headers=h;
+    }
+    return _fetch.call(this,input,init);
+  };
+})();
+
 const SL={
   idle:'STANDBY',connecting:'CONNECTING',pre_charge:'PRE-CHARGE',
   charging:'CHARGING',ending:'ENDING',finalizing:'FINALIZING',
