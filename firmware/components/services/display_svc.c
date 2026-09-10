@@ -476,10 +476,17 @@ static void render_status(const tes_snapshot_t *snap)
     display_driver_set_color(1);
 
     // 故障詳情畫面：FAULT/EMERGENCY 期間，以及故障後仍停在 IDLE 的情況。
-    // （舊版只判斷 IDLE && fault_latched —— 但狀態機離開 FAULT 時一定會清掉
-    //   fault_latched，所以那個條件永遠不成立，整個畫面等於死碼。）
+    //
+    // 不能只看 fault_latched —— 狀態機從 FAULT 自動復歸時一定會清掉它
+    // （tes_sm.c 的 fault_timeout_ms，一般故障 10s、手動模式 CP 斷開只有 1s），
+    // 畫面因此會被 Standby 蓋掉，使用者根本來不及看到停止原因。
+    //
+    // 改看 fault_source：它在自動復歸時刻意保留，只有「使用者按 START」或
+    // 「auto_start 觸發新的一輪」才會清成 FAULT_SRC_NONE。
+    // 效果是故障說明會一直留在畫面上，直到真的開始下一次充電為止。
     if (snap->state == TES_STATE_FAULT || snap->state == TES_STATE_EMERGENCY ||
-        (snap->state == TES_STATE_IDLE && snap->fault_latched)) {
+        (snap->state == TES_STATE_IDLE &&
+         (snap->fault_latched || snap->fault_source != FAULT_SRC_NONE))) {
         const char *l1, *l2;
         char detail[26];
         fault_src_text(snap->fault_source, snap->fault_ctx_a, &l1, &l2);
