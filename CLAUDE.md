@@ -10,6 +10,38 @@ Firmware lives in `firmware/` (ESP-IDF, pure C99). V2 PlatformIO code has been r
 
 License: CC BY-NC-SA 4.0 (non-commercial).
 
+### ⚠️ Deployment constraints — read before proposing anything structural
+
+**Units have been sold and are deployed in the field, running a mix of V2 and V3
+firmware on several hardware revisions.** Users cannot be forced to update, and the
+hardware is expected to keep changing. Two consequences that are not obvious from the
+code:
+
+1. **OTA is the only update path for deployed units.** Anything that requires a full
+   reflash (bootloader + partition table + app over USB) strands every device already in
+   the field — they can never take another update. This is a hard constraint, not a
+   preference.
+2. **The oversized app partitions are deliberate.** 7.94 MB each for a 1.33 MB binary
+   looks like waste, but the firmware is expected to grow while carrying support for
+   *every* hardware revision simultaneously, since old units must keep receiving updates.
+   The headroom is what buys that. **Do not propose shrinking them to free up space for
+   a data partition** — that is a partition-table change, i.e. constraint 1.
+
+**How to add flash-backed storage anyway, when it is eventually needed:** the partition
+table belongs to the *device*, not the firmware. New hardware revisions can ship with a
+data partition; existing units keep their current layout; **one firmware binary serves
+both** by looking for the partition at runtime:
+
+```c
+const esp_partition_t *p = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "trace");
+if (p) { /* persist */ } else { /* current RAM-only behaviour */ }
+```
+
+Feature present on new hardware, nothing broken on old, nobody forced to do anything.
+This does **not** require a major version bump — the architecture boundary that would
+justify V4 is the flash layout, which is a hardware-revision boundary, not a software one.
+
 ---
 
 ## Build (ESP-IDF)
@@ -29,8 +61,12 @@ idf.py -p <PORT> flash monitor
 |-----------|------|-------|
 | nvs | 20 KB | config + charge history blob |
 | otadata | 8 KB | OTA slot selector |
-| app0 | **7.94 MB** | active firmware (~15% used) |
+| app0 | **7.94 MB** | active firmware (~17% used) |
 | app1 | **7.94 MB** | OTA update slot |
+
+Only 64 KB of the 16 MB is unallocated (app1 ends at `0xFF0000`). That is not an
+oversight — see **Deployment constraints** above for why the app partitions stay this
+large and why repartitioning is off the table for deployed units.
 
 Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only is not sufficient.
 
@@ -568,10 +604,6 @@ There is no migration path; write one if history ever needs to survive.
 The web UI renders those through the same `FAULTS[]` table as the live fault panel, so
 a fault stop reads "充電槍鬆脫" rather than a bare "故障".
 
-`charge_session_t` is **20 bytes** (was 16 before `session_id` was added), so the NVS
-blob is 404 bytes. Existing history is wiped once on first boot after this change
-(`log_svc_init()` rejects a blob whose size doesn't match).
-
 ### Charge Curve + Detailed Log (`trace_svc`)
 
 Two ring buffers in **PSRAM**, written only by `task_tes_sm`, read by the HTTP task:
@@ -581,10 +613,21 @@ Two ring buffers in **PSRAM**, written only by `task_tes_sm`, read by the HTTP t
 | samples | 8192 | 128 KB | V / I / BMS-requested-I / SOC / state, every **5 s** during CHARGING plus one on every state transition |
 | events | 6144 | 528 KB | one line per **value change**, each timestamped |
 
-> ⚠️ **Volatile.** Both buffers are lost on reboot. NVS holds only 20 KB and there is no
-> filesystem partition; persisting time-series would require repartitioning, which needs a
-> full reflash and breaks the OTA upgrade path for deployed devices. The NVS
-> `charge_session_t` summary (log_svc) is unaffected and still survives reboots.
+> ⚠️ **Volatile — and this is a decision, not a limitation.** Both buffers are lost on
+> power-off. Hardware resources are not the constraint (6.4 MB PSRAM free, 64 KB flash
+> unallocated); the constraint is that persisting time-series needs a writable flash
+> partition, and adding one is a partition-table change — which strands every deployed
+> unit, per **Deployment constraints**. A 2-hour session is roughly 22 KB of curve plus
+> ~25 KB of events, so NVS (20 KB total, already holding config) is genuinely too small.
+> The NVS `charge_session_t` summary (log_svc) is unaffected and survives reboots.
+>
+> When this does become worth doing, use the runtime `esp_partition_find_first()` pattern
+> in **Deployment constraints** rather than repartitioning existing devices.
+
+**The web UI must say so.** The history panel carries a note explaining that curves and
+logs live in RAM and vanish on power-off, and rows whose trace is gone show a dimmed `·`
+with a tooltip instead of an expand caret. A blank cell reads as a broken UI; users
+reported it as a bug before the explanation existed.
 
 A **trace session starts at `IDLE → PARAM_EXCHANGE`**, not at CHARGING — the handshake
 is where faults actually happen, so the log must cover it. It ends on return to IDLE.
