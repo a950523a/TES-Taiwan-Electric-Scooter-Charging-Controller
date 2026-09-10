@@ -305,6 +305,16 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <label class="lbl2">充電時長上限（分鐘，10–600）</label>
     <input type="number" id="ctm" step="1" min="1" max="600">
   </div>
+  <div class="chk-row" style="margin-top:12px">
+    <input type="checkbox" id="csta" onchange="updateStaUI()">
+    <span>連線至 WiFi 路由器</span>
+  </div>
+  <div id="sta-off-warn" style="display:none;font-size:.75em;color:#f88;margin:4px 0 8px;padding:6px 8px;background:#3a1010;border-radius:4px;border:1px solid #a33">
+    ⚠️ 目前設定為<b>不連線至路由器</b>。下次重新開機後將固定開啟熱點
+    <b id="sta-ap-name">TES-Charger-xxxxxx</b>，這個網址會失效 —— 需要把手機 WiFi
+    改連上述熱點，再開啟 <span style="color:#6a8">192.168.4.1</span> 才回得來。<br>
+    目前的連線不受影響。SSID 與密碼已保留，開關打開即可連回。
+  </div>
   <label class="lbl2">WiFi SSID</label>
   <div class="wifi-row">
     <input type="text" id="ci" autocomplete="off" placeholder="路由器名稱">
@@ -948,6 +958,10 @@ async function loadCfg(){
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
     document.getElementById('ctm').value=d.charge_timer_min||120;
     document.getElementById('ci').value=d.wifi_ssid;
+    // 舊韌體的 /config 沒有這個欄位，undefined 要當成「開啟」，否則畫面會謊報成關閉
+    document.getElementById('csta').checked=(d.sta_enabled!==false);
+    document.getElementById('sta-ap-name').textContent='TES-Charger-'+(d.device_id||'xxxxxx');
+    updateStaUI();
     document.getElementById('cb').checked=d.beacon;
     document.getElementById('cdn').value=d.device_name||'';
     if(d.hostname)document.getElementById('cd-host').textContent=d.hostname+'.local';
@@ -993,7 +1007,7 @@ async function loadCfg(){
 // 滑動開關的視覺慣例就是即時生效，做成「要再按儲存」會一直被誤會。
 // 這個切分是可學習的（iOS 設定同一套），不是隨機的混合行為。
 const TOGGLE_KEY={
-  cav:'auto_voltage', cb:'beacon',
+  cav:'auto_voltage', csta:'sta_enabled', cb:'beacon',
   'sched-en':'sched_enabled', 'sched-stop-en':'sched_stop_en',
   'auto-start-en':'auto_start'
 };
@@ -1001,6 +1015,12 @@ const TOGGLE_KEY={
 // 後果不明顯的開關要先問。判斷標準不是「重不重要」，而是
 // 「使用者按下去之後，會不會發生他沒預期到的事」。
 function toggleConfirmMsg(id,val){
+  if(id==='csta'&&!val&&location.hostname!=='192.168.4.1'){
+    return '關閉後，控制器下次重新開機將不再連上路由器，改為固定開啟熱點 '
+      +document.getElementById('sta-ap-name').textContent+'。\n\n'
+      +'目前的連線不會馬上中斷，但重開機後這個網址會失效 —— 需要改連上述熱點、'
+      +'開啟 192.168.4.1 才回得來。\n\nSSID 與密碼會保留，開關打開即可連回。\n\n確定要關閉嗎？';
+  }
   if(id==='auto-start-en'&&val){
     return '啟用後 VP 繼電器將常時通電，偵測到插槍或車端 CAN 許可就會自動開始充電，'
       +'不需要有人按下開始。\n\n這是 Beta 功能，尚未經過實車驗證。\n\n確定要啟用嗎？';
@@ -1011,7 +1031,8 @@ function toggleConfirmMsg(id,val){
 // 取消或儲存失敗時要把開關扳回去 —— 畫面絕不能顯示一個裝置上並不存在的狀態
 function revertToggle(el,val){
   el.checked=!val;
-  if(el.id==='auto-start-en')checkAutoStart();
+  if(el.id==='csta')updateStaUI();
+  else if(el.id==='auto-start-en')checkAutoStart();
   else if(el.id==='cav')updateAutoVoltUI();
 }
 
@@ -1032,7 +1053,12 @@ async function autoSaveToggle(el){
     })).json();
     if(r.ok){
       if(CFG_BASE)CFG_BASE[key]=val;   // 已是裝置上的值，不該再算成未儲存
-      cfgBarSay('✓ 已儲存');
+      if(el.id==='csta'){
+        cfgBarSay(val?'✓ 已開啟 WiFi 連線 — 重啟後生效'
+                     :'✓ 已關閉 WiFi 連線 — 重啟後改用熱點',true,false);
+      }else{
+        cfgBarSay('✓ 已儲存');
+      }
     }else{
       revertToggle(el,val);
       cfgBarSay('✗ 儲存失敗，開關已還原',true,false);
@@ -1069,6 +1095,18 @@ window.addEventListener('beforeunload',e=>{
   }
 });
 
+function updateStaUI(){
+  const on=document.getElementById('csta').checked;
+  // 只有「關閉」才需要警告，而且只有現在真的靠路由器連著才會失聯 ——
+  // 已經在 AP 模式（192.168.4.1）操作的人關掉它不會有任何影響。
+  const onAp=location.hostname==='192.168.4.1';
+  document.getElementById('sta-off-warn').style.display=(!on&&!onAp)?'block':'none';
+  ['ci','cp','scan-btn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.disabled=!on;el.style.opacity=on?'':'0.45';}
+  });
+}
+
 // ── 未儲存變更追蹤 ───────────────────────────────────────────────────────────
 // CFG_BASE 是裝置上目前的值（每次載入／儲存成功後更新）。畫面上的值與它比對，
 // 差異就是「未儲存的變更」—— 既用來顯示浮動列，也用來決定 POST 只送哪幾個欄位。
@@ -1078,7 +1116,8 @@ let CFG_BASE=null;
 const CFG_ANCHOR={
   device_name:'cdn', auto_voltage:'cav', max_voltage:'cv', max_current:'ca',
   target_soc:'cs', stop_voltage:'csv', charge_timer_min:'ctm', wifi_ssid:'ci',
-  beacon:'cb', stop_mode:'stop-mode-row', notify_url:'notify-mode-row',
+  sta_enabled:'csta', beacon:'cb',
+  stop_mode:'stop-mode-row', notify_url:'notify-mode-row',
   mqtt_broker_url:'mqtt-url', mqtt_topic_prefix:'mqtt-topic',
   sched_enabled:'sched-en', sched_start_min:'sched-start',
   sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
@@ -1100,6 +1139,7 @@ function collectCfg(){
     stop_voltage:num(document.getElementById('csv').value,null),
     charge_timer_min:num(document.getElementById('ctm').value,120),
     wifi_ssid:document.getElementById('ci').value,
+    sta_enabled:document.getElementById('csta').checked,
     beacon:document.getElementById('cb').checked,
     notify_url:getNotifyUrl(),
     mqtt_broker_url:document.getElementById('mqtt-url').value.trim(),
@@ -1188,6 +1228,7 @@ async function save(){
   // 只有這次真的改了 SSID 或輸入了密碼，才需要提示重新連線
   const ssid=('wifi_ssid' in b)?b.wifi_ssid:'';
   const psuChanged=('psu_transport' in b);
+  const staChanged=('sta_enabled' in b);
 
   cfgSaving=true;
   cfgBarSay('儲存中…',true);
@@ -1216,6 +1257,16 @@ async function save(){
       m.innerHTML='✓ 已儲存。設備將重啟連接至 <b>'+ssid+'</b>。<br>'
         +'請將手機 WiFi 切換至相同網路，再開啟 <a href="http://tes-charger.local" style="color:#4a9eff">tes-charger.local</a>';
       cfgBarSay('✓ 已儲存 — 見下方重新連線說明',true);
+      m.scrollIntoView({block:'center'});
+    }else if(staChanged){
+      const on=now.sta_enabled;
+      m.className='ok';
+      m.innerHTML=on
+        ? '✓ 已儲存。重啟後將連線至 <b>'+(now.wifi_ssid||'已儲存的 WiFi')+'</b>。'
+        : '✓ 已儲存。重啟後將<b>固定開啟熱點</b>，請改連 <b>'
+          +document.getElementById('sta-ap-name').textContent
+          +'</b>，再開啟 <span style="color:#6a8">192.168.4.1</span>。';
+      cfgBarSay('✓ 已儲存 — 見下方連線方式',true);
       m.scrollIntoView({block:'center'});
     }else if(psuChanged){
       m.className='ok';

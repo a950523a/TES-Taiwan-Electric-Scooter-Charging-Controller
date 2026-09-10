@@ -348,6 +348,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "stop_voltage",     (double)cfg->stop_voltage_01v / 10.0);
     cJSON_AddNumberToObject(root, "charge_timer_min", cfg->charge_timer_min);
     cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
+    cJSON_AddBoolToObject  (root, "sta_enabled",    cfg->sta_enabled);
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
     cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
@@ -476,6 +477,15 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         strncpy(new_pass, item->valuestring, sizeof(new_pass) - 1);
         new_pass[sizeof(new_pass) - 1] = '\0';
         wifi_changed = true;
+    }
+    // STA 開關：切換等同 WiFi 模式變更，要走同一條「需重啟」的回報路徑
+    item = cJSON_GetObjectItem(root, "sta_enabled");
+    if (cJSON_IsBool(item)) {
+        bool en = cJSON_IsTrue(item);
+        if (en != cur->sta_enabled) {
+            config_svc_set_sta_enabled(en);
+            wifi_changed = true;
+        }
     }
     item = cJSON_GetObjectItem(root, "beacon");
     if (cJSON_IsBool(item)) {
@@ -1438,7 +1448,9 @@ esp_err_t network_svc_init(void)
     snprintf(s_hostname, sizeof(s_hostname), "tes-%s",         cfg->device_id);
     snprintf(s_ap_ssid,  sizeof(s_ap_ssid),  "TES-Charger-%s", cfg->device_id);
 
-    if (cfg->wifi_ssid[0] == '\0') {
+    // 兩種情況都走 AP：沒有 SSID（首次設定），或使用者主動關掉 STA。
+    // 後者保留 SSID／密碼不清除 —— 開關再打開就能直接連回去。
+    if (cfg->wifi_ssid[0] == '\0' || !cfg->sta_enabled) {
         // No SSID: start open AP for initial WiFi configuration via POST /config
         esp_netif_create_default_wifi_ap();
         esp_netif_create_default_wifi_sta();   // STA interface needed for /wifi/scan
