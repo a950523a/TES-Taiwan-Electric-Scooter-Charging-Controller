@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
@@ -22,6 +22,19 @@ h1{font-size:1.1em;color:#5af;margin-bottom:12px;display:flex;justify-content:sp
 .s-charging{background:#071f07;color:#4d4}
 .s-ending,.s-finalizing{background:#201800;color:#db4}
 .s-fault,.s-emergency{background:#200707;color:#f55}
+/* ── 故障說明面板：講清楚發生什麼事、為什麼、該怎麼辦 ── */
+.falert{margin-top:11px;border-radius:8px;padding:11px 12px;
+  background:#1e0d0d;border:1px solid #4a2020;border-left:3px solid #d44}
+.falert.info{background:#1a1608;border-color:#4a4020;border-left-color:#ca3}
+.fa-t{display:flex;align-items:center;gap:7px;font-size:.95em;font-weight:600;color:#f77}
+.falert.info .fa-t{color:#dc6}
+.fa-why{color:#c9a5a5;font-size:.8em;line-height:1.65;margin-top:5px}
+.falert.info .fa-why{color:#c4bb96}
+.fa-do{color:#ddd;font-size:.8em;line-height:1.65;margin-top:7px;
+  background:#00000038;border-radius:5px;padding:6px 9px}
+.fa-do b{color:#fff}
+.fa-raw{color:#5a4444;font-size:.68em;margin-top:7px;
+  font-family:ui-monospace,Consolas,monospace}
 .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #222}
 .row:last-child{border-bottom:none}
 .lbl{color:#666;font-size:.88em}
@@ -64,6 +77,9 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 .can-rx{background:#0d2a0d;color:#4d4}.can-tx{background:#0d1a2d;color:#4af}
 .can-id{font-family:monospace;font-size:.9em;color:#db4;font-weight:bold}
 .can-name{font-size:.82em;color:#666}
+/* 每個 frame 的收發活性：有沒有在通訊比欄位值本身更早需要判斷 */
+.can-live{margin-left:auto;font-size:.7em;color:#555;font-variant-numeric:tabular-nums}
+.can-live.on{color:#4d4}.can-live.stale{color:#db4}.can-live.off{color:#a33}
 .wifi-row{display:flex;gap:8px;align-items:flex-end}
 .wifi-row input{flex:1;margin-top:5px}
 .b-scan{flex:none;padding:9px 12px;background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:.85em;white-space:nowrap;font-weight:bold;transition:opacity .15s}
@@ -81,13 +97,43 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 .hist-table td{padding:5px 6px;border-bottom:1px solid #1e1e1e;vertical-align:middle}
 .hist-table tr:last-child td{border-bottom:none}
 .hist-reason-0{color:#4d4}.hist-reason-1{color:#aaa}.hist-reason-2{color:#f55}.hist-reason-3{color:#f80}.hist-reason-4{color:#db4}.hist-reason-5{color:#77f}
+/* ── 每則充電紀錄底下的曲線 + 詳細 Log ── */
+.hist-table tr.hrow{cursor:pointer}
+.hist-table tr.hrow:hover td{background:#1c1c1c}
+.hist-table tr.hrow.open td{background:#1f1f1f}
+.hist-table td.cr{width:14px;color:#666;padding-right:0}
+.cr i{display:inline-block;font-style:normal;transition:transform .15s}
+tr.hrow.open .cr i{transform:rotate(90deg)}
+.hist-table tr.hdet>td{padding:0;border-bottom:1px solid #1e1e1e;background:#131313}
+.hdet-in{padding:10px 8px 12px}
+.trow-only td{color:#7a7a7a}
+.tr-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 7px}
+.tr-head .t{color:#999;font-size:.8em}
+.tr-head input{background:#111;color:#ccc;border:1px solid #2e2e2e;border-radius:5px;
+  padding:3px 6px;font-size:.75em;font-family:inherit;flex:1;min-width:80px}
+.tr-btn{background:#1e1e1e;color:#9b9;border:1px solid #2e2e2e;border-radius:5px;
+  padding:3px 9px;font-size:.72em;cursor:pointer}
+.tr-btn:hover{background:#262626}
+.tr-chart svg{width:100%;height:auto;display:block;touch-action:none}
+.tr-rd{font-size:.72em;color:#888;min-height:1.2em;margin:3px 0 9px;font-variant-numeric:tabular-nums}
+.tr-rd b{color:#ddd;font-weight:600}
+.tr-empty{color:#444;text-align:center;padding:14px;font-size:.8em}
+.tr-log{max-height:260px;overflow-y:auto;background:#0d0d0d;border:1px solid #1e1e1e;
+  border-radius:6px;padding:7px 9px;font-size:.72em;line-height:1.55;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.tr-log .ln{display:flex;gap:9px;white-space:pre-wrap;word-break:break-word}
+.tr-log .ts{color:#4a6d8c;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.tr-log .tx{color:#b8b8b8}
+.tr-log .tx.st{color:#6cf}.tr-log .tx.fa{color:#f66}.tr-log .tx.hw{color:#dd7}
+.tr-log .tx.bms{color:#8d8}.tr-log .tx.psu{color:#c9f}
 .b-refresh{padding:6px 12px;background:#1e2e1e;color:#4a9eff;border:1px solid #2a3a2a;border-radius:6px;cursor:pointer;font-size:.8em;font-weight:bold;float:right;transition:opacity .15s}
 .b-refresh:active{opacity:.65}
 </style>
 </head>
 <body>
 
-<h1>⚡ TES Charger <span class="ts" id="ts">--:--:--</span></h1>
+<h1><a href="/" style="text-decoration:none;color:#666;font-size:.8em;margin-right:2px" title="裝置列表">‹</a>
+⚡ <span id="devname">TES Charger</span> <span class="ts" id="ts">--:--:--</span></h1>
 
 <!-- 狀態卡 -->
 <div class="card">
@@ -118,9 +164,11 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <span class="lbl">剩餘時間</span>
     <span class="val" id="rem">--</span>
   </div>
-  <div class="row" id="fr" style="display:none">
-    <span class="lbl" style="color:#f55">故障碼</span>
-    <span class="val" style="color:#f55" id="fc">--</span>
+  <div class="falert" id="fr" style="display:none">
+    <div class="fa-t"><span id="fa-ic">⚠</span><span id="fa-title">--</span></div>
+    <div class="fa-why" id="fa-why"></div>
+    <div class="fa-do"  id="fa-do"></div>
+    <div class="fa-raw" id="fa-raw"></div>
   </div>
 </div>
 
@@ -174,6 +222,13 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 <!-- 設定 -->
 <div class="card">
   <section-title>⚙ 設定</section-title>
+  <label class="lbl2">裝置名稱</label>
+  <input type="text" id="cdn" maxlength="24" placeholder="例如：車庫充電樁">
+  <div style="color:#4a4a4a;font-size:.72em;margin:4px 0 10px">
+    同一個 WiFi 下有多台時用來分辨。網址
+    <span id="cd-host" style="color:#6a8">tes-xxxxxx.local</span>
+    由 MAC 產生、改名也不會變。
+  </div>
   <div class="chk-row">
     <input type="checkbox" id="cav" onchange="updateAutoVoltUI()">
     <span>自動設定電壓上限（依開機 ADC 量測）</span>
@@ -335,47 +390,60 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <div id="can-body" style="display:none">
     <div style="font-size:.78em;color:#555;margin-bottom:10px">最後收到／發出的 CAN 解碼值，未接車時全為 0</div>
 
+    <!-- 匯流排健康度：先看得出「有沒有在通訊」，再談個別欄位的值 -->
+    <div class="can-hdr"><span class="can-tag" style="background:#2a2214;color:#db4">BUS</span><span class="can-name">匯流排狀態</span></div>
+    <div class="row"><span class="lbl">控制器狀態</span><span id="cbus-st" class="val">--</span></div>
+    <div class="row"><span class="lbl">錯誤計數 TX/RX</span><span id="cbus-err" class="val">--</span></div>
+    <div class="row"><span class="lbl">匯流排錯誤</span><span id="cbus-be" class="val">--</span></div>
+    <div class="row"><span class="lbl">仲裁失敗 / 漏收</span><span id="cbus-am" class="val">--</span></div>
+    <div class="row"><span class="lbl">送出失敗</span><span id="cbus-txf" class="val">--</span></div>
+
     <!-- 0x500 -->
-    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x500</span><span class="can-name">車輛狀態</span></div>
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x500</span><span class="can-name">車輛狀態</span><span id="live-500" class="can-live">--</span></div>
     <div class="row"><span class="lbl">充電許可 (bit0)</span><span id="c500-b0" class="val">--</span></div>
     <div class="row"><span class="lbl">接觸器 (bit1)</span><span id="c500-b1" class="val">--</span></div>
-    <div class="row"><span class="lbl">停止請求 (bit2)</span><span id="c500-b2" class="val">--</span></div>
-    <div class="row"><span class="lbl">正常停止 (bit3)</span><span id="c500-b3" class="val">--</span></div>
+    <div class="row"><span class="lbl">充電姿勢 (bit2)</span><span id="c500-b2" class="val">--</span></div>
+    <div class="row"><span class="lbl">正常停止要求 (bit3)</span><span id="c500-b3" class="val">--</span></div>
     <div class="row"><span class="lbl">故障旗標</span><span id="c500-fault" class="val">--</span></div>
     <div class="row"><span class="lbl">請求電流</span><span id="c500-ra" class="val">--</span></div>
     <div class="row"><span class="lbl">充電電壓上限</span><span id="c500-rv" class="val">--</span></div>
     <div class="row"><span class="lbl">最大允許電壓</span><span id="c500-mv" class="val">--</span></div>
 
     <!-- 0x501 -->
-    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x501</span><span class="can-name">車輛參數</span></div>
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x501</span><span class="can-name">車輛參數</span><span id="live-501" class="can-live">--</span></div>
     <div class="row"><span class="lbl">序列號</span><span id="c501-seq" class="val">--</span></div>
+      <div class="row"><span class="lbl">SOC</span><span id="c501-soc" class="val">--</span></div>
     <div class="row"><span class="lbl">最大充電時間</span><span id="c501-mt" class="val">--</span></div>
     <div class="row"><span class="lbl">預估結束時間</span><span id="c501-eta" class="val">--</span></div>
 
     <!-- 0x5F0 -->
-    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x5F0</span><span class="can-name">車輛緊急</span></div>
+    <div class="can-hdr"><span class="can-tag can-rx">← RX</span><span class="can-id">0x5F0</span><span class="can-name">車輛緊急</span><span id="live-5f0" class="can-live">--</span></div>
     <div class="row"><span class="lbl">緊急旗標</span><span id="c5f0-flags" class="val">--</span></div>
     <div class="row"><span class="lbl">緊急停止請求 (bit0)</span><span id="c5f0-b0" class="val">--</span></div>
+      <div class="row"><span class="lbl">熔接異常 (bit1)</span><span id="c5f0-b1" class="val">--</span></div>
+      <div class="row"><span class="lbl">本次最大充電電流</span><span id="c5f0-ma" class="val">--</span></div>
+      <div class="row"><span class="lbl">車輛製造商編號</span><span id="c5f0-mk" class="val">--</span></div>
 
     <!-- 0x508 -->
-    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x508</span><span class="can-name">充電樁狀態</span></div>
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x508</span><span class="can-name">充電樁狀態</span><span id="live-508" class="can-live">--</span></div>
     <div class="row"><span class="lbl">故障旗標</span><span id="c508-fault" class="val">--</span></div>
-    <div class="row"><span class="lbl">待機/準備 (bit0)</span><span id="c508-b0" class="val">--</span></div>
-    <div class="row"><span class="lbl">充電中 (bit1)</span><span id="c508-b1" class="val">--</span></div>
-    <div class="row"><span class="lbl">電磁鎖鎖定 (bit2)</span><span id="c508-b2" class="val">--</span></div>
+    <div class="row"><span class="lbl">停止控制 (bit0)</span><span id="c508-b0" class="val">--</span></div>
+    <div class="row"><span class="lbl">裝置狀態 (bit1)</span><span id="c508-b1" class="val">--</span></div>
+    <div class="row"><span class="lbl">電子鎖 (bit2)</span><span id="c508-b2" class="val">--</span></div>
     <div class="row"><span class="lbl">可提供電壓 (VLIM)</span><span id="c508-av" class="val">--</span></div>
     <div class="row"><span class="lbl">可提供電流 (I_MX)</span><span id="c508-aa" class="val">--</span></div>
-    <div class="row"><span class="lbl">故障偵測電壓 (VLIM2)</span><span id="c508-fv" class="val">--</span></div>
+    <div class="row"><span class="lbl">異常判定電壓上限 (VLIM2)</span><span id="c508-fv" class="val">--</span></div>
 
     <!-- 0x509 -->
-    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x509</span><span class="can-name">充電樁參數</span></div>
-    <div class="row"><span class="lbl">額定功率</span><span id="c509-pw" class="val">--</span></div>
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x509</span><span class="can-name">充電樁參數</span><span id="live-509" class="can-live">--</span></div>
+    <div class="row"><span class="lbl">序列號</span><span id="c509-seq" class="val">--</span></div>
+      <div class="row"><span class="lbl">額定功率</span><span id="c509-pw" class="val">--</span></div>
     <div class="row"><span class="lbl">實際輸出電壓</span><span id="c509-v" class="val">--</span></div>
     <div class="row"><span class="lbl">實際輸出電流</span><span id="c509-a" class="val">--</span></div>
     <div class="row"><span class="lbl">剩餘時間</span><span id="c509-rem" class="val">--</span></div>
 
     <!-- 0x5F8 -->
-    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x5F8</span><span class="can-name">充電樁緊急</span></div>
+    <div class="can-hdr"><span class="can-tag can-tx">TX →</span><span class="can-id">0x5F8</span><span class="can-name">充電樁緊急</span><span id="live-5f8" class="can-live">--</span></div>
     <div class="row"><span class="lbl">緊急旗標</span><span id="c5f8-flags" class="val">--</span></div>
     <div class="row"><span class="lbl">緊急停止 (bit0)</span><span id="c5f8-b0" class="val">--</span></div>
   </div>
@@ -386,10 +454,11 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <section-title>📋 充電紀錄 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span> <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
   <div id="hist-body">
     <table class="hist-table">
-      <thead><tr><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
-      <tbody id="hist-rows"><tr><td colspan="4" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
+      <thead><tr><th></th><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
+      <tbody id="hist-rows"><tr><td colspan="5" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
     </table>
   </div>
+  <div style="color:#3d3d3d;font-size:.7em;margin-top:7px">點一列展開該次的充電曲線與詳細 Log</div>
 </div>
 
 <script>
@@ -404,6 +473,108 @@ const SC={
   ending:'badge s-ending',finalizing:'badge s-finalizing',
   fault:'badge s-fault',emergency:'badge s-emergency'
 };
+let lastDevName='';
+
+/* 故障說明表 —— 索引即 tes_types.h 的 fault_source_t
+   title 發生什麼事 / why 為什麼（帶故障當下的實際數值）/ act 該怎麼辦
+   ctx(a,b) 把韌體傳來的 fault_ctx_a/b 翻成人話；a、b 的意義依故障而定。
+   info:true 代表「這不一定是壞事」，面板會用琥珀色而不是紅色。 */
+const V=x=>(x/10).toFixed(1);
+
+/* 0x500 byte 0 故障旗標（TES-0D-02-01 表 16）—— 全部 1=異常 */
+const V500_FAULT_BITS=[
+  '供電系統異常',        // bit0
+  '電池過電壓',          // bit1
+  '電池電壓不足',        // bit2
+  '電池電流差異異常',    // bit3
+  '電池高溫異常',        // bit4
+  '電池電壓差異常'       // bit5
+];
+/* 0x500 byte 1 狀態表示旗標 —— 各位元極性不同，這裡寫的是「該位元=1 的意思」 */
+const V500_STATUS_BITS=[
+  '車輛允許充電',              // bit0  1=可
+  '接觸器斷開／熔接診斷結束',  // bit1  1=斷開
+  '車輛姿勢不可充電',          // bit2  1=不可
+  '車輛要求正常停止'           // bit3  1=有要求
+];
+/* 0x508 byte 0 故障旗標 —— 這是我們主動送給車端的 */
+const C508_FAULT_BITS=[
+  '供電系統異常',      // bit0
+  '直流供電裝置異常',  // bit1（充電樁本體／PSU）
+  '電池不適合'         // bit2
+];
+function bitNames(v,names){
+  const out=[];
+  for(let i=0;i<names.length;i++) if(v&(1<<i)) out.push(names[i]);
+  return out;
+}
+function hex2(v){return '0x'+(v|0).toString(16).padStart(2,'0').toUpperCase();}
+const FAULTS={
+ 1:{title:'車輛沒有回應',
+    why:(a,b)=>`等了 ${a} 秒仍未收到車輛的充電許可（CAN 0x500 bit0）。`
+               +`最後收到的車端狀態是 0x${b.toString(16).padStart(2,'0').toUpperCase()}。`,
+    act:'確認充電槍已插到底、CAN 線（H/L）沒有鬆脫或接反，並確認車輛已進入充電模式。'},
+ 2:{title:'電壓上限設得太低',
+    why:(a,b)=>`車輛要求 <b>${V(a)} V</b>，但這台控制器的最大電壓設定只有 <b>${V(b)} V</b>。`,
+    act:(a)=>`到下方「設定」把<b>最大電壓</b>調到 <b>${V(a)} V</b> 以上再重試。`},
+ 3:{title:'預充電階段逾時',
+    why:(a,b)=>`等了 20 秒，CP 訊號與車端許可沒有同時就緒。`
+               +`當下 CP = ${V(a)} V，車端狀態 0x${b.toString(16).padStart(2,'0').toUpperCase()}。`,
+    act:'把充電槍拔起來重新插到底並鎖固；若 CP 電壓一直是 0 V，檢查 CP 線路。'},
+ 4:{title:'車輛的接觸器沒有閉合',
+    why:(a,b)=>`等了 ${a} 秒，車輛仍回報接觸器開路（狀態 0x${b.toString(16).padStart(2,'0').toUpperCase()}）。`,
+    act:'這是車輛端的狀況。確認電池溫度、SOC 是否在可充電範圍，或查看車輛儀表板的訊息。'},
+ 5:{title:'電源供應器斷線',
+    why:(a)=>`充電進行 ${a} 秒後與 PSU 失去通訊，已立即停止輸出。`,
+    act:'檢查 PSU 電源是否正常；UART 模式檢查接線，ESP-NOW 模式檢查距離與配對狀態。'},
+ 6:{title:(a)=>(a&1)?'車輛判定供電異常':'車輛電池異常',
+    why:(a,b)=>{
+      const f=bitNames(a,V500_FAULT_BITS);
+      let s=f.length?`車輛偵測到：<b>${f.join('、')}</b>。`
+                   :`車輛送出故障旗標 ${hex2(a)}（未定義的位元）。`;
+      if(a&1) s+='<br>注意：「供電系統異常」是車輛在指控<b>充電樁這一端</b>，'
+                +'不是它自己的電池有問題。';
+      return s;
+    },
+    act:(a)=>(a&1)
+      ? '先確認 0x508 送出的 VLIM2（故障偵測電壓）不是 0 —— 車輛會把 VLIM2=0 解讀成「輸出電壓 ≥ 0V 即異常」而立刻報錯。'
+        +'展開下方充電紀錄的 Log 對照發生時間點。'
+      : '故障來自車輛電池端，請查看車輛儀表板的錯誤訊息，確認電池溫度與電量狀態。'},
+ 7:{title:'充電槍鬆脫',
+    why:(a)=>`充電途中 CP 訊號中斷（掉到 ${V(a)} V），已立即停止輸出。`,
+    act:'把充電槍重新插到底並確認卡榫鎖固。'},
+ 8:{title:'緊急停止鈕被按下',
+    why:()=>'有人按下了緊急停止按鈕，輸出已切斷。',
+    act:'排除現場狀況後，長按 SETTING 進入選單執行 <b>Reset Fault</b> 才會解除（此項不會自動復歸）。'},
+ 9:{title:'車輛要求緊急停止', info:true,
+    why:()=>'車輛送出了 0x5F0 緊急停止訊框。'
+            +'注意：eMoving iE125 在每次<b>正常充電結束後</b>都會送這個訊框，多半不是故障。',
+    act:'若充電已完成則無須處理，5 秒後會自動復歸。若是充電中途出現，請查看車輛儀表板。'}
+};
+
+function renderFault(d){
+  const fr=document.getElementById('fr');
+  const src=d.fault_source|0;
+  // FAULT/EMERGENCY 狀態中，或故障已鎖存還沒復歸時都要顯示
+  const show=src>0&&(d.fault||d.state==='fault'||d.state==='emergency');
+  if(!show){fr.style.display='none';return;}
+
+  const f=FAULTS[src];
+  const a=d.fault_ctx_a|0, b=d.fault_ctx_b|0;
+  fr.style.display='block';
+  fr.className='falert'+(f&&f.info?' info':'');
+  document.getElementById('fa-ic').textContent=f&&f.info?'ℹ':'⚠';
+  const T=f?(typeof f.title==='function'?f.title(a,b):f.title):`未知故障（代碼 ${src}）`;
+  document.getElementById('fa-title').textContent=T;
+  document.getElementById('fa-why').innerHTML=f?(typeof f.why==='function'?f.why(a,b):f.why):'';
+  document.getElementById('fa-do').innerHTML =f?(typeof f.act==='function'?f.act(a,b):f.act):'';
+
+  // 原始數值降級成註腳 —— 需要時才看，不再是使用者唯一能看到的東西
+  const parts=[`fault_source=${src}`];
+  if(d.fault_flags)parts.push(`flags=0x${d.fault_flags.toString(16).padStart(2,'0').toUpperCase()}`);
+  if(a||b)parts.push(`ctx=${a},${b}`);
+  document.getElementById('fa-raw').textContent=parts.join('  ·  ');
+}
 
 function fmt(s){
   const h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
@@ -465,17 +636,22 @@ async function poll(){
       trRow.style.display='none';
     }
 
-    const fr=document.getElementById('fr');
-    if(d.fault&&d.fault_flags){
-      fr.style.display='flex';
-      document.getElementById('fc').textContent='0x'+d.fault_flags.toString(16).toUpperCase().padStart(2,'0');
-    }else fr.style.display='none';
+    // 故障說明面板。舊版條件是 fault && fault_flags —— 但很多故障（PSU 斷線、
+    // CP 鬆脫、電壓設定過低）根本不會產生 fault_flags，結果什麼都不顯示。
+    // 現在只要有 fault_source 或 fault 旗標就顯示。
+    renderFault(d);
 
     const dot=d.wifi_connected?'#4d4':'#f55';
     const txt=d.wifi_connected?'已連線':'未連線';
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
     document.getElementById('ip').textContent=d.ip||'--';
     document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+    // 同網段多台時，標題與分頁名稱要能直接分辨是哪一台
+    if(d.display_name&&d.display_name!==lastDevName){
+      lastDevName=d.display_name;
+      document.getElementById('devname').textContent=d.display_name;
+      document.title=d.display_name;
+    }
 
     // PSU 連線狀態
     const psEl=document.getElementById('psu-status');
@@ -566,35 +742,100 @@ function flagDot(on,trueLabel,falseLabel){
 function fhex(v){return v?'0x'+v.toString(16).toUpperCase().padStart(2,'0'):'0x00';}
 function ftime(v){return(v&&v!==0xFFFF)?v+' min':'未知';}
 
+const BUS_STATE=['已停止','運作中','BUS-OFF','復歸中'];
+
+// RX frame 的活性：協定要求 100ms 週期，>1s 沒收到就是不正常
+function liveRx(id,count,age){
+  const el=document.getElementById('live-'+id);
+  if(!el)return;
+  if(age===undefined||age>=4294967295){el.className='can-live off';el.textContent='未收到';return;}
+  const s=(age/1000);
+  el.className='can-live '+(age<1000?'on':(age<5000?'stale':'off'));
+  el.textContent=`${s<10?s.toFixed(1):Math.round(s)}s 前 · ${count||0} 幀`;
+}
+// TX 只有累計次數，沒有 age（我們自己送的，關心的是有沒有送出去）
+function liveTx(id,count){
+  const el=document.getElementById('live-'+id);
+  if(!el)return;
+  el.className='can-live '+(count?'on':'');
+  el.textContent=`已送 ${count||0} 幀`;
+}
+
 function updateCan(c){
+  // ── 匯流排健康度 ──
+  const bs=c.bus_state|0;
+  const bsEl=document.getElementById('cbus-st');
+  bsEl.textContent=BUS_STATE[bs]||'未知';
+  bsEl.style.color=(bs===1)?'#4d4':'#f55';
+  // TX/RX error counter ≥128 代表已進入 error passive
+  const te=c.bus_tx_err|0, re=c.bus_rx_err|0;
+  const eEl=document.getElementById('cbus-err');
+  eEl.textContent=`${te} / ${re}`;
+  eEl.style.color=(te>=128||re>=128)?'#f55':(te||re)?'#db4':'#888';
+  // bus_err 持續上升 = 接線／終端電阻／baud rate 有問題
+  const be=c.bus_err_count|0;
+  const beEl=document.getElementById('cbus-be');
+  beEl.textContent=be;
+  beEl.style.color=be?'#db4':'#888';
+  document.getElementById('cbus-am').textContent=`${c.bus_arb_lost|0} / ${c.bus_rx_missed|0}`;
+  const tf=c.tx_fail_count|0;
+  const tfEl=document.getElementById('cbus-txf');
+  tfEl.textContent=tf;
+  tfEl.style.color=tf?'#f55':'#888';
+
+  liveRx('500',c.rx_500_count,c.rx_500_age_ms);
+  liveRx('501',c.rx_501_count,c.rx_501_age_ms);
+  liveRx('5f0',c.rx_5f0_count,c.rx_5f0_age_ms);
+  liveTx('508',c.tx_508_count);
+  liveTx('509',c.tx_509_count);
+  liveTx('5f8',c.tx_5f8_count);
+
   // 0x500
   const s5=c.v500_status||0;
   document.getElementById('c500-b0').innerHTML=flagDot(s5&0x01,'許可','未許可');
   document.getElementById('c500-b1').innerHTML=flagDot(s5&0x02,'開路','閉合');
-  document.getElementById('c500-b2').innerHTML=flagDot(s5&0x04,'請求停止','無');
+  // bit2 是「車輛充電姿勢」(1=不可充電)，不是停止請求 —— 舊標籤標錯了
+  document.getElementById('c500-b2').innerHTML=flagDot(s5&0x04,'不可充電','可充電');
   document.getElementById('c500-b3').innerHTML=flagDot(s5&0x08,'正常停止','無');
-  document.getElementById('c500-fault').textContent=fhex(c.v500_fault);
+  // 故障旗標直接列出是哪幾項異常，不要讓人去查表
+  const vf=c.v500_fault||0;
+  const vfn=bitNames(vf,V500_FAULT_BITS);
+  document.getElementById('c500-fault').innerHTML=
+    vf ? `<span style="color:#f66">${fhex(vf)} ${vfn.join('、')||'未定義位元'}</span>`
+       : '0x00 正常';
   document.getElementById('c500-ra').textContent=(c.v500_req_current||0).toFixed(1)+' A';
   document.getElementById('c500-rv').textContent=(c.v500_req_voltage||0).toFixed(1)+' V';
   document.getElementById('c500-mv').textContent=(c.v500_max_voltage||0).toFixed(1)+' V';
   // 0x501
   document.getElementById('c501-seq').textContent=c.v501_seq||0;
+  document.getElementById('c501-soc').textContent=(c.v501_soc|0)+' %';
   document.getElementById('c501-mt').textContent=ftime(c.v501_max_time);
   document.getElementById('c501-eta').textContent=ftime(c.v501_eta);
   // 0x5F0
   const f0=c.v5f0_flags||0;
   document.getElementById('c5f0-flags').textContent=fhex(f0);
   document.getElementById('c5f0-b0').innerHTML=flagDot(f0&0x01,'緊急停止請求','無');
+  // bit1 熔接異常（接觸器沾黏）是安全相關旗標，之前完全沒顯示
+  document.getElementById('c5f0-b1').innerHTML=flagDot(f0&0x02,'熔接異常','正常');
+  document.getElementById('c5f0-ma').textContent=(c.v5f0_max_current||0).toFixed(1)+' A';
+  document.getElementById('c5f0-mk').textContent=c.v5f0_maker||0;
   // 0x508
   const s8=c.c508_status||0;
-  document.getElementById('c508-fault').textContent=fhex(c.c508_fault);
-  document.getElementById('c508-b0').innerHTML=flagDot(s8&0x01,'是','否');
-  document.getElementById('c508-b1').innerHTML=flagDot(s8&0x02,'是','否');
-  document.getElementById('c508-b2').innerHTML=flagDot(s8&0x04,'鎖定','未鎖定');
+    // 我們送給車端的故障旗標，同樣列出是哪幾項而不是只給 hex
+  const cf=c.c508_fault||0;
+  const cfn=bitNames(cf,C508_FAULT_BITS);
+  document.getElementById('c508-fault').innerHTML=
+    cf ? `<span style="color:#f66">${fhex(cf)} ${cfn.join('、')||'未定義位元'}</span>`
+       : '0x00 正常';
+  // bit0 是「停止控制」不是「待機/準備」，極性容易讀反：1=停止中
+  document.getElementById('c508-b0').innerHTML=flagDot(s8&0x01,'停止控制中','輸出運轉中');
+  document.getElementById('c508-b1').innerHTML=flagDot(s8&0x02,'充電中','待機中');
+  document.getElementById('c508-b2').innerHTML=flagDot(s8&0x04,'閉鎖中','解除');
   document.getElementById('c508-av').textContent=(c.c508_avail_voltage||0).toFixed(1)+' V';
   document.getElementById('c508-aa').textContent=(c.c508_avail_current||0).toFixed(1)+' A';
   document.getElementById('c508-fv').textContent=(c.c508_fault_voltage||0).toFixed(1)+' V';
   // 0x509
+  document.getElementById('c509-seq').textContent=c.c509_seq||0;
   document.getElementById('c509-pw').textContent=((c.c509_rated_kw||0)*50)+' W';
   document.getElementById('c509-v').textContent=(c.c509_voltage||0).toFixed(1)+' V';
   document.getElementById('c509-a').textContent=(c.c509_current||0).toFixed(1)+' A';
@@ -651,8 +892,10 @@ async function loadCfg(){
     document.getElementById('ctm').value=d.charge_timer_min||120;
     document.getElementById('ci').value=d.wifi_ssid;
     document.getElementById('cb').checked=d.beacon;
+    document.getElementById('cdn').value=d.device_name||'';
+    if(d.hostname)document.getElementById('cd-host').textContent=d.hostname+'.local';
     document.getElementById('mqtt-url').value=d.mqtt_broker_url||'';
-    document.getElementById('mqtt-topic').value=d.mqtt_topic_prefix||'tes/charger';
+    document.getElementById('mqtt-topic').value=d.mqtt_topic_prefix||('tes/'+(d.device_id||'charger'));
     const nu=d.notify_url||'';
     if(!nu){document.getElementById('nm-off').checked=true;}
     else if(/^https?:\/\/ntfy\.sh\//.test(nu)){document.getElementById('nm-ntfy').checked=true;ntfyTopic=nu.replace(/^https?:\/\/ntfy\.sh\//,'');}
@@ -687,6 +930,7 @@ async function save(){
   const stopMode=document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
   const ssid=document.getElementById('ci').value;
   const b={
+    device_name:document.getElementById('cdn').value.trim(),
     auto_voltage:document.getElementById('cav').checked,
     max_voltage:parseFloat(document.getElementById('cv').value),
     max_current:parseFloat(document.getElementById('ca').value),
@@ -869,33 +1113,308 @@ async function scanWifi(){
 const STOP_REASON=['SOC 達標','手動停止','故障','緊急停止','BMS 停止','計時完成','電壓達標'];
 const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5','hist-reason-6'];
 
-async function loadHistory(){
-  const tbody=document.getElementById('hist-rows');
-  tbody.innerHTML='<tr><td colspan="4" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr>';
-  try{
-    const rows=await(await fetch('/history')).json();
-    if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="4" style="color:#444;text-align:center;padding:12px">尚無紀錄</td></tr>';
-      return;
+
+/* ══ 充電紀錄 ═══════════════════════════════════════════════════════════════
+   每一列都可以展開，底下就是該次充電的曲線 (GET /trace) 與詳細 Log
+   (GET /tracelog)，資料來自 trace_svc 的 PSRAM ring buffer，展開時才抓。
+
+   清單是兩個來源合併的：
+     * /history  — NVS 摘要，重開機後仍在，但曲線/Log 可能已經沒了
+     * /trace 的 sessions[] — RAM 裡的 trace。沒進到 CHARGING 就故障的嘗試
+       不會產生 NVS 紀錄，但那正是 auto-start 除錯最需要看的，
+       所以這類 session 也要以「未完成」的列出現。                        */
+
+const TR={rows:[],haveTrace:new Set(),cache:{},open:new Set()};
+
+const CH={W:700,H:300,ML:46,MR:10,MT:10,MB:24,GAP:7};
+
+function fmtDur(ms){
+  const s=Math.floor(ms/1000);
+  if(s>=3600)return`${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  return`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+}
+
+// 把上限取到 1/2/5/10 的整數刻度，避免 Y 軸標籤出現一堆小數
+function niceMax(v){
+  if(v<=0)return 1;
+  const e=Math.pow(10,Math.floor(Math.log10(v)));
+  const n=v/e;
+  return (n<=1?1:n<=2?2:n<=5?5:10)*e;
+}
+
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+/* ── 曲線 ───────────────────────────────────────────────────────────────── */
+// 三個共用時間軸的堆疊面板：電壓 / 電流 / SOC。
+// 不把三條線疊在同一張圖，是因為 V(54–67)、A(0–15)、SOC(0–100) 尺度差太多，
+// 疊起來必定有一條被壓扁到看不出變化。
+function drawChart(box,rd,S){
+  if(!S.length){box.innerHTML='<div class="tr-empty">此次沒有曲線資料</div>';return;}
+
+  const {W,H,ML,MR,MT,MB,GAP}=CH;
+  const PW=W-ML-MR, PH=(H-MT-MB-2*GAP)/3;
+  const tMax=Math.max(1,S[S.length-1][0]);
+
+  // 電壓不從 0 起算 —— 一次充電的電壓大約只在 54→67V 之間走，
+  // 若 Y 軸固定 0–100V，這段變化只佔面板高度的 13%，看起來會是一條直線。
+  // 電流從 0 起算才看得出「有沒有在輸出」；SOC 本來就是 0–100%。
+  const panels=[
+    {name:'電壓',unit:'V',col:'#4d9fff',get:s=>s[1]/10,auto:true},
+    {name:'電流',unit:'A',col:'#ffb340',get:s=>s[2]/10},
+    {name:'SOC', unit:'%',col:'#4dd97a',get:s=>s[4],fixedMin:0,fixedMax:100}
+  ];
+
+  const x=t=>ML+PW*t/tMax;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">`;
+
+  panels.forEach((p,pi)=>{
+    const y0=MT+pi*(PH+GAP);
+    const vals=S.map(p.get);
+    let vMin,vMax;
+    if(p.fixedMax!==undefined){
+      vMin=p.fixedMin;vMax=p.fixedMax;
+    }else if(p.auto){
+      const lo=Math.min(...vals),hi=Math.max(...vals);
+      const pad=Math.max((hi-lo)*0.15,0.5);
+      vMin=Math.floor((lo-pad)*10)/10;
+      vMax=Math.ceil((hi+pad)*10)/10;
+      if(vMax-vMin<0.5)vMax=vMin+0.5;   // 全程幾乎不動時避免除以 0
+    }else{
+      vMin=0;vMax=Math.max(niceMax(Math.max(...vals)*1.1),0.1);
     }
-    tbody.innerHTML=rows.map(r=>{
-      const dur=r.duration_s>=3600
-        ?`${Math.floor(r.duration_s/3600)}h ${String(Math.floor(r.duration_s%3600/60)).padStart(2,'0')}m`
-        :`${String(Math.floor(r.duration_s/60)).padStart(2,'0')}:${String(r.duration_s%60).padStart(2,'0')}`;
-      const whEst=r.energy_estimated?'<span style="color:#555;font-size:.75em"> (預估)</span>':'';
-      const wh=r.energy_wh.toFixed(2)+' Wh'+whEst;
-      const soc=`${r.soc_start}% → ${r.soc_end}%`;
-      const ri=Math.min(r.stop_reason,6);
-      let reasonText=STOP_REASON[ri];
-      if(r.stop_reason===6&&r.stop_voltage_v)reasonText=`${r.stop_voltage_v.toFixed(1)} V`;
-      const reason=`<span class="${STOP_CLS[ri]}">${reasonText}</span>`;
-      return`<tr><td>${dur}</td><td>${wh}</td><td>${soc}</td><td>${reason}</td></tr>`;
-    }).join('');
+    const span=vMax-vMin;
+    const y=v=>y0+PH-PH*Math.min(Math.max(v,vMin)-vMin,span)/span;
+
+    svg+=`<rect x="${ML}" y="${y0}" width="${PW}" height="${PH}" fill="#0f0f0f" stroke="#1e1e1e"/>`;
+    for(let g=0;g<=2;g++){
+      const gv=vMin+span*g/2, gy=y(gv);
+      svg+=`<line x1="${ML}" y1="${gy.toFixed(1)}" x2="${ML+PW}" y2="${gy.toFixed(1)}" stroke="#1c1c1c"/>`
+         +`<text x="${ML-5}" y="${(gy+3).toFixed(1)}" fill="#555" font-size="9" text-anchor="end">${
+             span>=10?gv.toFixed(0):gv.toFixed(1)}</text>`;
+    }
+    svg+=`<text x="${ML+4}" y="${y0+11}" fill="${p.col}" font-size="10">${p.name} (${p.unit})</text>`;
+
+    // 狀態轉換處畫淡淡的垂直線，方便和底下的 Log 對照
+    for(let i=1;i<S.length;i++){
+      if(S[i][5]!==S[i-1][5]){
+        const vx=x(S[i][0]).toFixed(1);
+        svg+=`<line x1="${vx}" y1="${y0}" x2="${vx}" y2="${y0+PH}" stroke="#3a3a3a" stroke-dasharray="2 2"/>`;
+      }
+    }
+
+    svg+=`<polyline points="${S.map(s=>`${x(s[0]).toFixed(1)},${y(p.get(s)).toFixed(1)}`).join(' ')}"
+           fill="none" stroke="${p.col}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+    // 電流面板疊上 BMS 請求電流，用來對照實際輸出跟不跟得上
+    if(pi===1){
+      svg+=`<polyline points="${S.map(s=>`${x(s[0]).toFixed(1)},${y(s[3]/10).toFixed(1)}`).join(' ')}"
+             fill="none" stroke="#7a5a20" stroke-width="1" stroke-dasharray="3 3"/>`;
+    }
+  });
+
+  const yAxis=MT+3*PH+2*GAP;
+  svg+=`<line x1="${ML}" y1="${yAxis}" x2="${ML+PW}" y2="${yAxis}" stroke="#2a2a2a"/>`;
+  for(let i=0;i<=4;i++){
+    const t=tMax*i/4, tx=x(t);
+    svg+=`<line x1="${tx.toFixed(1)}" y1="${yAxis}" x2="${tx.toFixed(1)}" y2="${yAxis+3}" stroke="#2a2a2a"/>`
+       +`<text x="${tx.toFixed(1)}" y="${yAxis+14}" fill="#555" font-size="9" text-anchor="middle">${fmtDur(t)}</text>`;
+  }
+  svg+=`<line class="cross" x1="0" y1="${MT}" x2="0" y2="${yAxis}" stroke="#666" stroke-width="1" opacity="0"/>`
+     +`<rect class="hit" x="${ML}" y="${MT}" width="${PW}" height="${yAxis-MT}" fill="transparent"/></svg>`;
+  box.innerHTML=svg;
+
+  // 游標讀值（元素查詢限定在這一列的容器內，多列同時展開才不會互相干擾）
+  const hit=box.querySelector('.hit'), cross=box.querySelector('.cross');
+  const ST=['IDLE','PARAM','PRE-CHG','CHARGING','ENDING','FAULT','EMERG','FINAL'];
+  const move=ev=>{
+    const r=box.querySelector('svg').getBoundingClientRect();
+    const cx=ev.touches?ev.touches[0].clientX:ev.clientX;
+    const t=Math.max(0,Math.min(tMax,((cx-r.left)/r.width*W-ML)/PW*tMax));
+    let lo=0,hi=S.length-1;
+    while(lo<hi){const m=(lo+hi)>>1;if(S[m][0]<t)lo=m+1;else hi=m;}
+    const s=S[lo];
+    const px=x(s[0]);
+    cross.setAttribute('x1',px);cross.setAttribute('x2',px);cross.setAttribute('opacity','1');
+    rd.innerHTML=`${fmtDur(s[0])} · <b>${(s[1]/10).toFixed(1)} V</b> · `
+      +`<b>${(s[2]/10).toFixed(1)} A</b>（BMS 要求 ${(s[3]/10).toFixed(1)} A）· `
+      +`<b>SOC ${s[4]}%</b> · ${ST[s[5]]||'?'}`;
+  };
+  hit.addEventListener('mousemove',move);
+  hit.addEventListener('touchmove',move,{passive:true});
+  hit.addEventListener('mouseleave',()=>{cross.setAttribute('opacity','0');rd.textContent='';});
+}
+
+/* ── Log ────────────────────────────────────────────────────────────────── */
+
+function logTime(e,startMs){
+  const t=e[0],ep=e[1];
+  const ms=String(t%1000).padStart(3,'0');
+  if(ep>0){
+    const d=new Date(ep*1000);
+    return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${ms}`;
+  }
+  // 未經 NTP 校時：改用「距離本次 session 起點」的相對時間
+  const rel=Math.max(0,t-startMs), s=Math.floor(rel/1000);
+  return`+${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}.${String(rel%1000).padStart(3,'0')}`;
+}
+
+function logClass(tx){
+  if(tx.startsWith('STATE'))return'st';
+  if(tx.indexOf('FAULT')>=0||tx.indexOf('EMERG')>=0)return'fa';
+  if(tx.startsWith('RELAY')||tx.startsWith('COUPLER')||tx.startsWith('VP')||tx.startsWith('CP '))return'hw';
+  if(tx.startsWith('BMS')||tx.startsWith('0x500')||tx.startsWith('SOC'))return'bms';
+  if(tx.startsWith('PSU'))return'psu';
+  return'';
+}
+
+function renderLog(sid){
+  const d=TR.cache[sid]; if(!d)return;
+  const box=document.getElementById('trlog-'+sid);
+  const fEl=document.getElementById('trf-'+sid);
+  if(!box)return;
+  const f=(fEl?fEl.value:'').trim().toLowerCase();
+  const rows=d.events.filter(e=>!f||e[2].toLowerCase().indexOf(f)>=0);
+  if(!rows.length){
+    box.innerHTML=`<div class="tr-empty">${d.events.length?'沒有符合的項目':'此次沒有 Log'}</div>`;
+    return;
+  }
+  box.innerHTML=rows.map(e=>
+    `<div class="ln"><span class="ts">${logTime(e,d.startMs)}</span>`
+    +`<span class="tx ${logClass(e[2])}">${esc(e[2])}</span></div>`).join('');
+}
+
+function downloadLog(sid){
+  const d=TR.cache[sid]; if(!d||!d.events.length)return;
+  const txt=d.events.map(e=>`${logTime(e,d.startMs)}  ${e[2]}`).join('\r\n');
+  const url=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url;a.download=`tes-session-${sid}.log`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+/* ── 展開／收合 ─────────────────────────────────────────────────────────── */
+
+async function toggleRow(sid){
+  const det=document.getElementById('hdet-'+sid);
+  const row=document.getElementById('hrow-'+sid);
+  if(!det)return;
+  const isOpen=TR.open.has(sid);
+  if(isOpen){
+    TR.open.delete(sid);det.style.display='none';row.classList.remove('open');
+    return;
+  }
+  TR.open.add(sid);det.style.display='';row.classList.add('open');
+
+  if(TR.cache[sid]){                    // 已抓過就直接重畫，不重複打 API
+    paintDetail(sid);
+    return;
+  }
+  const inner=det.querySelector('.hdet-in');
+  inner.innerHTML='<div class="tr-empty">讀取中…</div>';
+  try{
+    const [t,l]=await Promise.all([
+      fetch(`/trace?session=${sid}`).then(r=>r.json()),
+      fetch(`/tracelog?session=${sid}`).then(r=>r.json())
+    ]);
+    const meta=(t.sessions||[]).find(s=>s.id===sid);
+    TR.cache[sid]={
+      samples:t.ok?(t.samples||[]):[],
+      events :l.ok?(l.events ||[]):[],
+      startMs:meta?meta.start_uptime_ms:0
+    };
+    paintDetail(sid);
   }catch(e){
-    tbody.innerHTML='<tr><td colspan="4" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
+    inner.innerHTML='<div class="tr-empty" style="color:#f55">✗ 讀取失敗</div>';
   }
 }
 
+function paintDetail(sid){
+  const det=document.getElementById('hdet-'+sid);
+  const inner=det.querySelector('.hdet-in');
+  inner.innerHTML=
+     `<div class="tr-head"><span class="t">📈 充電曲線</span></div>`
+    +`<div class="tr-chart" id="trch-${sid}"></div>`
+    +`<div class="tr-rd" id="trrd-${sid}"></div>`
+    +`<div class="tr-head"><span class="t">📝 詳細 Log</span>`
+    +`<input id="trf-${sid}" placeholder="過濾關鍵字…">`
+    +`<button class="tr-btn" onclick="downloadLog(${sid})">⬇ 下載</button></div>`
+    +`<div class="tr-log" id="trlog-${sid}"></div>`;
+  const d=TR.cache[sid];
+  drawChart(document.getElementById('trch-'+sid),document.getElementById('trrd-'+sid),d.samples);
+  document.getElementById('trf-'+sid).addEventListener('input',()=>renderLog(sid));
+  renderLog(sid);
+}
+
+/* ── 清單 ───────────────────────────────────────────────────────────────── */
+
+function rowHtml(r){
+  const sid=r.session_id||0;
+  const can=sid&&TR.haveTrace.has(sid);   // 曲線/Log 只在 RAM，重開機就沒了
+  const cr=can?'<i>▸</i>':'';
+  const click=can?` id="hrow-${sid}" class="hrow" onclick="toggleRow(${sid})"`:'';
+
+  let cells;
+  if(r.kind==='trace'){
+    // 只有 trace、沒有 NVS 紀錄 → 沒進到 CHARGING 就結束的嘗試
+    const when=r.start_epoch
+      ?new Date(r.start_epoch*1000).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+      :`開機 +${fmtDur(r.start_uptime_ms)}`;
+    cells=`<td>${when}</td><td>—</td><td>—</td>`
+         +`<td><span style="color:#886">未完成</span></td>`;
+  }else{
+    const dur=r.duration_s>=3600
+      ?`${Math.floor(r.duration_s/3600)}h ${String(Math.floor(r.duration_s%3600/60)).padStart(2,'0')}m`
+      :`${String(Math.floor(r.duration_s/60)).padStart(2,'0')}:${String(r.duration_s%60).padStart(2,'0')}`;
+    const whEst=r.energy_estimated?'<span style="color:#555;font-size:.75em"> (預估)</span>':'';
+    const ri=Math.min(r.stop_reason,6);
+    let reasonText=STOP_REASON[ri];
+    if(r.stop_reason===6&&r.stop_voltage_v)reasonText=`${r.stop_voltage_v.toFixed(1)} V`;
+    cells=`<td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}</td>`
+         +`<td>${r.soc_start}% → ${r.soc_end}%</td>`
+         +`<td><span class="${STOP_CLS[ri]}">${reasonText}</span></td>`;
+  }
+
+  let html=`<tr${click}${r.kind==='trace'?' class="trow-only'+(can?' hrow':'')+'"':''}>`
+          +`<td class="cr">${cr}</td>${cells}</tr>`;
+  if(can){
+    html+=`<tr class="hdet" id="hdet-${sid}" style="display:none">`
+         +`<td colspan="5"><div class="hdet-in"></div></td></tr>`;
+  }
+  return html;
+}
+
+async function loadHistory(){
+  const tbody=document.getElementById('hist-rows');
+  tbody.innerHTML='<tr><td colspan="5" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr>';
+  try{
+    // 兩個來源一起抓：NVS 摘要 + RAM 裡還在的 trace session
+    const [hist,tr]=await Promise.all([
+      fetch('/history').then(r=>r.json()).catch(()=>[]),
+      fetch('/trace').then(r=>r.json()).catch(()=>({}))
+    ]);
+    const sessions=(tr&&tr.sessions)||[];
+    TR.haveTrace=new Set(sessions.map(s=>s.id));
+
+    const rows=(hist||[]).map(h=>Object.assign({kind:'hist'},h));
+    const seen=new Set(rows.map(h=>h.session_id||0));
+    sessions.forEach(s=>{
+      if(!seen.has(s.id))
+        rows.push({kind:'trace',session_id:s.id,start_epoch:s.start_epoch,start_uptime_ms:s.start_uptime_ms});
+    });
+    // 新的排前面。舊韌體寫入的紀錄沒有 session_id，排在最後。
+    rows.sort((a,b)=>(b.session_id||0)-(a.session_id||0));
+
+    if(!rows.length){
+      tbody.innerHTML='<tr><td colspan="5" style="color:#444;text-align:center;padding:12px">尚無紀錄</td></tr>';
+      return;
+    }
+    TR.rows=rows;
+    TR.open.clear();
+    tbody.innerHTML=rows.map(rowHtml).join('');
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="5" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
+  }
+}
 function checkAutoStart(){
   const a=parseFloat(document.getElementById('ca').value)||0;
   const cb=document.getElementById('auto-start-en');

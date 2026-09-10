@@ -88,6 +88,10 @@ void scheduler_svc_get_time_info(bool *synced_out, char *buf, size_t buflen)
 void task_scheduler(void *arg)
 {
     QueueHandle_t bus = event_bus_subscribe();
+    if (!bus) {
+        // 排程本身不依賴事件；只是失去「WiFi 連上時重啟 SNTP」的觸發
+        ESP_LOGE(TAG, "event_bus_subscribe failed — SNTP restart on WiFi up disabled");
+    }
 
     // Start SNTP immediately — it will sync once WiFi connects.
     start_sntp();
@@ -95,7 +99,7 @@ void task_scheduler(void *arg)
     for (;;) {
         // Drain event bus: restart SNTP if WiFi connected while we slept.
         charger_event_t evt;
-        while (xQueueReceive(bus, &evt, 0) == pdTRUE) {
+        while (bus && xQueueReceive(bus, &evt, 0) == pdTRUE) {
             if (evt.type == EVT_WIFI_CHANGED) {
                 start_sntp();
             }

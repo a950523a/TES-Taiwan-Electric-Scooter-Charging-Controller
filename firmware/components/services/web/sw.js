@@ -1,5 +1,6 @@
-const CACHE_NAME = 'tes-v2';
-const SHELL = ['/', '/manifest.json', '/icon.svg'];
+// v3: "/" 改為裝置列表頁，控制介面移到 "/control"，兩者都要進 app shell
+const CACHE_NAME = 'tes-v3';
+const SHELL = ['/', '/control', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -21,7 +22,8 @@ self.addEventListener('fetch', e => {
   const path = new URL(e.request.url).pathname;
 
   // API endpoints: network-first, silent offline error (JS handles --)
-  if (['/status', '/config', '/history', '/wifi/scan'].includes(path)) {
+  if (['/status', '/config', '/history', '/wifi/scan',
+       '/devices', '/trace', '/tracelog'].includes(path)) {
     e.respondWith(
       fetch(e.request).catch(() =>
         new Response('{"error":"offline"}', {headers: {'Content-Type': 'application/json'}})

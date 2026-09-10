@@ -19,5 +19,8 @@ void task_can_rx(void *arg)
                 ESP_LOGW(TAG, "CAN RX queue full — frame 0x%03lX dropped", (unsigned long)frame.id);
             }
         }
+        // 處理 bus-off / error-passive。可以放在這裡是因為 receive 最多阻塞
+        // 100ms，因此這條路徑至少每 100ms 會被走到一次。
+        can_driver_service();
     }
 }

@@ -42,6 +42,7 @@ typedef enum {
     MENU_ITEM_CHARGE_TIMER,  // 充電時長（stop_mode=TIMER 時顯示，分鐘）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
+    MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
     MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
@@ -182,6 +183,13 @@ static void item_label(int item, char *buf, size_t bufsz)
             snprintf(buf, bufsz, "IP: %s", ip);
         else
             snprintf(buf, bufsz, "WiFi: ---");
+        break;
+    }
+    case MENU_ITEM_DEVICE_ID: {
+        // 同網段有多台時，靠這個對照網頁上的 device id
+        char host[24];
+        network_svc_get_hostname(host, sizeof(host));
+        snprintf(buf, bufsz, "%s", host[0] ? host : "tes-?");
         break;
     }
     case MENU_ITEM_PSU_STATUS: {
@@ -387,26 +395,111 @@ static const char *state_name(tes_state_t state)
     }
 }
 
+// 故障說明。OLED 只有 ASCII 字型（u8g2 *_tr），所以維持英文；
+// 中文的完整說明與處置建議在網頁 UI。
+//   l1 = 發生什麼事（6x10 字型，約 21 字）
+//   l2 = 該怎麼辦（5x8 字型，約 25 字）
+//   detail 由 fault_detail() 依 fault_ctx_a/b 組出實際數值
+static void fault_src_text(uint8_t src, uint16_t ctx_a, const char **l1, const char **l2)
+{
+    switch ((fault_source_t)src) {
+    case FAULT_SRC_VEHICLE_TIMEOUT:
+        *l1 = "No CAN permit";      *l2 = "Check CAN wiring / plug"; break;
+    case FAULT_SRC_VOLTAGE_INCOMPAT:
+        *l1 = "Volt limit too low"; *l2 = "Raise Max Voltage";       break;
+    case FAULT_SRC_PRECHARGE_TIMEOUT:
+        *l1 = "Pre-charge timeout"; *l2 = "Re-plug the connector";   break;
+    case FAULT_SRC_CONTACTOR_TIMEOUT:
+        *l1 = "Car contactor open"; *l2 = "Vehicle-side issue";      break;
+    case FAULT_SRC_PSU_LOST:
+        *l1 = "PSU disconnected";   *l2 = "Check PSU power / link";  break;
+    case FAULT_SRC_BMS_FAULT:
+        // bit0 = 供電系統異常：車輛指控的是充電樁，不是它自己的電池，
+        // 兩者的處置完全不同，OLED 上就要分開講。
+        if (ctx_a & V500_FAULT_SUPPLY_SYSTEM) {
+            *l1 = "Car blames charger"; *l2 = "Supply fault reported";
+        } else {
+            *l1 = "Vehicle battery";    *l2 = "fault - see dashboard";
+        }
+        break;
+    case FAULT_SRC_CP_LOST:
+        *l1 = "Connector loose";    *l2 = "Re-seat and lock it";     break;
+    case FAULT_SRC_EMERGENCY_BTN:
+        *l1 = "E-STOP pressed";     *l2 = "Menu > Reset Fault";      break;
+    case FAULT_SRC_EMERGENCY_VEHICLE:
+        *l1 = "Vehicle E-stop";     *l2 = "Normal after charge end"; break;
+    default:
+        *l1 = "Unknown fault";      *l2 = "";                        break;
+    }
+}
+
+// 把 fault_ctx_a/b 轉成該故障看得懂的一行數值
+static void fault_detail(const tes_snapshot_t *s, char *buf, size_t bufsz)
+{
+    uint16_t a = s->fault_ctx_a, b = s->fault_ctx_b;
+    switch ((fault_source_t)s->fault_source) {
+    case FAULT_SRC_VOLTAGE_INCOMPAT:
+        snprintf(buf, bufsz, "car %.1fV > set %.1fV", a / 10.0f, b / 10.0f); break;
+    case FAULT_SRC_VEHICLE_TIMEOUT:
+    case FAULT_SRC_CONTACTOR_TIMEOUT:
+        snprintf(buf, bufsz, "waited %us  st:0x%02X", (unsigned)a, (unsigned)b); break;
+    case FAULT_SRC_PRECHARGE_TIMEOUT:
+        snprintf(buf, bufsz, "CP %.1fV  st:0x%02X", a / 10.0f, (unsigned)b); break;
+    case FAULT_SRC_PSU_LOST:
+        snprintf(buf, bufsz, "after %us of charging", (unsigned)a); break;
+    case FAULT_SRC_BMS_FAULT: {
+        // 0x500 byte0 的位元名稱（TES-0D-02-01 表 16）。多個同時成立時只顯示
+        // 最低位的那一個 —— OLED 一行放不下，完整清單在網頁。
+        static const char *n[] = {
+            "supply system", "batt overvolt", "batt undervolt",
+            "current diff",  "batt overtemp", "volt diff"
+        };
+        const char *w = NULL;
+        for (int i = 0; i < 6; i++) if (a & (1u << i)) { w = n[i]; break; }
+        if (w) snprintf(buf, bufsz, "%s (0x%02X)", w, (unsigned)a);
+        else   snprintf(buf, bufsz, "flags:0x%02X st:0x%02X", (unsigned)a, (unsigned)b);
+        break;
+    }
+    case FAULT_SRC_CP_LOST:
+        snprintf(buf, bufsz, "CP %.1fV", a / 10.0f); break;
+    case FAULT_SRC_EMERGENCY_VEHICLE:
+        snprintf(buf, bufsz, "auto-clears in 5s"); break;
+    default:
+        buf[0] = '\0'; break;
+    }
+}
+
 static void render_status(const tes_snapshot_t *snap)
 {
     char buf[24];
     display_driver_clear();
     display_driver_set_color(1);
 
-    // 故障復歸後停在 IDLE：顯示故障碼畫面直到使用者按 START 重試
-    if (snap->state == TES_STATE_IDLE && snap->fault_latched) {
+    // 故障詳情畫面：FAULT/EMERGENCY 期間，以及故障後仍停在 IDLE 的情況。
+    // （舊版只判斷 IDLE && fault_latched —— 但狀態機離開 FAULT 時一定會清掉
+    //   fault_latched，所以那個條件永遠不成立，整個畫面等於死碼。）
+    if (snap->state == TES_STATE_FAULT || snap->state == TES_STATE_EMERGENCY ||
+        (snap->state == TES_STATE_IDLE && snap->fault_latched)) {
+        const char *l1, *l2;
+        char detail[26];
+        fault_src_text(snap->fault_source, snap->fault_ctx_a, &l1, &l2);
+        fault_detail(snap, detail, sizeof(detail));
+
         display_driver_font_bold();
-        display_driver_draw_str(0, 12, "FAULT STOP");
+        display_driver_draw_str(0, 12,
+            snap->state == TES_STATE_EMERGENCY ? "EMERGENCY" : "FAULT STOP");
         display_driver_draw_hline(0, 15, 128);
+
+        // 先講「發生什麼事」和「怎麼辦」，故障碼降級成最後一行的參考值
         display_driver_font_medium();
-        snprintf(buf, sizeof(buf), "Code:0x%02X", snap->last_fault_flags);
-        display_driver_draw_str(0, 30, buf);
-        if (snap->last_valid_req_current > 0.1f) {
-            snprintf(buf, sizeof(buf), "Req:%.1fA", snap->last_valid_req_current);
-            display_driver_draw_str(0, 44, buf);
-        }
+        display_driver_draw_str(0, 27, l1);
         display_driver_font_small();
-        display_driver_draw_str(0, 58, "START:retry  L:menu");
+        display_driver_draw_str(0, 38, l2);
+        if (detail[0]) display_driver_draw_str(0, 48, detail);
+
+        snprintf(buf, sizeof(buf), "0x%02X", snap->last_fault_flags);
+        display_driver_draw_str(0, 60, buf);
+        display_driver_draw_str(30, 60, "START:retry L:menu");
         display_driver_flush();
         return;
     }
@@ -454,21 +547,16 @@ static void render_status(const tes_snapshot_t *snap)
         display_driver_draw_str(80, 42, buf);
     }
 
+    // FAULT / EMERGENCY 已在函式開頭走專屬畫面，這裡只會是正常運作狀態
     display_driver_font_small();
-    if (snap->state == TES_STATE_FAULT || snap->state == TES_STATE_EMERGENCY) {
-        snprintf(buf, sizeof(buf), "ERR:0x%02X", snap->last_fault_flags);
-        display_driver_draw_str(0, 56, buf);
+    if (snap->vehicle_req_voltage > 0.5f || snap->vehicle_req_current > 0.1f) {
+        snprintf(buf, sizeof(buf), "REQ:%.0fV %.0fA",
+                 snap->vehicle_req_voltage, snap->vehicle_req_current);
     } else {
-        if (snap->vehicle_req_voltage > 0.5f || snap->vehicle_req_current > 0.1f) {
-            snprintf(buf, sizeof(buf), "REQ:%.0fV %.0fA",
-                     snap->vehicle_req_voltage, snap->vehicle_req_current);
-        } else {
-            snprintf(buf, sizeof(buf), "REQ: --V --A");
-        }
-        display_driver_draw_str(0, 56, buf);
-        snprintf(buf, sizeof(buf), "S:SOC L:CFG");
-        display_driver_draw_str(68, 56, buf);
+        snprintf(buf, sizeof(buf), "REQ: --V --A");
     }
+    display_driver_draw_str(0, 56, buf);
+    display_driver_draw_str(68, 56, "S:SOC L:CFG");
 
     display_driver_flush();
 }
@@ -612,22 +700,13 @@ void display_svc_tick(void)
         return;
     }
 
-    // Update LED state
-    led_state_t led;
-    switch (snap.state) {
-    case TES_STATE_CHARGING:
-        led = LED_STATE_CHARGING;
-        break;
-    case TES_STATE_FAULT:
-    case TES_STATE_EMERGENCY:
-        led = LED_STATE_FAULT;
-        break;
-    default:
-        if (snap.fault_latched)        led = LED_STATE_FAULT;
-        else if (snap.charge_complete) led = LED_STATE_COMPLETE;
-        else                           led = LED_STATE_STANDBY;
-        break;
-    }
+    // LED 狀態直接採用狀態機算好的值。
+    // 舊版在這裡重算一次，但用的是 snap.charge_complete —— 那個旗標在使用者
+    // 手動停止時也會被設起（它同時是 auto_start 的重入防護），導致中途停止
+    // 也亮「充電完成」綠燈。tes_sm_get_snapshot() 已依 stop_reason 判斷。
+    led_state_t led = (snap.state == TES_STATE_FAULT || snap.state == TES_STATE_EMERGENCY)
+                      ? LED_STATE_FAULT
+                      : snap.led_state;
     led_driver_set_state(led);
 
     const charger_config_t *cfg = config_svc_get();

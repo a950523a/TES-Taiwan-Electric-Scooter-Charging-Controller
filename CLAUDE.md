@@ -35,18 +35,66 @@ idf.py -p <PORT> flash monitor
 Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only is not sufficient.
 
 **Build environment (PowerShell, Windows):**
-```powershell
-$env:IDF_PATH = "C:\Users\user\esp\v5.5.1\esp-idf"
-$toolsDir = "C:\Users\user\.espressif\tools"
-$env:PATH = "$toolsDir\cmake\3.30.2\bin;C:\Users\user\.espressif\python_env\idf5.5_py3.11_env\Scripts;$toolsDir\xtensa-esp-elf\esp-14.2.0_20241119\xtensa-esp-elf\bin;" + $env:PATH
-python "$env:IDF_PATH\tools\idf.py" build
-```
-Note: ESP-IDF cmake (3.30.2) must come before STM32CubeCLT cmake in PATH.
 
-**u8g2 dependency:** git submodule at `firmware/components/u8g2/`; source NOT committed. On a fresh clone:
+Installed via the Espressif online installer to `C:\Espressif` (IDF_TOOLS_PATH),
+framework at `C:\Espressif\frameworks\esp-idf-v5.5.5`. The installer bundles its own
+Git and Python — no system-wide Git/Python is present on this machine.
+
+CI (GitHub Actions) pins **v5.5.1**; the online installer only offers the latest patch
+of each series, so local builds use **v5.5.5** (same 5.5.x API).
+
+> ### ⚠️ The repo path contains non-ASCII characters — in-place builds FAIL
+>
+> The checkout lives at `D:\文件\GitHub\...`. Three separate tools in the ESP-IDF
+> toolchain choke on that path under a cp950 (Traditional Chinese) Windows locale:
+>
+> | Stage | Failure | Workaround |
+> |-------|---------|-----------|
+> | `kconfgen` | `UnicodeDecodeError: 'cp950' codec can't decode` reading `build/config.env` | `PYTHONUTF8=1` |
+> | `ccache` | `filesystem error: Cannot convert character sequence` | `idf.py --no-ccache` |
+> | `objdump` (link step) | `xtensa-esp32s3-elf-objdump -h .../libxtensa.a` exits 1 | **no workaround** |
+>
+> The first two are fixable with env vars; the **objdump failure at the link stage is
+> not** — GNU binutils resolves filenames through the ANSI codepage. A directory
+> junction does not help either: CMake canonicalises it back to the physical path.
+>
+> **To build locally, the source must sit on an ASCII-only path.** Either move the
+> checkout (e.g. `C:\dev\TES-...`), or copy `firmware/` to an ASCII path for a
+> throwaway verification build. GitHub Actions is unaffected (Linux runner).
+
+Verification-build recipe used from an ASCII path (bypasses `export.ps1`/`Initialize-Idf.ps1`,
+both of which depend on `idf-env` config that points at the wrong `esp_idf.json` here):
+
+```powershell
+$env:IDF_PATH       = "C:\Espressif\frameworks\esp-idf-v5.5.5"
+$env:IDF_TOOLS_PATH = "C:\Espressif"
+$env:PYTHONUTF8     = "1"
+$py = "C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
+# apply tool paths, then:
+& $py "$env:IDF_PATH\tools\idf.py" --no-ccache set-target esp32s3
+& $py "$env:IDF_PATH\tools\idf.py" --no-ccache build
+```
+
+(`idf_tools.py export --format key-value` supplies the PATH entries; `Initialize-Idf.ps1`
+defines `idf.py` as a *PowerShell function*, so it must be dot-sourced and used in the
+same scope — `& export.ps1` silently loses it.)
+
+**Git submodules —— 有兩個，不是只有 u8g2:**
+
+| Path | Upstream | Notes |
+|------|----------|-------|
+| `firmware/components/u8g2/` | `olikraus/u8g2` | third-party, never edited here |
+| `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_types.h`, `tes_codec.c/.h` live here |
+
+On a fresh clone:
 ```bash
 git submodule update --init
 ```
+
+⚠️ Editing `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
+Those changes must be committed and pushed in `firmware/components/tes_protocol/`
+first, then the updated pointer committed here — otherwise CI checks out the old
+`tes_protocol` and the build breaks on missing symbols.
 
 ---
 
@@ -113,6 +161,9 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
 | `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
 
+Charge-curve sampling and the value-change log run inline in `task_tes_sm` (no extra
+task) — see `trace_svc` below.
+
 ### Button Routing
 
 Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP only).
@@ -148,6 +199,97 @@ Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP o
 ---
 
 ## CAN Message IDs
+
+### CAN diagnostics panel
+
+The panel covers every field of all six frames, plus two things that are more important
+than any individual value when CAN won't work:
+
+**Per-frame liveness** — `rx_*_count` + `rx_*_age_ms` (counted in `drain_can_rx_queue()`).
+Without these you cannot tell "the vehicle is sending nothing" from "the vehicle is sending
+zeros", which is the first thing to establish. Shown as 未收到 / 0.4s 前 · 842 幀, coloured
+green <1 s, amber <5 s, red beyond (the protocol period is 100 ms). TX frames show a sent
+count instead — for our own frames the question is whether they left at all.
+
+**TWAI controller health** — `can_driver_get_health()` wraps `twai_get_status_info()`:
+state, TX/RX error counters, bus errors, arbitration losses, missed RX. A rising
+`bus_err_count` with no frames received is the signature of bad wiring, a missing
+termination resistor, or a baud-rate mismatch — invisible if you only look at frame
+contents. TX/RX error counters turn red at ≥128 (error-passive threshold).
+
+Fields that were missing before and are now present: `v501_soc`, `v5f0` bit1 熔接異常
+(safety-relevant, never displayed), `v5f0_max_current`, `v5f0_maker`, `c509_seq`,
+`c5f8_maker`.
+
+`can_driver.h` includes `tes_protocol/tes_types.h` for `can_bus_state_t`.
+
+### 0x500 bit definitions (TES-0D-02-01 表 16)
+
+Named macros live in `tes_types.h` (`V500_FAULT_*`, `V500_ST_*`) — do not use bare hex.
+
+**byte 0 — 故障旗標** (all 0=正常, 1=異常; bit 6-7 預備固定 0)
+
+| bit | 意義 |
+|-----|------|
+| 0 | 供電系統異常 — ⚠ 車輛指控**充電樁**，不是它自己的電池 |
+| 1 | 電池過電壓 |
+| 2 | 電池不足電壓 |
+| 3 | 電池電流差異異常 |
+| 4 | 電池高溫異常 |
+| 5 | 電池電壓差異常 |
+
+`fault_flags = 0x01` in the beta auto-start bug is **bit 0 = 供電系統異常** — the vehicle is
+reporting that *our* supply looks wrong, which matches the VLIM2=0 hypothesis. The web UI
+says so explicitly and points at 0x508's `fault_detect_voltage`.
+
+**byte 1 — 狀態表示旗標** (polarity differs per bit; bit 4-7 預備固定 0)
+
+| bit | 0 | 1 |
+|-----|---|---|
+| 0 | 不可充電 | 可進行車輛充電 |
+| 1 | 接觸器關閉／熔接診斷中 | 接觸器斷開／熔接診斷終了 |
+| 2 | 車輛姿勢可充電 | 車輛姿勢不可充電 |
+| 3 | 無正常停止要求 | 有正常停止要求 |
+
+The SM logic was verified against this table and is correct. The CAN diagnostics panel had
+bit 2 mislabelled as "停止請求"; it is 車輛充電姿勢, now fixed.
+
+### 0x508 bit definitions (TES-0D-02-01 表 16)
+
+Macros: `C508_FAULT_*`, `C508_ST_*`. This frame is what **we** assert to the BMS, so a wrong
+bit is a false report about the charger — treat it as more serious than a display bug.
+
+**byte 0 — 故障旗標** (bit 3-7 預備固定 0)
+
+| bit | 意義 |
+|-----|------|
+| 0 | 供電系統異常 (0=正常, 1=發生) |
+| 1 | 直流供電裝置異常 (0=正常, 1=異常) — 「直流供電裝置」＝充電樁本體含 PSU |
+| 2 | 電池不適合 (0=適合, 1=不適合) |
+
+`enter_fault()` picks the bit from `fault_source` via `c508_fault_bit()`:
+
+| fault_source | bit | 理由 |
+|---|---|---|
+| VOLTAGE_INCOMPAT | 2 電池不適合 | 車端要的電壓超出我們能給的範圍 |
+| PSU_LOST, EMERGENCY_BTN | 1 直流供電裝置異常 | PSU 就是直流供電裝置；緊急停止是本機切斷 |
+| 其餘 | 0 供電系統異常 | 語意最廣。**車端造成的故障絕不報 bit1** —— 那等於自認充電樁壞掉 |
+
+Previously every fault except two hardcoded cases defaulted to `0x01`, so a PSU failure was
+reported to the vehicle as a generic supply-system fault rather than a device fault.
+
+**byte 1 — 狀態表示旗標** (bit 3-7 預備固定 0)
+
+| bit | 0 | 1 |
+|-----|---|---|
+| 0 | 輸出追隨運轉中 | 停止控制中或停止狀態 |
+| 1 | 待機中 | 充電中 |
+| 2 | 電子鎖解除 | 電子鎖閉鎖中 |
+
+**byte 1 was already correct** — `0x06` during charging = 充電中 + 電子鎖閉鎖, matching the
+value CLAUDE.md already documented. Only the labels were wrong: bit0 was described as
+"待機/準備" in both `tes_types.h` and the web CAN panel, but it is **停止控制** with the
+opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchanged.
 
 | ID | Direction | Content |
 |----|-----------|---------|
@@ -282,6 +424,8 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `auto_s` | bool | false | Beta auto-start |
 | `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
+| `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
+| `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
 Charge history: namespace `"tes_hist"`, blob key `"log"` (324 bytes, 20 × `charge_session_t` circular buffer).
 
@@ -307,7 +451,14 @@ eMoving iE125 sends 0x5F0 after every normal charge end. `emergency_hw_triggered
 - **Re-entry guard**: in IDLE with `charge_complete_latched=true`, further 0x5F0 is ignored
 
 ### Beta Auto-Start
-NVS key `auto_s`. VP relay held ON in IDLE. Triggers `PARAM_EXCHANGE` on CP OFF→ON edge (primary) or CAN 0x500 bit0 rising edge (backup). Fields added to `tes_sm_t`: `cp_prev`, `last_can_permit`, `psu_session_connected`. CP updates every 50 ms; `cp_prev` saved before update for edge detection.
+NVS key `auto_s`. VP relay held ON in IDLE. Triggers `PARAM_EXCHANGE` on CP OFF→ON edge (primary) or CAN 0x500 bit0 rising edge (backup). Fields added to `tes_sm_t`: `cp_prev`, `last_can_permit`, `psu_session_connected`.
+
+**CP sampling cadence:** `task_hal_poll` interleaves the two ADS1115 channels, so CP is
+sampled every **100 ms** (not 50 ms). The SM ticks at 10 ms, so it must not re-process the
+same sample — `tes_sm_inputs_t.cp_sample_seq` (incremented by `task_hal_poll`, tracked as
+`sm->last_cp_seq`) gates the CP update. Without that gate the same bad sample is counted
+repeatedly and `CP_ERROR_THRESHOLD` is reached from a single glitch. `cp_prev` is saved
+before each update for edge detection.
 
 **PSU-less (ADC-only) mode:** `psu_session_connected` is snapshotted at `PRECHARGE_STEP_COMPLETE`. If PSU was absent at session start, `run_monitoring()` skips the PSU disconnect fault — charging continues using ADC voltage for display and 0x509 output. If PSU was present at session start and later disconnects mid-charge, FAULT is triggered as normal (safety preserved).
 
@@ -348,7 +499,99 @@ typedef struct {
 } charge_session_t;
 ```
 
-`GET /history` returns newest-first JSON array (max 20 entries).
+`GET /history` returns newest-first JSON array (max 20 entries), each with a
+`session_id` linking to the trace buffers below.
+
+`charge_session_t` is **20 bytes** (was 16 before `session_id` was added), so the NVS
+blob is 404 bytes. Existing history is wiped once on first boot after this change
+(`log_svc_init()` rejects a blob whose size doesn't match).
+
+### Charge Curve + Detailed Log (`trace_svc`)
+
+Two ring buffers in **PSRAM**, written only by `task_tes_sm`, read by the HTTP task:
+
+| Buffer | Capacity | Size | Contents |
+|--------|----------|------|----------|
+| samples | 8192 | 128 KB | V / I / BMS-requested-I / SOC / state, every **5 s** during CHARGING plus one on every state transition |
+| events | 6144 | 528 KB | one line per **value change**, each timestamped |
+
+> ⚠️ **Volatile.** Both buffers are lost on reboot. NVS holds only 20 KB and there is no
+> filesystem partition; persisting time-series would require repartitioning, which needs a
+> full reflash and breaks the OTA upgrade path for deployed devices. The NVS
+> `charge_session_t` summary (log_svc) is unaffected and still survives reboots.
+
+A **trace session starts at `IDLE → PARAM_EXCHANGE`**, not at CHARGING — the handshake
+is where faults actually happen, so the log must cover it. It ends on return to IDLE.
+`session_id` comes from NVS key `sess_seq` (namespace `tes_hist`) so ids stay unique
+across reboots. The index keeps the last `TRACE_MAX_SESSIONS` (8) sessions.
+
+### Fault reporting
+
+A fault must tell the user **what happened, why, and what to do** — not a hex code to look
+up afterwards. Three pieces make that work:
+
+1. **`fault_source`** (`fault_source_t`, 9 values) — the internal cause. Never sent on CAN;
+   `status_508.fault_flags` bits are protocol-defined and go to the BMS, so they can't carry
+   custom meanings.
+2. **`fault_ctx_a` / `fault_ctx_b`** — two numbers captured *at the instant the fault is
+   raised*, meaning defined per `fault_source` (see the enum comments). The state machine
+   only records numbers; `tes_protocol` does no string formatting.
+3. **Display layers format them.** This turns "Code:0x01" into "車輛要求 72.0 V，但最大電壓
+   設定只有 60.0 V → 把最大電壓調到 72.0 V 以上".
+
+`enter_fault(sm, out, tick_ms, src, ctx_a, ctx_b)` — every call site must state its context.
+
+Web UI (`FAULTS` table in index.html): title / why / action per source, with `ctx` rendered
+into the text. `FAULT_SRC_EMERGENCY_VEHICLE` is styled **informational (amber), not red** —
+the iE125 sends 0x5F0 after every normal charge end, so a red alarm there would be wrong.
+The panel shows whenever `fault_source > 0`; the old condition also required `fault_flags`,
+which hid every fault that doesn't set one (PSU lost, CP lost, voltage limit).
+
+OLED keeps English — u8g2 `*_tr` fonts are ASCII-only and adding a CJK font is a large
+change — but now shows a two-line description plus the context values, with the raw code
+demoted to a footnote.
+
+**Change detection lives in `task_tes_sm.c`, not `tes_sm.c`** — `tes_protocol`/`tes_sm`
+must stay zero-dependency (no PSRAM, FreeRTOS or string formatting). Tracked fields:
+state, CP state, relay/coupler/VP, PSU connected, 0x500 status+fault, 0x508 status+fault,
+BMS voltage limit, BMS current request (Δ≥0.5 A), SOC, output V (Δ≥0.5 V), output I
+(Δ≥0.5 A), PSU setpoints, fault source. Threshold-gated fields only update their
+"previous" value when a record was actually emitted — otherwise slow drift never trips
+the threshold and would never be logged.
+
+Locking uses a **mutex, not `portMUX`**: the critical section touches PSRAM, and
+`taskENTER_CRITICAL` disables interrupts. Writers take the lock with a 5 ms timeout and
+drop the record on failure — tracing must never delay the 10 ms SM tick.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/trace` | `?session=<id>` (default: newest), `?limit=N` (default 2000, evenly decimated). Returns `sessions[]` list + compact `samples[]` of `[t_ms, V×10, I×10, BMSreq×10, soc, state]`. Chunked. |
+| GET | `/tracelog` | `?session=<id>&limit=N` (default 1000, newest-first window). Returns `events[]` of `[t_ms, epoch_s, text]`. Chunked. |
+
+`t_ms` is uptime ms for events and session-relative ms for samples; both use the same
+`esp_timer` base as `platform_tick_ms()`, so `event.t_ms − session.start_uptime_ms`
+gives session-relative time. `epoch_s` is 0 until NTP syncs, in which case the web UI
+falls back to `+MM:SS.mmm` relative timestamps.
+
+**Web UI** — the chart and log live *inside each charge-history row*: clicking a row
+expands an inline detail panel holding that session's curve + log, fetched lazily on
+first expand and cached. Multiple rows can be open at once, so all chart DOM lookups are
+scoped to the row's own container (`box.querySelector('.hit')`), never by global id.
+
+The list merges two sources, sorted by `session_id` descending:
+- `/history` — NVS summaries; survive reboot, but their trace may be gone
+- `/trace` → `sessions[]` — RAM traces. **An attempt that faults before reaching
+  CHARGING produces no NVS record**, yet that is exactly the case worth debugging, so
+  those appear as extra rows labelled 未完成. Without this merge they'd be unreachable.
+
+Rows whose `session_id` is not in the RAM trace index get no expand caret. Legacy rows
+written before `session_id` existed have `session_id == 0` and sort last.
+
+Chart: three stacked panels sharing a time axis (voltage / current / SOC). Voltage is
+auto-ranged rather than 0-based — a 54→67 V swing on a 0–100 V axis renders as a flat
+line. Current is 0-based (so "is it actually outputting?" is visible) with the BMS
+request overlaid as a dashed line; SOC is fixed 0–100 %. Hand-written SVG:
+**no CDN libraries**, since AP mode has no internet access.
 
 ### MQTT Remote Monitoring
 NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/status` every 10 s (CHARGING) or 30 s (other), immediately on state change. LWT: `{"state":"offline"}` retained. Subscribes `{prefix}/cmd` QoS 1 for `{"cmd":"start"/"stop"}` → `g_btn_event_queue`. Uses ESP-IDF `esp-mqtt` component. `GET /mqtt/link` returns Cloud PWA URL with broker/topic in fragment.
@@ -400,25 +643,71 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ## Network & Web UI
 
-**WiFi modes:**
-- No SSID in NVS → AP mode, SSID `TES-Charger` (open), IP `192.168.4.1`
-- SSID configured → STA mode, auto-reconnect, mDNS `tes-charger.local` after got-IP
+### Device identity — two units on one LAN
 
-mDNS starts in both AP and STA mode; always use `tes-charger.local`.
+Every unit derives a **`device_id`** from the last 3 bytes of its WiFi STA MAC
+(`config_svc_init()`, e.g. `a1b2c3`). Everything network-visible is namespaced by it,
+because the previous hardcoded names made two units on the same LAN indistinguishable:
+
+| | Before | Now |
+|---|---|---|
+| mDNS hostname | `tes-charger` (collided) | **`tes-<id>.local`** — unique, and deliberately *not* derived from the user's name so bookmarks survive a rename |
+| AP SSID | `TES-Charger` (collided) | **`TES-Charger-<id>`** |
+| MQTT topic prefix default | `tes/charger` (collided) | **`tes/<id>`** (only for units that never configured MQTT) |
+| mDNS instance name / TXT | fixed "TES Charger" | user's `device_name`, else `TES Charger <id>` |
+
+`tes-charger.local` still resolves **in both AP and STA mode** — it is registered as an
+mDNS **delegated hostname** pointing at the current IP (re-applied on every got-IP event,
+so DHCP changes are followed), plus an `_http._tcp` service registered *for that host*
+via `mdns_service_add_for_host()`. The service registration matters: a delegated hostname
+with no service attached is not reliably answered for plain A queries. With two units both
+delegating it, whichever answers first wins; that is harmless because each unit's own
+`tes-<id>.local` is always unambiguous.
+
+**`device_name`** (NVS key `dev_name`, ≤24 chars, default empty) is a display label only.
+Changing it updates the mDNS instance name and TXT record live — no reboot — but never
+the hostname. It appears in the web UI `<h1>`, the browser tab title, and the `_http._tcp`
+TXT records (`id`, `name`, `ver`) so a LAN scan can identify units without opening each one.
+The OLED settings menu has a read-only `tes-<id>` row for cross-referencing.
+
+**WiFi modes:**
+- No SSID in NVS → AP mode, SSID `TES-Charger-<id>` (open), IP `192.168.4.1`
+- SSID configured → STA mode, auto-reconnect, mDNS `tes-<id>.local` after got-IP
+
+mDNS starts in both AP and STA mode. `mdns_publish()` is called on every got-IP event, so
+a DHCP address change refreshes the delegated hostname's address too.
 
 **REST API (port 80, CORS *):**
 
+### Device list page
+
+`/` serves **`web/devices.html`** — a list of every TES controller on the LAN; the control
+UI moved to **`/control`**. `GET /devices` does the discovery **on the device** via
+`mdns_query_ptr("_http","_tcp", 2000ms, 20)`, because browsers have no mDNS-browse API and
+subnet-scanning from JS is slow and often blocked.
+
+Results are filtered on the TXT record `dev=tes-charger` so other `_http._tcp` services
+(NAS, printers) are excluded. Most mDNS stacks do not answer their own queries, so the
+handler appends itself if it wasn't in the results — otherwise the list would be short one
+unit. Each card then fetches that unit's `/status` **cross-origin** (CORS is `*`) to show
+live state, so the list doubles as a multi-charger dashboard; an unreachable unit just
+shows 離線 without affecting the others.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Embedded web UI |
-| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, wifi, ip, ntp_synced, local_time, power_w, energy_wh |
+| GET | `/` | Device list page (mDNS discovery) |
+| GET | `/control` | Embedded control web UI |
+| GET | `/devices` | JSON list of TES controllers found on the LAN |
+| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
 | POST | `/config` | Partial update (any subset); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |
 | POST | `/ota/upload` | Upload binary (`application/octet-stream`); progress via `/status` |
-| GET | `/history` | Last 20 charge sessions (newest-first) |
+| GET | `/history` | Last 20 charge sessions (newest-first), incl. `session_id` |
+| GET | `/trace` | Charge-curve samples for a session + session list (chunked) |
+| GET | `/tracelog` | Timestamped value-change log for a session (chunked) |
 | GET | `/manifest.json` | PWA manifest |
 | GET | `/sw.js` | Service Worker |
 | GET | `/icon.svg` | App icon |
@@ -430,7 +719,9 @@ mDNS starts in both AP and STA mode; always use `tes-charger.local`.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 17`; currently 15 handlers registered
+- `max_uri_handlers = 24`; currently 20 handlers registered
+- `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
+- `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
 
 **PWA note:** Service Worker requires HTTPS. On `http://tes-charger.local` (plain HTTP), SW registration is silently blocked — offline caching does not work. "Add to Home Screen" shortcut works over HTTP.
@@ -463,7 +754,8 @@ firmware/
 |   +-- u8g2_idf/               CMakeLists.txt only -- wires u8g2/csrc into ESP-IDF build
 |   +-- drivers/                can/adc/psu/display/led -- all complete
 |   +-- services/               all services complete
-|   |   +-- web/index.html      embedded web UI (EMBED_TXTFILES in services/CMakeLists.txt)
+|   |   +-- web/index.html      embedded control UI, served at /control
+|   |   +-- web/devices.html    embedded device-list page, served at /
 |   |   +-- web/manifest.json   PWA manifest
 |   |   +-- web/sw.js           service worker
 |   |   +-- web/icon.svg        app icon

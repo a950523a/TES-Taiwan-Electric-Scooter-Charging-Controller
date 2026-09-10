@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111">
+<title>TES 充電控制器</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#ddd;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+  padding:16px 14px 40px;max-width:560px;margin:0 auto;-webkit-font-smoothing:antialiased}
+h1{font-size:1.15em;margin:2px 0 4px;font-weight:600}
+.sub{color:#555;font-size:.76em;margin-bottom:16px}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.bar button{background:#1e1e1e;color:#9b9;border:1px solid #2e2e2e;border-radius:6px;
+  padding:5px 11px;font-size:.76em;cursor:pointer;font-family:inherit}
+.bar button:hover{background:#262626}
+.bar button:disabled{opacity:.5;cursor:default}
+.card{display:block;text-decoration:none;color:inherit;background:#181818;border:1px solid #242424;
+  border-radius:10px;padding:13px 14px;margin-bottom:10px;transition:border-color .15s,background .15s}
+.card:hover{background:#1d1d1d;border-color:#3a3a3a}
+.card.self{border-color:#2f4a2f}
+.row1{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.nm{font-size:1em;font-weight:600;color:#eee;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:.62em;padding:1px 6px;border-radius:3px;background:#243524;color:#8c8;flex:0 0 auto}
+.host{color:#4a5a6a;font-size:.72em;font-family:ui-monospace,Consolas,monospace}
+.st{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:.8em}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:#444}
+.dot.idle{background:#4a7ab8}.dot.charging{background:#4dd97a;
+  animation:pulse 1.6s ease-in-out infinite}
+.dot.fault,.dot.emergency{background:#f55}.dot.off{background:#3a3a3a}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.stx{color:#999}
+.vals{margin-left:auto;color:#777;font-variant-numeric:tabular-nums;font-size:.94em}
+.vals b{color:#ccc;font-weight:600}
+.empty{color:#555;text-align:center;padding:26px 10px;font-size:.85em;line-height:1.7}
+.empty code{background:#1c1c1c;padding:1px 5px;border-radius:3px;color:#8a8}
+.err{color:#f55}
+.hint{color:#3a3a3a;font-size:.7em;margin-top:16px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<h1>⚡ TES 充電控制器</h1>
+<div class="sub" id="sub">搜尋區域網路上的裝置…</div>
+
+<div class="bar">
+  <button id="rescan" onclick="scan()">↻ 重新搜尋</button>
+  <button onclick="location.href='/control'">本機控制介面 →</button>
+</div>
+
+<div id="list"></div>
+
+<div class="hint">
+  裝置清單透過 mDNS 搜尋取得，只會列出同一個網段的 TES 控制器。<br>
+  若某台沒出現，可直接輸入它的 <code>tes-&lt;id&gt;.local</code> 或 IP。
+</div>
+
+<script>
+/* 裝置列表頁
+   /devices 由韌體以 mDNS PTR 查詢產生（瀏覽器沒有 mDNS 瀏覽 API）。
+   每張卡片再各自去打那台機器的 /status 取即時狀態 —— 韌體的 CORS 是 *，
+   所以跨裝置抓沒問題；某台沒回應就顯示離線，不影響其他卡片。 */
+
+const SL={idle:'待機',connecting:'連線中',pre_charge:'預充電',charging:'充電中',
+          ending:'結束中',finalizing:'收尾中',fault:'故障',emergency:'緊急停止'};
+
+let devices=[];   // 最近一次搜尋結果，供定時輪詢重複使用
+
+function baseUrl(d){
+  // hostname 優先（IP 可能被 DHCP 換掉）；沒有就退回 IP
+  const h=d.hostname?d.hostname+'.local':d.ip;
+  return h?`http://${h}${d.port&&d.port!==80?':'+d.port:''}`:null;
+}
+
+function render(devs){
+  const list=document.getElementById('list');
+  if(!devs.length){
+    list.innerHTML='<div class="empty">找不到任何裝置。<br>'
+      +'若控制器剛開機，請等幾秒後再重新搜尋。</div>';
+    return;
+  }
+  list.innerHTML=devs.map(d=>{
+    const url=baseUrl(d);
+    const nm=d.name||('TES Charger '+(d.id||'?'));
+    const host=d.hostname?d.hostname+'.local':(d.ip||'');
+    return`<a class="card${d.self?' self':''}" id="c-${d.id}"`
+      +`${url?` href="${url}/control"`:''}>`
+      +`<div class="row1"><span class="nm">${esc(nm)}</span>`
+      +`${d.self?'<span class="badge">本機</span>':''}</div>`
+      +`<div class="host">${esc(host)}${d.ip&&d.hostname?' · '+esc(d.ip):''}</div>`
+      +`<div class="st"><span class="dot" id="d-${d.id}"></span>`
+      +`<span class="stx" id="s-${d.id}">讀取中…</span>`
+      +`<span class="vals" id="v-${d.id}"></span></div></a>`;
+  }).join('');
+  devs.forEach(pollDevice);
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function pollDevice(d){
+  const url=baseUrl(d);
+  const dot=document.getElementById('d-'+d.id);
+  const stx=document.getElementById('s-'+d.id);
+  const val=document.getElementById('v-'+d.id);
+  if(!dot)return;
+  if(!url){dot.className='dot off';stx.textContent='位址未知';return;}
+  try{
+    const ctl=new AbortController();
+    const to=setTimeout(()=>ctl.abort(),4000);
+    const s=await(await fetch(url+'/status',{signal:ctl.signal})).json();
+    clearTimeout(to);
+    dot.className='dot '+(s.fault?'fault':(s.state||'idle'));
+    stx.textContent=SL[s.state]||s.state||'—';
+    if(s.state==='charging'){
+      val.innerHTML=`<b>${(s.voltage||0).toFixed(1)}</b> V · `
+        +`<b>${(s.current||0).toFixed(1)}</b> A · SOC <b>${s.soc||0}%</b>`;
+    }else if(s.charge_complete){
+      val.textContent='充電完成';
+    }else{
+      val.innerHTML=`SOC <b>${s.soc||0}%</b>`;
+    }
+  }catch(e){
+    dot.className='dot off';
+    stx.textContent='離線';
+    val.textContent='';
+  }
+}
+
+async function scan(){
+  const btn=document.getElementById('rescan');
+  const sub=document.getElementById('sub');
+  btn.disabled=true;btn.textContent='搜尋中…';
+  sub.textContent='搜尋區域網路上的裝置…';
+  document.getElementById('list').innerHTML='';
+  try{
+    const d=await(await fetch('/devices')).json();
+    devices=d.devices||[];
+    // 本機排最前面，其餘依名稱排序
+    devices.sort((a,b)=>(b.self?1:0)-(a.self?1:0)||String(a.name).localeCompare(String(b.name)));
+    sub.textContent=`找到 ${devices.length} 台裝置`;
+    render(devices);
+  }catch(e){
+    sub.innerHTML='<span class="err">✗ 搜尋失敗</span>';
+    document.getElementById('list').innerHTML=
+      '<div class="empty err">無法取得裝置清單</div>';
+  }
+  btn.disabled=false;btn.textContent='↻ 重新搜尋';
+}
+
+scan();
+
+// 定時只重新拉各台的 /status，不重跑 mDNS 搜尋（那個要 2 秒且沒必要一直做）
+setInterval(()=>{ devices.forEach(pollDevice); },5000);
+</script>
+</body>
+</html>

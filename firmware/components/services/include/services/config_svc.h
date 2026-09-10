@@ -9,6 +9,12 @@
 // All other components call config_svc_get() to read from RAM.
 
 typedef struct {
+    // ── 裝置identity（多台同網段時用來區分）────────────────────────────────
+    // device_id 由 MAC 後 3 bytes 產生，唯讀、不可改，保證同網段唯一。
+    // device_name 是使用者自訂的顯示名稱，可留空。
+    char     device_id[7];       // "a1b2c3"（小寫 hex，6 字 + NUL）
+    char     device_name[25];    // 使用者自訂，空字串 = 未命名
+
     uint16_t max_voltage_01v;    // e.g. 1000 = 100.0 V
     uint16_t max_current_01a;    // e.g.  100 =  10.0 A
     int8_t   target_soc;         // 0-100 %
@@ -35,6 +41,13 @@ typedef struct {
 esp_err_t                config_svc_init         (void);
 const charger_config_t  *config_svc_get          (void);  // pointer to RAM cache
 
+// 一致性快照：setter 會連續改寫多個欄位，直接透過 config_svc_get() 逐欄位讀取
+// 可能讀到「新電壓 + 舊電流」這種混合狀態。任何一次要用到多個欄位、且該組合
+// 必須自洽的呼叫端（尤其是 task_tes_sm，它會把值直接放進 0x508 廣播給 BMS）
+// 都應該改用這個函式。
+void                     config_svc_get_copy     (charger_config_t *out);
+
+esp_err_t config_svc_set_device_name    (const char *name);
 esp_err_t config_svc_set_charging       (uint16_t v_01v, uint16_t a_01a, int8_t soc);
 esp_err_t config_svc_set_wifi           (const char *ssid, const char *pass);
 esp_err_t config_svc_set_beacon         (bool unlocked);

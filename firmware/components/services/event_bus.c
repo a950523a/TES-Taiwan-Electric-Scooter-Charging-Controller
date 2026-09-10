@@ -4,7 +4,10 @@
 #include "freertos/queue.h"
 #include <string.h>
 
-#define MAX_SUBSCRIBERS 4
+// 目前的訂閱者：task_ota / task_notify / task_mqtt / task_scheduler / task_log = 5。
+// 上限 4 曾導致（啟用 MQTT 時）最後一個訂閱者拿到 NULL queue 而 panic。
+// 新增訂閱者時務必同步調整這個值。
+#define MAX_SUBSCRIBERS 8
 #define QUEUE_DEPTH     8
 
 static const char *TAG = "event_bus";
@@ -21,10 +24,15 @@ void event_bus_init(void)
 QueueHandle_t event_bus_subscribe(void)
 {
     if (s_sub_count >= MAX_SUBSCRIBERS) {
-        ESP_LOGE(TAG, "subscriber limit reached");
+        ESP_LOGE(TAG, "subscriber limit (%d) reached — raise MAX_SUBSCRIBERS",
+                 MAX_SUBSCRIBERS);
         return NULL;
     }
     QueueHandle_t q = xQueueCreate(QUEUE_DEPTH, sizeof(charger_event_t));
+    if (!q) {
+        ESP_LOGE(TAG, "queue alloc failed");
+        return NULL;
+    }
     s_queues[s_sub_count++] = q;
     return q;
 }

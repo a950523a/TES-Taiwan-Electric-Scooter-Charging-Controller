@@ -1,4 +1,4 @@
-#include "services/mqtt_svc.h"
+﻿#include "services/mqtt_svc.h"
 #include "services/event_bus.h"
 #include "services/config_svc.h"
 #include "tes_protocol/tes_sm.h"
@@ -18,10 +18,16 @@ extern tes_snapshot_t    g_snapshot;
 extern SemaphoreHandle_t g_snapshot_mutex;
 extern QueueHandle_t     g_btn_event_queue;
 
+// 由 main.c 提供：自行結束的任務要在 vTaskDelete 前註銷 handle，
+// 否則 task_monitor 會讀到懸空指標
+extern void g_task_unregister_self(void);
+
 static const char *TAG = "mqtt_svc";
 
 static esp_mqtt_client_handle_t s_client         = NULL;
-static atomic_bool              s_mqtt_connected  = ATOMIC_VAR_INIT(false);
+// 註：不要用 ATOMIC_VAR_INIT()，該巨集在 C17 已棄用、C23 移除。
+// atomic_bool 用一般初始式即可（靜態變數本來就會零初始化）。
+static atomic_bool              s_mqtt_connected  = false;
 
 // Topic buffers — written once at task start, read by event handler (both static)
 static char s_topic_status[176];
@@ -139,6 +145,7 @@ void task_mqtt(void *arg)
     const charger_config_t *cfg = config_svc_get();
     if (cfg->mqtt_broker_url[0] == '\0') {
         ESP_LOGI(TAG, "not configured, task exiting");
+        g_task_unregister_self();
         vTaskDelete(NULL);
         return;
     }
@@ -162,6 +169,7 @@ void task_mqtt(void *arg)
     s_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!s_client) {
         ESP_LOGE(TAG, "client_init failed");
+        g_task_unregister_self();
         vTaskDelete(NULL);
         return;
     }
@@ -171,6 +179,10 @@ void task_mqtt(void *arg)
     esp_mqtt_client_start(s_client);
 
     QueueHandle_t eq = event_bus_subscribe();
+    if (!eq) {
+        // 仍可定期發佈狀態，只是不再對狀態變化做即時推送
+        ESP_LOGE(TAG, "event_bus_subscribe failed — periodic publish only");
+    }
     charger_event_t evt;
     tes_state_t last_state = TES_STATE_IDLE;
 
@@ -180,7 +192,12 @@ void task_mqtt(void *arg)
                              ? pdMS_TO_TICKS(10000)
                              : pdMS_TO_TICKS(30000);
 
-        bool got_evt = xQueueReceive(eq, &evt, timeout) == pdTRUE;
+        bool got_evt = false;
+        if (eq) {
+            got_evt = xQueueReceive(eq, &evt, timeout) == pdTRUE;
+        } else {
+            vTaskDelay(timeout);
+        }
 
         if (got_evt && evt.type == EVT_TES_STATE_CHANGED) {
             last_state = (tes_state_t)evt.payload[0];
