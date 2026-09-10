@@ -114,9 +114,17 @@ jobs:
           (github.ref == 'refs/heads/main' ||
            (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')))
         run: |
+          # 明確列舉要發佈的檔案，不要 `cp -r docs/.`。
+          # docs/ 裡還放著 PCB、images、BOM、舊版 Release 與 TES-0D-02-01 規範
+          # PDF，合計約 68MB —— 整包複製等於每次都把它們部署到 Pages 上，
+          # 但這兩個頁面一個本地資源都沒引用（實際只需要下列四個檔案）。
+          # 之後要新增發佈內容請加在這裡，讓「什麼會被公開」是明示的決定。
           mkdir -p _pages
-          cp -r docs/. _pages/
+          cp docs/index.html    _pages/
+          cp docs/manifest.json _pages/
+          cp docs/monitor.html  _pages/
           cp firmware/build/tes_charger_flash.bin _pages/tes_charger_flash.bin
+          echo "--- Pages 內容 ---"; ls -lh _pages/
 
       - name: Upload Pages artifact
         if: |
