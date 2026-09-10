@@ -121,6 +121,15 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->last_can_permit         = false;
         }
 
+        // Reset Fault：在 IDLE 也要能消化，否則自動復歸後留在畫面上的故障說明
+        // 沒有任何方式可以關掉（舊版只有 EMERGENCY 狀態處理這個旗標）
+        if (in->fault_clear_requested || sm->remote_fault_clear) {
+            sm->remote_fault_clear = false;
+            sm->fault_latched      = false;
+            sm->last_fault_flags   = 0;
+            sm->fault_source       = FAULT_SRC_NONE;
+        }
+
         // 手動 START（按鈕或遠端）：清除故障鎖存，強制進入流程
         if (in->start_requested || sm->remote_start) {
             sm->remote_start            = false;
@@ -147,6 +156,9 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             bool can_edge = (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT) && !sm->last_can_permit;
             if (cp_edge || can_edge) {
                 out->vp_relay = true;
+                // 開始新的一輪就清掉上一次的故障說明，否則這次結束回到 IDLE 時
+                // 會把上一次的故障畫面又叫出來（顯示層以 fault_source 判斷）
+                sm->fault_source   = FAULT_SRC_NONE;
                 sm->state          = TES_STATE_PARAM_EXCHANGE;
                 sm->state_start_ms = in->tick_ms;
                 out->set_psu_current    = true;
@@ -412,7 +424,13 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
                          sm->last_stop_reason == STOP_REASON_TIMER   ||
                          sm->last_stop_reason == STOP_REASON_VOLTAGE);
 
-    if (sm->fault_latched)                               snap.led_state = LED_STATE_FAULT;
+    // 與 OLED 的故障畫面採同一個依據：fault_latched 在自動復歸時就被清掉，
+    // 只看它會造成「畫面說 FAULT STOP、LED 卻已回到待機」的矛盾。
+    // fault_source 要到使用者按 START、auto_start 觸發新一輪、或 Reset Fault
+    // 才會清成 FAULT_SRC_NONE，兩者因此同進同出。
+    bool fault_showing = sm->fault_latched || sm->fault_source != FAULT_SRC_NONE;
+
+    if (fault_showing)                                   snap.led_state = LED_STATE_FAULT;
     else if (completed_ok)                               snap.led_state = LED_STATE_COMPLETE;
     else if (sm->state == TES_STATE_CHARGING)            snap.led_state = LED_STATE_CHARGING;
     else                                                  snap.led_state = LED_STATE_STANDBY;

@@ -555,8 +555,12 @@ const FAULTS={
 function renderFault(d){
   const fr=document.getElementById('fr');
   const src=d.fault_source|0;
-  // FAULT/EMERGENCY 狀態中，或故障已鎖存還沒復歸時都要顯示
-  const show=src>0&&(d.fault||d.state==='fault'||d.state==='emergency');
+  // 這裡必須是 OR 不是 AND。fault 旗標（fault_latched）與 fault/emergency 狀態
+  // 都只在故障當下成立，狀態機自動復歸後就全部歸零（一般故障 10s、手動模式
+  // CP 斷開只有 1s）—— 用 AND 串接的話，面板會在使用者看清楚之前就消失。
+  // fault_source 刻意保留到下一次充電開始或 Reset Fault，是 IDLE 時唯一還能
+  // 說明「剛才為什麼停」的依據，與 OLED、LED 採同一套判斷。
+  const show=src>0||!!d.fault||d.state==='fault'||d.state==='emergency';
   if(!show){fr.style.display='none';return;}
 
   const f=FAULTS[src];
