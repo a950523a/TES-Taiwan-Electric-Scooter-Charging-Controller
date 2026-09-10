@@ -34,6 +34,7 @@
 #include "esp_http_server.h"
 #include "nvs_flash.h"
 #include "lwip/ip4_addr.h"
+#include "lwip/sockets.h"
 #include "mdns.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -146,10 +147,16 @@ extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
 
 // "/"        → 裝置列表（先看到有哪幾台，再點進去）
 // "/control" → 原本的控制介面
+// 頁面內容綁在韌體裡，每次 OTA 都可能改變。max-age=86400 會讓使用者在更新後
+// 最多卡在舊頁面 24 小時（且無從察覺）—— 對裝置自帶的 UI 是錯誤的取捨。
+// 頁面只有數十 KB 又是區網直連，每次重新取用的成本遠低於顯示過期介面。
+// 離線能力不受影響：Service Worker 的 Cache API 與 HTTP 快取是各自獨立的。
+#define UI_CACHE_CONTROL "no-cache"
+
 static esp_err_t handle_get_root(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400, stale-if-error=604800");
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
     httpd_resp_send(req, (const char *)s_devices_html_start,
                     s_devices_html_end - s_devices_html_start);
     return ESP_OK;
@@ -162,7 +169,7 @@ static const httpd_uri_t s_uri_get_root = {
 static esp_err_t handle_get_control(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400, stale-if-error=604800");
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
     httpd_resp_send(req, (const char *)s_index_html_start,
                     s_index_html_end - s_index_html_start);
     return ESP_OK;
@@ -989,13 +996,51 @@ static uint32_t query_u32(httpd_req_t *req, const char *key, uint32_t defval)
     return (uint32_t)strtoul(v, NULL, 10);
 }
 
-static void trace_emit_sessions(httpd_req_t *req)
+// ── 分塊輸出緩衝 ──────────────────────────────────────────────────────────────
+// httpd_resp_sendstr_chunk() 每呼叫一次就送出一個 TCP 分段。曲線與 Log 若每筆
+// 各送一次，數百筆就是數百次往返 —— 在 WiFi 延遲下慢到讓前端以為裝置離線，
+// 而且期間會一直佔住 httpd 唯一的工作執行緒，讓 /status 等其他請求全部排隊。
+// 累積到接近 1KB 才送，往返次數降低約兩個數量級。
+typedef struct {
+    httpd_req_t *req;
+    size_t       len;
+    char         buf[1024];
+} chunk_out_t;
+
+static void chunk_init(chunk_out_t *co, httpd_req_t *req)
+{
+    co->req = req;
+    co->len = 0;
+}
+
+static void chunk_flush(chunk_out_t *co)
+{
+    if (co->len) {
+        httpd_resp_send_chunk(co->req, co->buf, co->len);
+        co->len = 0;
+    }
+}
+
+static void chunk_puts(chunk_out_t *co, const char *s)
+{
+    size_t n = strlen(s);
+    if (n >= sizeof(co->buf)) {          // 單筆就超過緩衝區：先清空再直送
+        chunk_flush(co);
+        httpd_resp_send_chunk(co->req, s, n);
+        return;
+    }
+    if (co->len + n > sizeof(co->buf)) chunk_flush(co);
+    memcpy(co->buf + co->len, s, n);
+    co->len += n;
+}
+
+static void trace_emit_sessions(chunk_out_t *co)
 {
     trace_session_info_t list[TRACE_MAX_SESSIONS];
     int n = trace_svc_get_sessions(list, TRACE_MAX_SESSIONS);
     char buf[160];
 
-    httpd_resp_sendstr_chunk(req, "\"sessions\":[");
+    chunk_puts(co, "\"sessions\":[");
     for (int i = 0; i < n; i++) {
         snprintf(buf, sizeof(buf),
                  "%s{\"id\":%lu,\"start_epoch\":%lu,\"start_uptime_ms\":%lu,"
@@ -1006,9 +1051,9 @@ static void trace_emit_sessions(httpd_req_t *req)
                  (unsigned long)list[i].start_t_ms,
                  (unsigned long)list[i].sample_count,
                  (unsigned long)list[i].event_count);
-        httpd_resp_sendstr_chunk(req, buf);
+        chunk_puts(co, buf);
     }
-    httpd_resp_sendstr_chunk(req, "]");
+    chunk_puts(co, "]");
 }
 
 static esp_err_t handle_get_trace(httpd_req_t *req)
@@ -1031,14 +1076,17 @@ static esp_err_t handle_get_trace(httpd_req_t *req)
     // 超過上限時等間隔抽樣，維持曲線形狀
     uint32_t step = (total > limit) ? ((total + limit - 1) / limit) : 1;
 
+    static chunk_out_t co;   // 1KB，放 static 避免佔用 httpd 的 8KB 堆疊
+    chunk_init(&co, req);
+
     char buf[128];
     snprintf(buf, sizeof(buf),
              "{\"ok\":true,\"session\":%lu,\"total\":%lu,\"step\":%lu,",
              (unsigned long)sid, (unsigned long)total, (unsigned long)step);
-    httpd_resp_sendstr_chunk(req, buf);
-    trace_emit_sessions(req);
+    chunk_puts(&co, buf);
+    trace_emit_sessions(&co);
 
-    httpd_resp_sendstr_chunk(req, ",\"samples\":[");
+    chunk_puts(&co, ",\"samples\":[");
     bool first = true;
     for (uint32_t i = 0; i < total; i += step) {
         trace_sample_t s;
@@ -1048,10 +1096,11 @@ static esp_err_t handle_get_trace(httpd_req_t *req)
                  (unsigned long)s.t_ms,
                  (unsigned)s.voltage_01v, (unsigned)s.current_01a,
                  (unsigned)s.req_current_01a, (unsigned)s.soc, (unsigned)s.state);
-        httpd_resp_sendstr_chunk(req, buf);
+        chunk_puts(&co, buf);
         first = false;
     }
-    httpd_resp_sendstr_chunk(req, "]}");
+    chunk_puts(&co, "]}");
+    chunk_flush(&co);
     httpd_resp_sendstr_chunk(req, NULL);   // 結束 chunked 回應
     return ESP_OK;
 }
@@ -1082,11 +1131,14 @@ static esp_err_t handle_get_tracelog(httpd_req_t *req)
 
     uint32_t start = (total > limit) ? (total - limit) : 0;   // 取最新的 limit 筆
 
+    static chunk_out_t co;   // 1KB，放 static 避免佔用 httpd 的 8KB 堆疊
+    chunk_init(&co, req);
+
     char buf[256];
     snprintf(buf, sizeof(buf),
              "{\"ok\":true,\"session\":%lu,\"total\":%lu,\"from\":%lu,\"events\":[",
              (unsigned long)sid, (unsigned long)total, (unsigned long)start);
-    httpd_resp_sendstr_chunk(req, buf);
+    chunk_puts(&co, buf);
 
     bool first = true;
     for (uint32_t i = start; i < total; i++) {
@@ -1105,10 +1157,11 @@ static esp_err_t handle_get_tracelog(httpd_req_t *req)
         snprintf(buf, sizeof(buf), "%s[%lu,%lu,\"%s\"]",
                  first ? "" : ",",
                  (unsigned long)e.t_ms, (unsigned long)e.epoch_s, esc);
-        httpd_resp_sendstr_chunk(req, buf);
+        chunk_puts(&co, buf);
         first = false;
     }
-    httpd_resp_sendstr_chunk(req, "]}");
+    chunk_puts(&co, "]}");
+    chunk_flush(&co);
     httpd_resp_sendstr_chunk(req, NULL);
     return ESP_OK;
 }
@@ -1313,12 +1366,28 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
 
+// 每條新連線都關閉 Nagle。
+// esp_http_server 送回應時，標頭與主體是分開兩次 send()。Nagle 會扣住第二個
+// 小分段，等第一段被 ACK 才送 —— 小回應（/config 527B、/history 157B）因此要等
+// lwIP 慢速計時器才沖出去，實測固定慢 1.4 秒；而 /status（1528B，超過 MSS）
+// 因為分段是滿的可以立即送出，反而不受影響，形成「大的快、小的慢」的怪現象。
+static esp_err_t http_sock_open(httpd_handle_t hd, int sockfd)
+{
+    (void)hd;
+    int one = 1;
+    if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) != 0) {
+        ESP_LOGW(TAG, "TCP_NODELAY failed on sock %d", sockfd);
+    }
+    return ESP_OK;
+}
+
 static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
     cfg.max_uri_handlers  = 24;   // 目前註冊 18 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
+    cfg.open_fn           = http_sock_open;
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "HTTP server start failed");
@@ -1401,6 +1470,15 @@ void network_svc_start(void)
 {
     start_http_server();
     esp_wifi_start();
+
+    // 關閉 WiFi 省電。ESP-IDF 的 STA 預設是 WIFI_PS_MIN_MODEM，無線電只在
+    // 每 3 個 beacon（約 307ms）醒來一次，每次 TCP 往返都要等，網頁會慢到像離線。
+    // 這台裝置是市電供電的固定設備，省那點電流沒有意義。
+    esp_err_t ps = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (ps != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_set_ps(NONE) failed: %s", esp_err_to_name(ps));
+    }
+
     if (!s_ap_mode) {
         esp_wifi_connect();
     }
