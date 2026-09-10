@@ -360,8 +360,21 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <input type="url" id="mqtt-url" autocomplete="off" placeholder="mqtt://broker.hivemq.com:1883">
     <label class="lbl2">Topic Prefix</label>
     <input type="text" id="mqtt-topic" autocomplete="off" placeholder="tes/charger">
-    <div style="font-size:.78em;color:#555;margin-top:6px;line-height:1.6">
-      推薦 Broker：<code style="color:#48f">broker.hivemq.com</code>（免費，無需帳號）<br>
+    <div class="chk-row">
+      <input type="checkbox" id="mqtt-cmd">
+      <span>允許透過 MQTT 遠端啟停充電</span>
+    </div>
+    <div id="mqtt-cmd-warn" style="display:none;font-size:.75em;color:#f88;margin:6px 0 0;padding:6px 8px;background:#3a1010;border-radius:4px;border:1px solid #a33">
+      ⚠️ 開啟後，<b>任何能對這個 broker 發佈訊息的人</b>都能啟動或停止你的充電器。<br>
+      在<b>免帳號的公開 broker</b>上這特別危險 —— 對方可以用萬用字元
+      （<code>tes/+/status</code>）直接列出所有在線裝置，不需要猜你的 topic。<br>
+      建議：改用需要帳號密碼的 broker、URL 用 <code>mqtts://</code> 加密，
+      或關掉這個開關（狀態仍會發佈，只是不接受指令）。
+    </div>
+    <div style="font-size:.78em;color:#555;margin-top:8px;line-height:1.7">
+      URL 可直接帶帳密與 TLS：<code style="color:#48f">mqtts://帳號:密碼@broker:8883</code><br>
+      公開 broker（如 <code>broker.hivemq.com</code>）任何人都能讀取你的充電狀態，
+      僅建議測試用。<br>
       MQTT 設定變更後需重啟生效
     </div>
   </div>
@@ -987,6 +1000,9 @@ async function loadCfg(){
     if(d.hostname)document.getElementById('cd-host').textContent=d.hostname+'.local';
     document.getElementById('mqtt-url').value=d.mqtt_broker_url||'';
     document.getElementById('mqtt-topic').value=d.mqtt_topic_prefix||('tes/'+(d.device_id||'charger'));
+    // 舊韌體沒有這個欄位，undefined 視為開啟（與韌體端預設一致）
+    document.getElementById('mqtt-cmd').checked=(d.mqtt_cmd_enabled!==false);
+    updateMqttCmdUI();
     const nu=d.notify_url||'';
     if(!nu){document.getElementById('nm-off').checked=true;}
     else if(/^https?:\/\/ntfy\.sh\//.test(nu)){document.getElementById('nm-ntfy').checked=true;ntfyTopic=nu.replace(/^https?:\/\/ntfy\.sh\//,'');}
@@ -1028,6 +1044,7 @@ async function loadCfg(){
 // 這個切分是可學習的（iOS 設定同一套），不是隨機的混合行為。
 const TOGGLE_KEY={
   cav:'auto_voltage', csta:'sta_enabled', cb:'beacon',
+  'mqtt-cmd':'mqtt_cmd_enabled',
   'sched-en':'sched_enabled', 'sched-stop-en':'sched_stop_en',
   'auto-start-en':'auto_start'
 };
@@ -1041,6 +1058,13 @@ function toggleConfirmMsg(id,val){
       +'目前的連線不會馬上中斷，但重開機後這個網址會失效 —— 需要改連上述熱點、'
       +'開啟 192.168.4.1 才回得來。\n\nSSID 與密碼會保留，開關打開即可連回。\n\n確定要關閉嗎？';
   }
+  if(id==='mqtt-cmd'&&val){
+    return '開啟後，任何能對這個 MQTT broker 發佈訊息的人都能啟動或停止你的充電器。'
+      +'\n\n若你用的是免帳號的公開 broker，對方可以用萬用字元列出所有在線裝置，'
+      +'不需要知道你的 topic。'
+      +'\n\n建議改用需要帳密的 broker 並使用 mqtts://。'
+      +'\n\n確定要開啟嗎？';
+  }
   if(id==='auto-start-en'&&val){
     return '啟用後 VP 繼電器將常時通電，偵測到插槍或車端 CAN 許可就會自動開始充電，'
       +'不需要有人按下開始。\n\n這是 Beta 功能，尚未經過實車驗證。\n\n確定要啟用嗎？';
@@ -1052,6 +1076,7 @@ function toggleConfirmMsg(id,val){
 function revertToggle(el,val){
   el.checked=!val;
   if(el.id==='csta')updateStaUI();
+  else if(el.id==='mqtt-cmd')updateMqttCmdUI();
   else if(el.id==='auto-start-en')checkAutoStart();
   else if(el.id==='cav')updateAutoVoltUI();
 }
@@ -1115,6 +1140,11 @@ window.addEventListener('beforeunload',e=>{
   }
 });
 
+function updateMqttCmdUI(){
+  document.getElementById('mqtt-cmd-warn').style.display=
+    document.getElementById('mqtt-cmd').checked?'block':'none';
+}
+
 function updateStaUI(){
   const on=document.getElementById('csta').checked;
   // 只有「關閉」才需要警告，而且只有現在真的靠路由器連著才會失聯 ——
@@ -1139,6 +1169,7 @@ const CFG_ANCHOR={
   sta_enabled:'csta', beacon:'cb',
   stop_mode:'stop-mode-row', notify_url:'notify-mode-row',
   mqtt_broker_url:'mqtt-url', mqtt_topic_prefix:'mqtt-topic',
+  mqtt_cmd_enabled:'mqtt-cmd',
   sched_enabled:'sched-en', sched_start_min:'sched-start',
   sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
   auto_start:'auto-start-en', psu_transport:'psu-transport-row'
@@ -1164,6 +1195,7 @@ function collectCfg(){
     notify_url:getNotifyUrl(),
     mqtt_broker_url:document.getElementById('mqtt-url').value.trim(),
     mqtt_topic_prefix:document.getElementById('mqtt-topic').value.trim()||'tes/charger',
+    mqtt_cmd_enabled:document.getElementById('mqtt-cmd').checked,
     sched_enabled:document.getElementById('sched-en').checked,
     sched_start_min:timeToMin(document.getElementById('sched-start').value),
     sched_stop_en:document.getElementById('sched-stop-en').checked,

@@ -23,6 +23,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_NOTIFY     "notify_url"
 #define NVS_KEY_MQTT_URL      "mqtt_url"
 #define NVS_KEY_MQTT_TOPIC    "mqtt_topic"
+#define NVS_KEY_MQTT_CMD      "mqtt_cmd"
 #define NVS_KEY_SCHED_EN      "sched_en"
 #define NVS_KEY_SCHED_START   "sched_start"
 #define NVS_KEY_SCHED_STOP_EN "sched_stop_en"
@@ -125,6 +126,13 @@ esp_err_t config_svc_init(void)
         snprintf(s_cfg.mqtt_topic_prefix, sizeof(s_cfg.mqtt_topic_prefix),
                  "tes/%s", s_cfg.device_id);
     }
+
+    // 遠端指令（訂閱 {prefix}/cmd）。預設 true 是為了不讓既有使用者在 OTA 之後
+    // 突然失去遠端啟停 —— 但這代表任何能對該 broker 發佈的人都能操作充電器，
+    // 公開 broker 上尤其危險（可用萬用字元列舉出所有裝置）。網頁 UI 有明確警告。
+    bool mqtt_cmd;
+    s_cfg.mqtt_cmd_enabled = (hal_nvs_get_bool(NVS_NS, NVS_KEY_MQTT_CMD, &mqtt_cmd) == ESP_OK)
+                             ? mqtt_cmd : true;
 
     {
         bool b;
@@ -240,6 +248,14 @@ esp_err_t config_svc_set_notify_url(const char *url)
     s_cfg.notify_url[sizeof(s_cfg.notify_url) - 1] = '\0';
     CFG_WRITE_END();
     return hal_nvs_set_str(NVS_NS, NVS_KEY_NOTIFY, s_cfg.notify_url);
+}
+
+esp_err_t config_svc_set_mqtt_cmd(bool enabled)
+{
+    CFG_WRITE_BEGIN();
+    s_cfg.mqtt_cmd_enabled = enabled;
+    CFG_WRITE_END();
+    return hal_nvs_set_bool(NVS_NS, NVS_KEY_MQTT_CMD, enabled);
 }
 
 esp_err_t config_svc_set_mqtt(const char *broker_url, const char *topic_prefix)

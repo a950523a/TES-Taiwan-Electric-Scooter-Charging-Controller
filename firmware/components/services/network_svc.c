@@ -132,6 +132,7 @@ static void set_cors(httpd_req_t *req)
 //
 // ⚠️ 這不是認證。任何能直接發 HTTP 的東西（curl、腳本、同網段的程式）都能自己
 // 加上這個標頭。它擋的是瀏覽器替使用者發起的跨站請求，不是有意的攻擊者。
+// 真正的認證是另一件事，見 CLAUDE.md 的安全章節。
 #define CSRF_HEADER "X-TES-Request"
 
 static bool csrf_ok(httpd_req_t *req)
@@ -378,6 +379,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
     cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
     cJSON_AddStringToObject(root, "mqtt_topic_prefix", cfg->mqtt_topic_prefix);
+    cJSON_AddBoolToObject  (root, "mqtt_cmd_enabled",  cfg->mqtt_cmd_enabled);
     cJSON_AddBoolToObject  (root, "sched_enabled",   cfg->sched_enabled);
     cJSON_AddNumberToObject(root, "sched_start_min", cfg->sched_start_min);
     cJSON_AddBoolToObject  (root, "sched_stop_en",   cfg->sched_stop_en);
@@ -571,6 +573,16 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     char new_mqtt_broker_url[128]   = {0};
     char new_mqtt_topic_prefix[64]  = {0};
     bool mqtt_changed = false;
+    // 遠端指令開關。獨立於 broker/topic 之外立即寫入 —— 這是安全設定，
+    // 不該跟其他 MQTT 欄位綁在同一次「有沒有改動」的判斷裡。
+    item = cJSON_GetObjectItem(root, "mqtt_cmd_enabled");
+    if (cJSON_IsBool(item)) {
+        bool en = cJSON_IsTrue(item);
+        if (en != cur->mqtt_cmd_enabled) {
+            config_svc_set_mqtt_cmd(en);
+            mqtt_changed = true;   // 需要重連 broker 才會生效（重新訂閱／取消訂閱）
+        }
+    }
     item = cJSON_GetObjectItem(root, "mqtt_broker_url");
     if (cJSON_IsString(item) && item->valuestring) {
         strncpy(new_mqtt_broker_url, item->valuestring, sizeof(new_mqtt_broker_url) - 1);
