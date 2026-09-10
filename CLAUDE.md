@@ -511,6 +511,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `auto_s` | bool | false | Beta auto-start |
 | `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
+| `sta_en` | bool | **true** | false = 固定 AP 模式但保留 SSID／密碼。預設必須為 true，否則 OTA 上來的舊機器會全部掉進 AP 模式 |
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
@@ -808,9 +809,19 @@ the hostname. It appears in the web UI `<h1>`, the browser tab title, and the `_
 TXT records (`id`, `name`, `ver`) so a LAN scan can identify units without opening each one.
 The OLED settings menu has a read-only `tes-<id>` row for cross-referencing.
 
-**WiFi modes:**
+**WiFi modes** — AP when *either* condition holds, STA otherwise:
 - No SSID in NVS → AP mode, SSID `TES-Charger-<id>` (open), IP `192.168.4.1`
-- SSID configured → STA mode, auto-reconnect, mDNS `tes-<id>.local` after got-IP
+- `sta_enabled == false` (NVS `sta_en`) → AP mode **with SSID/password kept intact**
+- Otherwise → STA mode, auto-reconnect, mDNS `tes-<id>.local` after got-IP
+
+`sta_enabled` **defaults to true** and must stay that way: units upgrading by OTA have no
+such NVS key, and defaulting to false would drop every deployed device into AP mode after
+an update. The web UI applies the same rule to `/config` responses that lack the field
+(`d.sta_enabled !== false`), so an old firmware's JSON doesn't render as "off".
+
+Before this switch existed, the only way back to AP mode was erasing the SSID, which threw
+the password away too. `POST /config` never calls `esp_restart()`, so toggling it does not
+drop the current connection — it takes effect on the next boot.
 
 mDNS starts in both AP and STA mode. `mdns_publish()` is called on every got-IP event, so
 a DHCP address change refreshes the delegated hostname's address too.
@@ -832,6 +843,32 @@ does not affect offline support — the Service Worker's Cache API is independen
 HTTP cache.
 
 **REST API (port 80, CORS *):**
+
+### Settings UI convention (v3.5.x) — don't undo this by accident
+
+**Sliding switches save immediately. Typed values need the save button.**
+
+That split is deliberate and learnable (iOS Settings works the same way). What must be
+avoided is *some* switches saving instantly and others not — mixed behaviour within one
+control type forces the user to guess every time.
+
+| Piece | Where | Notes |
+|---|---|---|
+| `TOGGLE_KEY` | index.html | checkbox id → config key. **Adding a switch means adding it here**, otherwise it silently falls back to manual save and breaks the rule. |
+| `autoSaveToggle()` | index.html | POSTs that one key; on failure or cancel it flips the switch back. The UI must never show a state the device doesn't hold. |
+| `toggleConfirmMsg()` | index.html | Returns a confirm string for switches whose consequence is non-obvious. Criterion is **not** "is it important" but "will something happen the user didn't expect": currently STA-off (next boot is AP-only) and auto-start-on (VP always live, charging starts unattended). |
+| `#cfg-bar` | index.html | Floating save bar for the typed fields. Shows the pending count, marks changed fields, and carries save feedback — `#msg` sits at the bottom of a ~140-line card and is off-screen when saving from mid-page. |
+| `CFG_BASE` / `cfgChangedKeys()` | index.html | Dirty state is a comparison against the device's actual values, not a "touched" flag, so reverting a field by hand clears it. |
+
+`POST /config` accepts partial updates and the UI relies on that: `save()` sends only
+changed keys, and each switch sends just its own. Sending the whole object (the old
+behaviour) made "adjust the current" walk into the WiFi-change branch and rewrite NVS
+needlessly.
+
+Two failure modes that were fixed once and are easy to reintroduce: hiding the bar's
+buttons on error (the user sees the failure but has no way to retry), and leaving
+`cfgBarLock` set after a failure (the bar then freezes on the old message and the pending
+count stops updating — `cfgSaving` distinguishes "mid-save" from "showing a result").
 
 ### Device list page
 
