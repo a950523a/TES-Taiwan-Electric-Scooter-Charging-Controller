@@ -876,6 +876,8 @@ static esp_err_t handle_get_history(httpd_req_t *req)
         cJSON_AddNumberToObject(obj, "soc_end",          buf[i].soc_end);
         cJSON_AddNumberToObject(obj, "stop_reason",      buf[i].stop_reason);
         cJSON_AddNumberToObject(obj, "session_id",       buf[i].session_id);
+        cJSON_AddNumberToObject(obj, "fault_source",     buf[i].fault_source);
+        cJSON_AddNumberToObject(obj, "fault_ctx_a",      buf[i].fault_ctx_a);
         cJSON_AddItemToArray(arr, obj);
     }
 

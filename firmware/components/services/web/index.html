@@ -1373,6 +1373,14 @@ function rowHtml(r){
     const ri=Math.min(r.stop_reason,6);
     let reasonText=STOP_REASON[ri];
     if(r.stop_reason===6&&r.stop_voltage_v)reasonText=`${r.stop_voltage_v.toFixed(1)} V`;
+    // 故障／緊急停止只寫「故障」對使用者毫無幫助，等於逼他去展開 Log 自己猜。
+    // 韌體已把當下的 fault_source/fault_ctx_a 一起存進紀錄，這裡直接翻成
+    // 與即時故障面板同一套說法（「充電槍鬆脫」「電壓上限設得太低」…）。
+    const fs=r.fault_source|0;
+    if((r.stop_reason===2||r.stop_reason===3)&&fs>0&&FAULTS[fs]){
+      const ft=FAULTS[fs].title;
+      reasonText=(typeof ft==='function')?ft(r.fault_ctx_a|0,0):ft;
+    }
     cells=`<td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}</td>`
          +`<td>${r.soc_start}% → ${r.soc_end}%</td>`
          +`<td><span class="${STOP_CLS[ri]}">${reasonText}</span></td>`;

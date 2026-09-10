@@ -22,7 +22,9 @@ typedef struct {
     uint8_t          count;
     uint8_t          _pad[2];          // align sessions[] to 4 bytes
     charge_session_t sessions[LOG_MAX];
-} session_log_t;                       // 4 + 20*16 = 324 bytes
+} session_log_t;                       // 4 + 20*24 = 484 bytes
+// 註：charge_session_t 改動過大小時這個 blob 就會變長，log_svc_init() 的長度
+// 比對會判定不符而從空的開始（舊紀錄讀不回來，但不會被誤判成錯位的資料）。
 
 static session_log_t s_log;
 
