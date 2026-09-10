@@ -4,6 +4,7 @@
 #include "tes_protocol/tes_sm.h"
 #include "tes_protocol/tes_types.h"
 #include "mqtt_client.h"
+#include "esp_crt_bundle.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -88,7 +89,13 @@ static void mqtt_event_handler(void *arg, esp_event_base_t base,
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "connected to broker");
         atomic_store(&s_mqtt_connected, true);
-        esp_mqtt_client_subscribe(evt->client, s_topic_cmd, 1);
+        // 只有啟用遠端指令才訂閱。沒訂閱就沒有任何路徑能從 broker 操作充電器，
+        // 狀態發佈不受影響。
+        if (config_svc_get()->mqtt_cmd_enabled) {
+            esp_mqtt_client_subscribe(evt->client, s_topic_cmd, 1);
+        } else {
+            ESP_LOGI(TAG, "remote command disabled — status publish only");
+        }
         {
             char buf[384];
             build_status_json(buf, sizeof(buf));
@@ -159,6 +166,9 @@ void task_mqtt(void *arg)
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri          = cfg->mqtt_broker_url,
+        // 讓 mqtts:// 可用。沒有 CA 來源的話 TLS 連線會直接失敗，使用者就只能
+        // 退回明文的 mqtt://。帳號密碼可直接寫進 URI：mqtts://user:pass@host:8883
+        .broker.verification.crt_bundle_attach = esp_crt_bundle_attach,
         .session.last_will.topic     = s_topic_status,
         .session.last_will.msg       = lwt_msg,
         .session.last_will.msg_len   = sizeof(lwt_msg) - 1,

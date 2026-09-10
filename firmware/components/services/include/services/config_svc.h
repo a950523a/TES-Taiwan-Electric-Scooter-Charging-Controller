@@ -31,6 +31,9 @@ typedef struct {
     char        notify_url[128];      // Webhook / ntfy URL（空字串 = 停用）
     char        mqtt_broker_url[128]; // MQTT broker URI，e.g. "mqtt://broker.hivemq.com:1883"（空字串 = 停用）
     char        mqtt_topic_prefix[64];// MQTT topic prefix，e.g. "tes/charger"
+    // false = 只發佈狀態，不訂閱 {prefix}/cmd。關掉遠端啟停，等於把「任何能對
+    // 這個 broker 發佈的人都能操作充電器」這條路封死。預設 true（相容既有使用者）
+    bool        mqtt_cmd_enabled;
     bool        sched_enabled;        // 定時充電 master switch
     uint16_t    sched_start_min;      // 開始時間，分鐘數 from midnight 0-1439
     bool        sched_stop_en;        // 自動結束開關
@@ -59,6 +62,7 @@ esp_err_t config_svc_set_auto_voltage   (bool enabled);
 esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_01v, uint16_t charge_timer_min);
 esp_err_t config_svc_set_notify_url    (const char *url);
 esp_err_t config_svc_set_mqtt          (const char *broker_url, const char *topic_prefix);
+esp_err_t config_svc_set_mqtt_cmd      (bool enabled);   // false = 只發佈狀態，不訂閱 cmd
 esp_err_t config_svc_set_scheduler     (bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min);
 esp_err_t config_svc_set_auto_start    (bool enabled);
 esp_err_t config_svc_set_psu           (uint8_t transport, const uint8_t *peer_mac_6, bool paired);
