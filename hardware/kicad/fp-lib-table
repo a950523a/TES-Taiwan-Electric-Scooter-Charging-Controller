@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "TES")(type "KiCad")(uri "${KIPRJMOD}/lib/TES.pretty")(options "")(descr "由 LCSC 料號產生，見 tools/kicad_lib.py"))
+)
