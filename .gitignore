@@ -47,3 +47,11 @@ firmware/dependencies.lock
 firmware/read_serial.py
 docs/PCB/TES_Controller_V1.3_backup/TES_Controller_V1.3_v675_2026-05-07-22-34.zip
 .claude/settings.local.json
+
+# KiCad 3D models — 39 MB of derived files, regenerate with tools/kicad_lib.py
+hardware/kicad/lib/TES.3dshapes/
+
+# KiCad working files
+hardware/kicad/*-backups/
+hardware/kicad/*.kicad_prl
+hardware/kicad/fp-info-cache
