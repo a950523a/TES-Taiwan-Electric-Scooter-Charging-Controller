@@ -1,0 +1,315 @@
+BOOT       pad 1    IO0
+BOOT       pad 2    GND
+C1         pad 1    GND
+C1         pad 2    VDD33
+C2         pad 1    GND
+C2         pad 2    EN
+C3         pad 1    GND
+C3         pad 2    VDD33
+C4         pad 1    EN
+C4         pad 2    GND
+C5         pad 1    EN
+C5         pad 2    $1N24451
+C6         pad 1    $1N24463
+C6         pad 2    GND
+C7         pad 1    $1N24313
+C7         pad 2    GND
+C8         pad 1    GND
+C8         pad 2    $1N24345
+C9         pad 1    5V
+C9         pad 2    GND
+C10        pad 1    VDD33
+C10        pad 2    GND
+C11        pad 1    GND
+C11        pad 2    IO0
+C12        pad 1    IO39
+C12        pad 2    GND
+C13        pad 1    $1N24383
+C13        pad 2    GND
+C14        pad 1    IO40
+C14        pad 2    GND
+C15        pad 1    IO41
+C15        pad 2    GND
+C16        pad 1    GND
+C16        pad 2    5V
+C17        pad 1    GND
+C17        pad 2    12V
+C20        pad 1    VDD33
+C20        pad 2    GND
+C24        pad 1    GND
+C24        pad 2    5V
+C25        pad 1    GND
+C25        pad 2    VDD33
+C26        pad 1    GND
+C26        pad 2    VBUS
+C27        pad 1    VBUS
+C27        pad 2    GND
+C28        pad 1    GND
+C28        pad 2    VDD33
+C29        pad 1    5V
+C29        pad 2    GND
+CN1        pad 1    GND
+CN1        pad 2    VP
+CN2        pad 1    CANL
+CN2        pad 2    CANH
+CN2        pad 3    GND
+CN2        pad 4    CP
+CN3        pad 1    12V
+CN3        pad 2    DC_RELAY
+CN5        pad 1    12V
+CN5        pad 2    DC_RELAY
+CN6        pad 1    12V
+CN6        pad 2    COUPLER
+D1         pad 1    12V
+D1         pad 2    DC_RELAY
+D3         pad 1    VP
+D3         pad 2    GND
+D4         pad 1    12V
+D4         pad 2    COUPLER
+EMERGENCY  pad 1    (未接)
+EMERGENCY  pad 2    IO40
+EMERGENCY  pad 3    GND
+EMERGENCY  pad 4    GND
+EN         pad 1    GND
+EN         pad 2    EN
+G          pad 1    IO6
+G          pad 2    $1N24269
+H1         pad 1    GND
+H1         pad 2    5V
+H1         pad 3    SCL
+H1         pad 4    SDA
+Q1         pad 1    GND
+Q1         pad 2    $3N445
+Q1         pad 3    DC_RELAY
+Q2         pad 1    GND
+Q2         pad 2    $1N24441
+Q2         pad 3    $1N24347
+Q3         pad 1    GND
+Q3         pad 2    $3N451
+Q3         pad 3    COUPLER
+Q4         pad 1    $1N24347
+Q4         pad 2    VP
+Q4         pad 3    12V
+R          pad 1    IO7
+R          pad 2    $1N24273
+R1         pad 1    VDD33
+R1         pad 2    EN
+R2         pad 1    GND
+R2         pad 2    $1N24295
+R3         pad 1    GND
+R3         pad 2    $1N24443
+R5         pad 1    SCL
+R5         pad 2    VDD33
+R6         pad 1    SDA
+R6         pad 2    VDD33
+R8         pad 1    $1N24313
+R8         pad 2    GND
+R9         pad 1    CP
+R9         pad 2    $1N24313
+R10        pad 1    $1N24345
+R10        pad 2    120V
+R11        pad 1    GND
+R11        pad 2    $1N24345
+R12        pad 1    GND
+R12        pad 2    $1N24273
+R13        pad 1    GND
+R13        pad 2    $1N24268
+R14        pad 1    GND
+R14        pad 2    $1N24269
+R16        pad 1    IO9
+R16        pad 2    $1N24441
+R17        pad 1    GND
+R17        pad 2    $1N24441
+R19        pad 1    IO11
+R19        pad 2    $3N445
+R20        pad 1    GND
+R20        pad 2    $3N445
+R21        pad 1    CANH
+R21        pad 2    CANL
+R26        pad 1    $1N24347
+R26        pad 2    12V
+R28        pad 1    GND
+R28        pad 2    $3N451
+R29        pad 1    IO10
+R29        pad 2    $3N451
+SB1        pad 1    VBUS
+SB1        pad 2    5V
+SETTING    pad 1    (未接)
+SETTING    pad 2    IO41
+SETTING    pad 3    GND
+SETTING    pad 4    GND
+START      pad 1    IO42
+START      pad 2    $1N24383
+START      pad 3    GND
+START      pad 4    GND
+STOP       pad 1    (未接)
+STOP       pad 2    IO39
+STOP       pad 3    GND
+STOP       pad 4    GND
+U1         pad 1    GND
+U1         pad 2    VDD33
+U1         pad 3    EN
+U1         pad 4    (未接)
+U1         pad 5    IO5
+U1         pad 6    IO6
+U1         pad 7    IO7
+U1         pad 8    SCL
+U1         pad 9    SDA
+U1         pad 10   IO17
+U1         pad 11   IO18
+U1         pad 12   (未接)
+U1         pad 13   (未接)
+U1         pad 14   (未接)
+U1         pad 15   (未接)
+U1         pad 16   (未接)
+U1         pad 17   IO9
+U1         pad 18   IO10
+U1         pad 19   IO11
+U1         pad 20   (未接)
+U1         pad 21   (未接)
+U1         pad 22   (未接)
+U1         pad 23   (未接)
+U1         pad 24   (未接)
+U1         pad 25   (未接)
+U1         pad 26   (未接)
+U1         pad 27   IO0
+U1         pad 28   (未接)
+U1         pad 29   (未接)
+U1         pad 30   (未接)
+U1         pad 31   (未接)
+U1         pad 32   IO39
+U1         pad 33   IO40
+U1         pad 34   IO41
+U1         pad 35   IO42
+U1         pad 36   RXD0
+U1         pad 37   TXD0
+U1         pad 38   (未接)
+U1         pad 39   (未接)
+U1         pad 40   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U1         pad 41   GND
+U5         pad 1    GND
+U5         pad 2    (未接)
+U5         pad 3    GND
+U5         pad 4    $1N24345
+U5         pad 5    GND
+U5         pad 6    $1N24313
+U5         pad 7    GND
+U5         pad 8    VDD33
+U5         pad 9    SDA
+U5         pad 10   SCL
+U6         pad 1    GND
+U6         pad 2    VDD33
+U6         pad 3    5V
+U6         pad 4    VDD33
+U8         pad 1    GND
+U8         pad 2    GND
+U8         pad 3    12V
+U8         pad 4    12V
+U8         pad 5    (未接)
+U8         pad 6    5V
+U8         pad 7    5V
+U8         pad 8    (未接)
+U8         pad 9    (未接)
+U8         pad 10   (未接)
+U8         pad 11   GND
+U10        pad 1    120V
+U10        pad 2    GND
+U12        pad 1    IO17
+U12        pad 2    GND
+U12        pad 3    5V
+U12        pad 4    IO18
+U12        pad 5    VDD33
+U12        pad 6    CANL
+U12        pad 7    CANH
+U12        pad 8    GND
+U16        pad 1    VDD33
+U16        pad 2    GND
+U16        pad 3    5V
+U16        pad 4    RXD0
+U16        pad 5    TXD0
+U16        pad 6    $1N24463
+U16        pad 7    UD+
+U16        pad 8    UD-
+U16        pad 9    VBUS
+U16        pad 10   (未接)
+U16        pad 11   (未接)
+U16        pad 12   $1N24451
+U16        pad 13   IO0
+U16        pad 14   (未接)
+U16        pad 15   (未接)
+U16        pad 16   (未接)
+U16        pad 17   GND
+USB1       pad 1    GND
+USB1       pad 2    GND
+USB1       pad 3    GND
+USB1       pad 4    GND
+USB1       pad A1B12 GND
+USB1       pad A4B9 VBUS
+USB1       pad A5   $1N24295
+USB1       pad A6   UD+
+USB1       pad A7   UD-
+USB1       pad A8   (未接)
+USB1       pad B1A12 GND
+USB1       pad B4A9 VBUS
+USB1       pad B5   $1N24443
+USB1       pad B6   UD+
+USB1       pad B7   UD-
+USB1       pad B8   (未接)
+Y          pad 1    IO5
+Y          pad 2    $1N24268
+
+# 依網路彙整
+$1N24268       R13.2  Y.2
+$1N24269       G.2  R14.2
+$1N24273       R.2  R12.2
+$1N24295       R2.2  USB1.A5
+$1N24313       C7.1  R8.1  R9.2  U5.6
+$1N24345       C8.2  R10.1  R11.2  U5.4
+$1N24347       Q2.3  Q4.1  R26.1
+$1N24383       C13.1  START.2
+$1N24441       Q2.2  R16.2  R17.2
+$1N24443       R3.2  USB1.B5
+$1N24451       C5.2  U16.12
+$1N24463       C6.1  U16.6
+$3N445         Q1.2  R19.2  R20.2
+$3N451         Q3.2  R28.2  R29.2
+120V           R10.2  U10.1
+12V            C17.2  CN3.1  CN5.1  CN6.1  D1.1  D4.1  Q4.3  R26.2  U8.3  U8.4
+5V             C9.1  C16.2  C24.2  C29.1  H1.2  SB1.2  U6.3  U8.6  U8.7  U12.3  U16.3
+CANH           CN2.2  R21.1  U12.7
+CANL           CN2.1  R21.2  U12.6
+COUPLER        CN6.2  D4.2  Q3.3
+CP             CN2.4  R9.1
+DC_RELAY       CN3.2  CN5.2  D1.2  Q1.3
+EN             C2.2  C4.1  C5.1  EN.2  R1.2  U1.3
+GND            BOOT.2  C1.1  C2.1  C3.1  C4.2  C6.2  C7.2  C8.1  C9.2  C10.2  C11.1  C12.2  C13.2  C14.2  C15.2  C16.1  C17.1  C20.2  C24.1  C25.1  C26.1  C27.2  C28.1  C29.2  CN1.1  CN2.3  D3.2  EMERGENCY.3  EMERGENCY.4  EN.1  H1.1  Q1.1  Q2.1  Q3.1  R2.1  R3.1  R8.2  R11.1  R12.1  R13.1  R14.1  R17.1  R20.1  R28.1  SETTING.3  SETTING.4  START.3  START.4  STOP.3  STOP.4  U1.1  U1.40  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U5.1  U5.3  U5.5  U5.7  U6.1  U8.1  U8.11  U8.2  U10.2  U12.2  U12.8  U16.17  U16.2  USB1.1  USB1.2  USB1.3  USB1.4  USB1.A1B12  USB1.B1A12
+IO0            BOOT.1  C11.2  U1.27  U16.13
+IO10           R29.1  U1.18
+IO11           R19.1  U1.19
+IO17           U1.10  U12.1
+IO18           U1.11  U12.4
+IO39           C12.1  STOP.2  U1.32
+IO40           C14.1  EMERGENCY.2  U1.33
+IO41           C15.1  SETTING.2  U1.34
+IO42           START.1  U1.35
+IO5            U1.5  Y.1
+IO6            G.1  U1.6
+IO7            R.1  U1.7
+IO9            R16.1  U1.17
+RXD0           U1.36  U16.4
+SCL            H1.3  R5.1  U1.8  U5.10
+SDA            H1.4  R6.1  U1.9  U5.9
+TXD0           U1.37  U16.5
+UD+            U16.7  USB1.A6  USB1.B6
+UD-            U16.8  USB1.A7  USB1.B7
+VBUS           C26.2  C27.1  SB1.1  U16.9  USB1.A4B9  USB1.B4A9
+VDD33          C1.2  C3.2  C10.1  C20.1  C25.2  C28.2  R1.1  R5.2  R6.2  U1.2  U5.8  U6.2  U6.4  U12.5  U16.1
+VP             CN1.2  D3.1  Q4.2
