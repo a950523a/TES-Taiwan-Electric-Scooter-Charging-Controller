@@ -30,5 +30,9 @@ STOP1         44.675    23.271  270.0 top   按鍵 停止
 U1            26.543    10.287    0.0 top   ESP32-S3 模組（天線突出板外）
 U10           31.623    86.233    0.0 top   120V 量測輸入端子（DG301 5.0mm 螺絲端子）
 USB1          58.811     9.662  270.0 top   Type-C 接頭（側面開孔）
+W1             2.663    53.211    0.0 top   模組 IN 側 120V 焊盤
+W2            61.595    53.211    0.0 top   模組 OUT 側 12V 焊盤
+W3             2.663    57.211    0.0 top   模組 IN 側 GND_BACK 焊盤
+W4            61.595    57.211    0.0 top   模組 OUT 側 GND 焊盤
 
 → hardware/kicad/mechanical_lock.json

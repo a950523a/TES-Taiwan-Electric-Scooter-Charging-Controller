@@ -17,7 +17,7 @@ import argparse, collections, io, json, math, os, sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
-from eda_export import jsonl, read_project, build_model  # noqa: E402
+from eda_export import jsonl, read_project, build_model, free_pads  # noqa: E402
 from sch_gen import DESIGNATOR_RENAME  # noqa: E402
 
 MIL = 0.0254          # 1 mil = 0.0254 mm
@@ -118,8 +118,13 @@ def holes(pcb_recs):
 
 
 def components(pcb_recs, cid2des):
-    """位號 → (x_mil, y_mil, 旋轉角, 層)。"""
+    """位號 → (x_mil, y_mil, 旋轉角, 層)。
+
+    含 W1..Wn 這些自由焊盤 —— 它們不是 COMPONENT 記錄，但同樣要鎖座標。
+    """
     out = {}
+    for des, (_pad, _net, x, y) in free_pads(pcb_recs).items():
+        out[des] = (x, y, 0.0, 1)
     for r in pcb_recs:
         if r and r[0] == "COMPONENT" and len(r) > 6:
             des = cid2des.get(r[1])
