@@ -80,6 +80,24 @@ def read_project(eprj_path):
     return docs, devices, attrs
 
 
+def free_pads(pcb_recs):
+    """自由焊盤 —— 直接畫在銅箔上、不屬於任何元件的焊盤。
+
+    V1.3 用它們當降壓模組的接線點（120V / GND_BACK 出去，12V / GND 回來）。
+    因為不是元件，BOM 和逐元件網表都看不到它們，第一版抽取程式就漏了 ——
+    結論變成「板子沒有 12V 落點」，但其實一直都在。
+
+    給它們 W1..Wn 的位號（依座標排序，穩定），這樣網表才是完整的。
+    """
+    pads = []
+    for r in pcb_recs:
+        if r and r[0] == "PAD" and len(r) > 8 and r[3]:
+            pads.append((float(r[6]), -float(r[7]), str(r[5]), r[3]))
+    pads.sort(key=lambda t: (t[1], t[0]))
+    return {"W%d" % (i + 1): (pad, net)
+            for i, (_, _, pad, net) in enumerate(pads)}
+
+
 def build_model(docs, devices, attrs):
     """把電路圖與 PCB 的記錄組成位號 → 料號 / 網路的對照。"""
     sch_recs, pcb_recs = [], []
@@ -118,6 +136,10 @@ def build_model(docs, devices, attrs):
             des = cid2des.get(r[1])
             if des:
                 netlist[des].append((str(r[2]), r[3]))
+    for des, (pad, net) in free_pads(pcb_recs).items():
+        netlist[des].append((pad, net))
+        bom[des] = dict(device="solder wire pad", part="SOLDERPAD-1P",
+                        value="", supplier="")
     return bom, netlist, pcb_recs
 
 

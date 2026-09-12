@@ -70,4 +70,8 @@ U8,LMZM23601V5SILR,,lmzm23601v5silr,C2868357
 U10,DG301-5.0-02P-14-00A(H),,dg301-5.0-02p-14-00a(h),C5128812
 U12,TJA1051T/3/1J,,tja1051t/3/1j,C38695
 USB1,TYPE-C16PIN,,type-c16pin,C393939
+W1,SOLDERPAD-1P,,solder wire pad,
+W2,SOLDERPAD-1P,,solder wire pad,
+W3,SOLDERPAD-1P,,solder wire pad,
+W4,SOLDERPAD-1P,,solder wire pad,
 Y,,,led_th-r_5mm,

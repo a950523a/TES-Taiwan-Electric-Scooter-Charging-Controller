@@ -4933,6 +4933,163 @@
 		(embedded_fonts no)
 	)
 	(symbol
+		"ADS1115IDGSR"
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(property "Reference" "U" (at 0 10.16 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Value"
+			"ADS1115IDGSR"
+			(at 0 -10.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Footprint"
+			"TES:MSOP-10_L3.0-W3.0-P0.50-LS5.0-BL"
+			(at 0 -12.70 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Datasheet"
+			"https://lcsc.com/product-detail/Analog-To-Digital-Converters-ADCs_TI_ADS1115IDGSR_ADS1115IDGSR_C37593.html"
+			(at 0 -15.24 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Manufacturer"
+			"TI(德州仪器)"
+			(at 0 -17.78 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"MPN"
+			"ADS1115IDGSR"
+			(at 0 -20.32 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"LCSC Part"
+			"C37593"
+			(at 0 -22.86 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"ki_keywords"
+			"Analog To Digital Converters (ADCs)"
+			(at 0 -25.40 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Description"
+			"16-Bit ADC with Integrated Multiplexer, PGA, Comparator, Oscillator, and Reference, -40 to 125 degC, 10-pin SOP (DGS10), Green (RoHS  no SbBr)"
+			(at 0 -27.94 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(symbol
+			"ADS1115IDGSR_0_1"
+			(rectangle
+				(start -12.70 7.62)
+				(end 12.70 -7.62)
+				(stroke (width 0) (type default))
+				(fill (type background))
+			)
+			(circle
+				(center -11.43 6.35)
+				(radius 0.38)
+				(stroke (width 0) (type default))
+				(fill (type none))
+			)
+			(pin
+				input
+				line
+				(at -15.24 5.08 0)
+				(length 2.54)
+				(name "ADDR" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				open_collector
+				line
+				(at -15.24 2.54 0)
+				(length 2.54)
+				(name "ALERT/RDY" (effects (font (size 1.27 1.27))))
+				(number "2" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				power_in
+				line
+				(at -15.24 -0.00 0)
+				(length 2.54)
+				(name "GND" (effects (font (size 1.27 1.27))))
+				(number "3" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				input
+				line
+				(at -15.24 -2.54 0)
+				(length 2.54)
+				(name "AIN0" (effects (font (size 1.27 1.27))))
+				(number "4" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				input
+				line
+				(at -15.24 -5.08 0)
+				(length 2.54)
+				(name "AIN1" (effects (font (size 1.27 1.27))))
+				(number "5" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				input
+				line
+				(at 15.24 -5.08 180)
+				(length 2.54)
+				(name "AIN2" (effects (font (size 1.27 1.27))))
+				(number "6" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				input
+				line
+				(at 15.24 -2.54 180)
+				(length 2.54)
+				(name "AIN3" (effects (font (size 1.27 1.27))))
+				(number "7" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				power_in
+				line
+				(at 15.24 -0.00 180)
+				(length 2.54)
+				(name "VDD" (effects (font (size 1.27 1.27))))
+				(number "8" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				bidirectional
+				line
+				(at 15.24 2.54 180)
+				(length 2.54)
+				(name "SDA" (effects (font (size 1.27 1.27))))
+				(number "9" (effects (font (size 1.27 1.27))))
+			)
+			(pin
+				bidirectional
+				line
+				(at 15.24 5.08 180)
+				(length 2.54)
+				(name "SCL" (effects (font (size 1.27 1.27))))
+				(number "10" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
 		"LED-5MM"
 		(pin_names (offset 1.016))
 		(exclude_from_sim no)
@@ -5177,6 +5334,68 @@
 				(length 2.54)
 				(name "P4" (effects (font (size 1.27 1.27))))
 				(number "4" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"SOLDERPAD-1P"
+		(pin_names (offset 1.016))
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(property "Reference" "W" (at 0 5.08 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Value"
+			"SOLDERPAD-1P"
+			(at 0 -5.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Footprint"
+			"TES:SOLDERPAD-TH_3.0X1.5"
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -10.16 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"焊線焊盤，3.05 x 1.52 mm / 孔 0.91 mm"
+			(at 0 -12.7 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"SOLDERPAD-1P_0_1"
+			(rectangle
+				(start -1.27 1.27)
+				(end 1.27 -1.27)
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 1.27) (xy 1.27 -1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 -1.27) (xy 1.27 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+		)
+		(symbol
+			"SOLDERPAD-1P_1_1"
+			(pin
+				passive
+				line
+				(at -5.08 0 0)
+				(length 2.54)
+				(name "W" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
 			)
 		)
 	)

@@ -94,8 +94,10 @@ def main():
     # （只是警告，不影響轉換）。這裡不開快取，避免在 repo 裡留下暫存目錄。
     r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
-    created = len(re.findall(r"Created Kicad symbol", r.stdout or ""))
-    fails = re.findall(r"\[ERROR\].*", r.stdout or "")
+    # easyeda2kicad 把進度訊息寫到 stderr，不是 stdout
+    log = (r.stdout or "") + (r.stderr or "")
+    created = len(re.findall(r"Created Kicad symbol", log))
+    fails = re.findall(r"\[ERROR\].*", log)
     print("產生符號 %d 個" % created)
     for f in fails:
         print("  " + f)
