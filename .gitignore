@@ -55,3 +55,7 @@ hardware/kicad/lib/TES.3dshapes/
 hardware/kicad/*-backups/
 hardware/kicad/*.kicad_prl
 hardware/kicad/fp-info-cache
+
+# Python
+__pycache__/
+*.pyc

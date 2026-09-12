@@ -1,0 +1,59 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_clearance": 0.2,
+        "min_track_width": 0.2,
+        "min_through_hole_diameter": 0.3,
+        "min_via_annular_width": 0.13,
+        "min_via_diameter": 0.6
+      }
+    }
+  },
+  "meta": {
+    "filename": "TES_Controller.kicad_pro",
+    "version": 3
+  },
+  "net_settings": {
+    "classes": [
+      {
+        "name": "Default",
+        "clearance": 0.2,
+        "track_width": 0.25,
+        "via_diameter": 0.6,
+        "via_drill": 0.3
+      },
+      {
+        "name": "HV120",
+        "clearance": 0.5,
+        "track_width": 0.4,
+        "via_diameter": 0.8,
+        "via_drill": 0.4
+      },
+      {
+        "name": "Power",
+        "clearance": 0.25,
+        "track_width": 0.6,
+        "via_diameter": 0.8,
+        "via_drill": 0.4
+      }
+    ],
+    "netclass_patterns": [
+      { "netclass": "HV120", "pattern": "120V" },
+      { "netclass": "HV120", "pattern": "GND_BACK" },
+      { "netclass": "Power", "pattern": "12V" },
+      { "netclass": "Power", "pattern": "5V" },
+      { "netclass": "Power", "pattern": "VDD33" },
+      { "netclass": "Power", "pattern": "GND" },
+      { "netclass": "Power", "pattern": "VP" },
+      { "netclass": "Power", "pattern": "DC_RELAY" },
+      { "netclass": "Power", "pattern": "COUPLER" }
+    ]
+  },
+  "schematic": {
+    "legacy_lib_dir": "",
+    "legacy_lib_list": []
+  },
+  "sheets": [],
+  "text_variables": {}
+}
