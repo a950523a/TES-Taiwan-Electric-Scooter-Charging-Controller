@@ -81,6 +81,53 @@ def seg_ok(b, net, layer, a, c, width, obs):
     return True
 
 
+HOLE_CLEAR = 0.25       # 孔到孔、孔到銅箔的最小距離
+
+
+def via_ok(b, net, pos, dia=0.6, drill=0.3, obs=None):
+    """這個位置放過孔會不會違規。
+
+    只檢查走線而不檢查過孔，是 GND 縫合一次加了 55 個過孔卻多出
+    36 條間距違規的原因 —— 過孔的銅環和鑽孔都要算。
+    """
+    if obs is None:
+        obs = obstacles(b, net)
+    v = pcbnew.PCB_VIA(b)
+    v.SetPosition(pos)
+    v.SetDrill(pcbnew.FromMM(drill))
+    v.SetWidth(pcbnew.FromMM(dia))
+    for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+        sh = v.GetEffectiveShape(layer)
+        for other_net, osh in obs[layer]:
+            need = pcbnew.FromMM(required_clearance(net, other_net))
+            if sh.Collide(osh, need):
+                return False
+    # 孔到孔
+    r = pcbnew.FromMM(drill / 2.0 + HOLE_CLEAR)
+    for t in b.GetTracks():
+        if t.Type() != pcbnew.PCB_VIA_T:
+            continue
+        d = t.GetPosition() - pos
+        need = r + t.GetDrill() // 2
+        if d.x * d.x + d.y * d.y < need * need:
+            return False
+    for f in b.GetFootprints():
+        for p in f.Pads():
+            if p.GetDrillSize().x <= 0:
+                continue
+            d = p.GetPosition() - pos
+            need = r + p.GetDrillSize().x // 2
+            if d.x * d.x + d.y * d.y < need * need:
+                return False
+    # 離板邊
+    e = b.GetBoardEdgesBoundingBox()
+    m = pcbnew.FromMM(EDGE_CLEAR + dia / 2.0)
+    if not (e.GetLeft() + m < pos.x < e.GetRight() - m
+            and e.GetTop() + m < pos.y < e.GetBottom() - m):
+        return False
+    return True
+
+
 def paths(a, c):
     """候選路徑（點串）。由簡到繁。"""
     yield [a, c]
