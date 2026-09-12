@@ -22,13 +22,14 @@ from sch_gen import DESIGNATOR_RENAME  # noqa: E402
 
 MIL = 0.0254          # 1 mil = 0.0254 mm
 OUTLINE_LAYER = 11    # 見 .epcb 的 LAYER 記錄
+MULTI_LAYER = 12      # 安裝孔畫在 Multi-Layer 上
 
 # 外殼開孔對應的元件 —— 這些位置動了，外殼就要重做。
 # H2（UART 排針）刻意不在清單裡：它只要落在板邊即可，正反面都行。
 LOCKED = {
     "U1":        "ESP32-S3 模組（天線突出板外）",
     "USB1":      "Type-C 接頭（側面開孔）",
-    "U10":       "120V 降壓板預留焊盤",
+    "U10":       "120V 量測輸入端子（DG301 5.0mm 螺絲端子）",
     "D7":        "LED 綠（V1.3 原位號 G）",
     "D8":        "LED 紅（V1.3 原位號 R）",
     "D6":        "LED 黃（V1.3 原位號 Y）",
@@ -94,6 +95,22 @@ def transform(segs):
     return to_mm, size
 
 
+def holes(pcb_recs):
+    """安裝孔。畫在 Multi-Layer 的無網路圓形 FILL，回傳 [(x_mil, y_mil, 直徑_mil)]。
+
+    V1.3 有 4 個 Ø3.2mm 孔排成矩形 —— 那是疊在板子上方的 120V 降壓模組的
+    固定孔，不是板子鎖外殼用的。位置動了模組就裝不上去，所以一併鎖定。
+    """
+    out = []
+    for r in pcb_recs:
+        if (r and r[0] == "FILL" and len(r) > 7 and r[4] == MULTI_LAYER
+                and not r[3] and isinstance(r[7], list)):
+            for g in r[7]:
+                if isinstance(g, list) and g and g[0] == "CIRCLE":
+                    out.append((float(g[1]), float(g[2]), float(g[3]) * 2))
+    return out
+
+
 def components(pcb_recs, cid2des):
     """位號 → (x_mil, y_mil, 旋轉角, 層)。"""
     out = {}
@@ -154,6 +171,7 @@ def main():
         return 1
     to_mm, size = transform(segs)
     comps = components(pcb_recs, cid2des)
+    hl = holes(pcb_recs)
 
     print("板框 %.2f × %.2f mm，%d 條線段" % (size[0], size[1], len(segs)))
     print()
@@ -162,6 +180,18 @@ def main():
         p1, p2 = to_mm(x1, y1), to_mm(x2, y2)
         print("  (%8.3f, %8.3f) → (%8.3f, %8.3f)" % (p1[0], p1[1], p2[0], p2[1]))
     print()
+
+    hole_rows = []
+    if hl:
+        print("安裝孔 (mm)")
+        for i, (hx, hy, dia) in enumerate(sorted(hl, key=lambda t: (-t[1], t[0]))):
+            mx, my = to_mm(hx, hy)
+            hole_rows.append(dict(x=mx, y=my, dia=round(dia * MIL, 3)))
+            print("  H%d  (%8.3f, %8.3f)  Ø%.2f" % (i + 1, mx, my, dia * MIL))
+        xs = [h["x"] for h in hole_rows]
+        ys = [h["y"] for h in hole_rows]
+        print("  孔距 %.2f × %.2f mm" % (max(xs) - min(xs), max(ys) - min(ys)))
+        print()
 
     want = [d for d in sorted(comps, key=natural) if not a.locked or d in LOCKED]
     print("%-10s %9s %9s %6s %-5s %s" % ("位號", "X(mm)", "Y(mm)", "旋轉", "層", "外殼用途"))
@@ -178,6 +208,7 @@ def main():
         io.open(a.json, "w", encoding="utf-8").write(json.dumps(
             dict(size_mm=[round(size[0], 4), round(size[1], 4)],
                  outline=[[*to_mm(s[0], s[1]), *to_mm(s[2], s[3])] for s in segs],
+                 holes=hole_rows,
                  components=rows), ensure_ascii=False, indent=1))
         print("\n→ %s" % a.json)
     return 0
