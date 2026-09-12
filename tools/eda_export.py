@@ -88,14 +88,16 @@ def free_pads(pcb_recs):
     結論變成「板子沒有 12V 落點」，但其實一直都在。
 
     給它們 W1..Wn 的位號（依座標排序，穩定），這樣網表才是完整的。
+    回傳 位號 → (焊盤號, 網路, x_mil, y_mil)；座標一併給出來，
+    免得取用端各自排序導致編號對不上。
     """
     pads = []
     for r in pcb_recs:
         if r and r[0] == "PAD" and len(r) > 8 and r[3]:
             pads.append((float(r[6]), -float(r[7]), str(r[5]), r[3]))
     pads.sort(key=lambda t: (t[1], t[0]))
-    return {"W%d" % (i + 1): (pad, net)
-            for i, (_, _, pad, net) in enumerate(pads)}
+    return {"W%d" % (i + 1): (pad, net, x, -y)
+            for i, (x, y, pad, net) in enumerate(pads)}
 
 
 def build_model(docs, devices, attrs):
@@ -136,7 +138,7 @@ def build_model(docs, devices, attrs):
             des = cid2des.get(r[1])
             if des:
                 netlist[des].append((str(r[2]), r[3]))
-    for des, (pad, net) in free_pads(pcb_recs).items():
+    for des, (pad, net, _x, _y) in free_pads(pcb_recs).items():
         netlist[des].append((pad, net))
         bom[des] = dict(device="solder wire pad", part="SOLDERPAD-1P",
                         value="", supplier="")
