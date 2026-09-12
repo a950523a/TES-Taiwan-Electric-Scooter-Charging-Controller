@@ -795,6 +795,50 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ## Known Technical Debt
 
+### 🔴 Unresolved: `/control` throughput collapses after 1–2 loads
+
+Investigated 2026-09-11, **not fixed, cause not identified**. Reproducible and
+characterised, but diagnosis stalled for lack of device-side visibility.
+
+Measured on a verified-clean link (0 % loss, 17 ms RTT to the device; 0 % / 1 ms to the
+router in the same run):
+
+| Request | Result |
+|---|---|
+| `/control` (94 KB) 1st–2nd load | **0.32–0.65 s (144–290 KB/s)** — normal |
+| every load after that | **11–30 s (8 KB/s or worse)**, sometimes hits a 30 s timeout |
+| after ~60 s idle | recovers, then collapses again |
+| `Connection: close` | no difference |
+| `/status` (1.5 KB) *during* the collapse | still 25–236 ms |
+
+That last row is the key constraint on any explanation: **the server still accepts and
+answers promptly — only bulk throughput dies.** Socket/connection exhaustion is therefore
+ruled out; it would delay everything.
+
+Two hypotheses, not yet distinguished:
+1. **Internal DRAM starvation throttling WiFi dynamic TX buffers.**
+   `CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32` and
+   `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP` is **not** set, so those buffers can only come
+   from internal RAM. A small response needs 1–2 buffers (fine); a bulk transfer needs
+   many (starved). Fits the symptom exactly.
+2. **lwIP TCP PCB resources.** `CONFIG_LWIP_TCP_MSL=60000` matches the ~60 s recovery
+   constant suspiciously well (`CONFIG_LWIP_MAX_ACTIVE_TCP=16`).
+
+Neither is a leak — it recovers on its own.
+
+**Next step is data, not code:** `task_monitor` already prints `heap free / min / psram`
+plus every task's stack watermark every 10 s. Reading that over USB *while provoking the
+collapse* should settle it immediately. Do not start tuning without it.
+
+> ⚠️ **Do not "fix" this with gzip.** Compressing the 94 KB page to ~20 KB would raise the
+> number of loads before collapse from ~2 to ~8 and look like a fix while the underlying
+> resource problem remains. (This was nearly done — the first measurements were taken
+> during an unrelated transient RF fault, 13 % packet loss, which produced a plausible but
+> wrong "the page is too big" conclusion. Re-measure link quality before trusting any
+> throughput number here.)
+
+### Other
+
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
 - `sw.js` `CACHE_NAME` is a fixed `'tes-v3'` and never changes across firmware versions, so
   its `activate` handler never purges anything. Harmless today (the shell handler is
