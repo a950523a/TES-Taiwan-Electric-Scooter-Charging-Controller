@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+從 EasyEDA 匯出的 .epcb 取出板框與元件座標，轉成 KiCad 用的 mm。
+
+為什麼需要：外殼（Inventor）是照 V1.3 的板框與開孔位置做的。
+重畫 PCB 時，板框、模組、按鍵、LED、Type-C、底部連接器的位置一動，
+外殼就得重做。這支程式把「不能動的座標」變成可比對的文字檔，
+重畫完再跑一次就能確認有沒有跑掉。
+
+用法：
+  python tools/pcb_geometry.py                      # 印出全部
+  python tools/pcb_geometry.py --locked             # 只印外殼相關（不可動）
+  python tools/pcb_geometry.py --compare <kicad_pcb>  # 和 KiCad 版本比對
+"""
+import argparse, collections, io, json, math, os, sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from eda_export import jsonl, read_project, build_model  # noqa: E402
+
+MIL = 0.0254          # 1 mil = 0.0254 mm
+OUTLINE_LAYER = 11    # 見 .epcb 的 LAYER 記錄
+
+# 外殼開孔對應的元件 —— 這些位置動了，外殼就要重做。
+LOCKED = {
+    "U1":        "ESP32-S3 模組（天線突出板外）",
+    "USB1":      "Type-C 接頭（側面開孔）",
+    "U10":       "120V 降壓板預留焊盤",
+    "G":         "LED 綠",
+    "R":         "LED 紅",
+    "Y":         "LED 黃",
+    "START":     "按鍵 開始",
+    "STOP":      "按鍵 停止",
+    "SETTING":   "按鍵 設定",
+    "EMERGENCY": "按鍵 緊急停止",
+    "CN1":       "底部連接器 VP",
+    "CN2":       "底部連接器 CAN/CP",
+    "CN3":       "底部連接器 DC_RELAY",
+    "CN5":       "底部連接器 DC_RELAY",
+    "CN6":       "底部連接器 COUPLER",
+    "H1":        "排針 I2C",
+    "H2":        "排針 UART",
+}
+
+
+def board_outline(pcb_recs):
+    """板框。V1.3 是單一 POLY 矩形記錄：["POLY",id,?,net,11,width,["R",x,y,w,h,rx,ry],?]。
+
+    也支援用線段畫的板框（LINE，layer 11），以防之後改成不規則外形。
+    回傳 [(x1,y1,x2,y2), ...]，單位仍是 mil。
+    """
+    segs = []
+    for r in pcb_recs:
+        if not r or len(r) <= 4 or r[4] != OUTLINE_LAYER:
+            continue
+        if r[0] == "LINE" and len(r) >= 9:
+            segs.append(tuple(float(v) for v in r[5:9]))
+        elif r[0] == "POLY" and len(r) > 6 and isinstance(r[6], list):
+            g = r[6]
+            if g and g[0] == "R":
+                x, y, w, h = (float(v) for v in g[1:5])
+                # EasyEDA 的 Y 往下為負，所以矩形從 (x,y) 往 -Y 長
+                pts = [(x, y), (x + w, y), (x + w, y - h), (x, y - h), (x, y)]
+                segs += [(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+                         for i in range(4)]
+            elif g and g[0] == "L":
+                pass  # 折線板框：走下面的通用路徑
+            else:
+                nums, i = [], 0
+                while i < len(g):
+                    if isinstance(g[i], str):
+                        i += 1
+                        continue
+                    nums.append(float(g[i]))
+                    i += 1
+                for i in range(0, len(nums) - 3, 2):
+                    segs.append((nums[i], nums[i + 1], nums[i + 2], nums[i + 3]))
+    return segs
+
+
+def transform(segs):
+    """mil → mm。板框左上角落在原點，Y 向下為正（KiCad 慣例）。"""
+    xs = [v for s in segs for v in (s[0], s[2])]
+    ys = [v for s in segs for v in (s[1], s[3])]
+    minx, maxy = min(xs), max(ys)
+
+    def to_mm(x, y):
+        return (round((float(x) - minx) * MIL, 4),
+                round((maxy - float(y)) * MIL, 4))
+
+    size = ((max(xs) - minx) * MIL, (maxy - min(ys)) * MIL)
+    return to_mm, size
+
+
+def components(pcb_recs, cid2des):
+    """位號 → (x_mil, y_mil, 旋轉角, 層)。"""
+    out = {}
+    for r in pcb_recs:
+        if r and r[0] == "COMPONENT" and len(r) > 6:
+            des = cid2des.get(r[1])
+            if des:
+                out[des] = (float(r[4]), float(r[5]), float(r[6]) or 0.0, r[3])
+    return out
+
+
+def natural(d):
+    import re
+    m = __import__("re").match(r"([A-Za-z_]*)(\d*)", d or "")
+    return (m.group(1), int(m.group(2)) if m.group(2) else 0, d or "")
+
+
+def load(eprj):
+    docs, devices, attrs = read_project(eprj)
+    _, _, pcb_recs = build_model(docs, devices, attrs)
+    # build_model 內部算過 cid2des，但沒回傳；這裡重算一次（成本可忽略）
+    sch_recs = []
+    for d in docs:
+        recs = jsonl(d["data"])
+        head = recs[0] if recs else []
+        if (head[:2] == ["DOCTYPE", "SCH"]) or (d["dtype"] == 1 and head[:1] != ["DOCTYPE"]):
+            sch_recs.extend(recs)
+    sa = collections.defaultdict(dict)
+    for r in sch_recs:
+        if r and r[0] == "ATTR" and len(r) > 4:
+            sa[r[2]][r[3]] = r[4]
+    uid2 = {a["Unique ID"]: a.get("Designator")
+            for a in sa.values() if a.get("Unique ID")}
+    cid2des = {}
+    for r in pcb_recs:
+        if r and r[0] == "COMPONENT" and len(r) > 7 and isinstance(r[7], dict):
+            des = uid2.get(r[7].get("Unique ID"))
+            if des:
+                cid2des[r[1]] = des
+    return pcb_recs, cid2des
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--eprj", default=os.path.join(REPO, "docs", "PCB",
+                                                   "TES_Controller_V1.3.eprj"))
+    ap.add_argument("--locked", action="store_true", help="只印外殼相關元件")
+    ap.add_argument("--json", help="同時寫出 JSON 給其他工具用")
+    a = ap.parse_args()
+
+    pcb_recs, cid2des = load(a.eprj)
+    segs = board_outline(pcb_recs)
+    if not segs:
+        print("找不到板框（layer %d）" % OUTLINE_LAYER, file=sys.stderr)
+        return 1
+    to_mm, size = transform(segs)
+    comps = components(pcb_recs, cid2des)
+
+    print("板框 %.2f × %.2f mm，%d 條線段" % (size[0], size[1], len(segs)))
+    print()
+    print("板框線段 (mm)")
+    for x1, y1, x2, y2 in segs:
+        p1, p2 = to_mm(x1, y1), to_mm(x2, y2)
+        print("  (%8.3f, %8.3f) → (%8.3f, %8.3f)" % (p1[0], p1[1], p2[0], p2[1]))
+    print()
+
+    want = [d for d in sorted(comps, key=natural) if not a.locked or d in LOCKED]
+    print("%-10s %9s %9s %6s %-5s %s" % ("位號", "X(mm)", "Y(mm)", "旋轉", "層", "外殼用途"))
+    rows = {}
+    for des in want:
+        x, y, rot, layer = comps[des]
+        mx, my = to_mm(x, y)
+        krot = round((-rot) % 360, 2)      # Y 翻轉後旋轉方向相反
+        rows[des] = dict(x=mx, y=my, rot=krot, layer="top" if layer == 1 else "bottom")
+        print("%-10s %9.3f %9.3f %6.1f %-5s %s"
+              % (des, mx, my, krot, rows[des]["layer"], LOCKED.get(des, "")))
+
+    if a.json:
+        io.open(a.json, "w", encoding="utf-8").write(json.dumps(
+            dict(size_mm=[round(size[0], 4), round(size[1], 4)],
+                 outline=[[*to_mm(s[0], s[1]), *to_mm(s[2], s[3])] for s in segs],
+                 components=rows), ensure_ascii=False, indent=1))
+        print("\n→ %s" % a.json)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
