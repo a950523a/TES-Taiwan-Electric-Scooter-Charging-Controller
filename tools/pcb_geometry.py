@@ -18,29 +18,30 @@ import argparse, collections, io, json, math, os, sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 from eda_export import jsonl, read_project, build_model  # noqa: E402
+from sch_gen import DESIGNATOR_RENAME  # noqa: E402
 
 MIL = 0.0254          # 1 mil = 0.0254 mm
 OUTLINE_LAYER = 11    # 見 .epcb 的 LAYER 記錄
 
 # 外殼開孔對應的元件 —— 這些位置動了，外殼就要重做。
+# H2（UART 排針）刻意不在清單裡：它只要落在板邊即可，正反面都行。
 LOCKED = {
     "U1":        "ESP32-S3 模組（天線突出板外）",
     "USB1":      "Type-C 接頭（側面開孔）",
     "U10":       "120V 降壓板預留焊盤",
-    "G":         "LED 綠",
-    "R":         "LED 紅",
-    "Y":         "LED 黃",
-    "START":     "按鍵 開始",
-    "STOP":      "按鍵 停止",
-    "SETTING":   "按鍵 設定",
-    "EMERGENCY": "按鍵 緊急停止",
+    "D7":        "LED 綠（V1.3 原位號 G）",
+    "D8":        "LED 紅（V1.3 原位號 R）",
+    "D6":        "LED 黃（V1.3 原位號 Y）",
+    "START1":    "按鍵 開始",
+    "STOP1":     "按鍵 停止",
+    "SETTING1":  "按鍵 設定",
+    "EMERGENCY1": "按鍵 緊急停止",
     "CN1":       "底部連接器 VP",
     "CN2":       "底部連接器 CAN/CP",
     "CN3":       "底部連接器 DC_RELAY",
     "CN5":       "底部連接器 DC_RELAY",
     "CN6":       "底部連接器 COUPLER",
-    "H1":        "排針 I2C",
-    "H2":        "排針 UART",
+    "H1":        "OLED 排針（面板開窗）",
 }
 
 
@@ -100,6 +101,8 @@ def components(pcb_recs, cid2des):
         if r and r[0] == "COMPONENT" and len(r) > 6:
             des = cid2des.get(r[1])
             if des:
+                # 位號和 KiCad 側對齊（G/R/Y、START… 在那邊補了數字，見 sch_gen）
+                des = DESIGNATOR_RENAME.get(des, des)
                 out[des] = (float(r[4]), float(r[5]), float(r[6]) or 0.0, r[3])
     return out
 
