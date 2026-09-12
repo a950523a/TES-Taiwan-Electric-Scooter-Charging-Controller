@@ -249,6 +249,10 @@ USB1       pad B5   $1N24443
 USB1       pad B6   UD+
 USB1       pad B7   UD-
 USB1       pad B8   (未接)
+W1         pad 1    120V
+W2         pad 1    12V
+W3         pad 1    GND_BACK
+W4         pad 1    GND
 Y          pad 1    IO5
 Y          pad 2    $1N24268
 
@@ -267,8 +271,8 @@ $1N38322       D5.6  R31.1
 $1N38324       D5.4  R30.1
 $3N445         Q1.2  R19.2  R20.2
 $3N451         Q3.2  R28.2  R29.2
-120V           R10.2  U10.1
-12V            C17.2  CN3.1  CN5.1  CN6.1  D1.1  D4.1  Q4.2  R26.2  U8.3  U8.4
+120V           R10.2  U10.1  W1.1
+12V            C17.2  CN3.1  CN5.1  CN6.1  D1.1  D4.1  Q4.2  R26.2  U8.3  U8.4  W2.1
 5V             C9.1  C16.2  C20.1  C29.1  SB1.2  U5.8  U6.3  U8.6  U8.7  U12.3
 CANH           CN2.2  R21.1  U12.7
 CANL           CN2.1  R21.2  U12.6
@@ -278,8 +282,8 @@ D+             R31.2  U1.14
 D-             R30.2  U1.13
 DC_RELAY       CN3.2  CN5.2  D1.2  Q1.3
 EN             C2.2  C4.1  EN.2  R1.2  U1.3
-GND            BOOT.2  C1.1  C2.1  C3.1  C4.2  C7.2  C9.2  C10.2  C11.1  C12.2  C13.2  C14.2  C15.2  C16.1  C17.1  C20.2  C28.1  C29.2  CN1.1  CN2.3  D3.2  D5.2  EMERGENCY.3  EMERGENCY.4  EN.1  H1.1  H2.1  Q1.1  Q2.1  Q3.1  R2.1  R3.1  R8.2  R12.1  R13.1  R14.1  R17.1  R20.1  R28.1  SETTING.3  SETTING.4  START.3  START.4  STOP.3  STOP.4  U1.1  U1.40  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U5.1  U5.3  U5.7  U6.1  U8.1  U8.11  U8.2  U12.2  U12.8  USB1.1  USB1.2  USB1.3  USB1.4  USB1.A1B12  USB1.B1A12
-GND_BACK       C8.1  R11.1  U5.5  U10.2
+GND            BOOT.2  C1.1  C2.1  C3.1  C4.2  C7.2  C9.2  C10.2  C11.1  C12.2  C13.2  C14.2  C15.2  C16.1  C17.1  C20.2  C28.1  C29.2  CN1.1  CN2.3  D3.2  D5.2  EMERGENCY.3  EMERGENCY.4  EN.1  H1.1  H2.1  Q1.1  Q2.1  Q3.1  R2.1  R3.1  R8.2  R12.1  R13.1  R14.1  R17.1  R20.1  R28.1  SETTING.3  SETTING.4  START.3  START.4  STOP.3  STOP.4  U1.1  U1.40  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U1.41  U5.1  U5.3  U5.7  U6.1  U8.1  U8.11  U8.2  U12.2  U12.8  USB1.1  USB1.2  USB1.3  USB1.4  USB1.A1B12  USB1.B1A12  W4.1
+GND_BACK       C8.1  R11.1  U5.5  U10.2  W3.1
 IO0            BOOT.1  C11.2  R32.2  U1.27
 IO10           R29.1  U1.18
 IO11           R19.1  U1.19

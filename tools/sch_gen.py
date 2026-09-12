@@ -64,6 +64,7 @@ BLOCKS = [
     ("指示燈",  ["D6", "R13", "D7", "R14", "D8", "R12"]),
     ("按鍵",   ["START1", "C13", "STOP1", "C12", "SETTING1", "C15",
                 "EMERGENCY1", "C14"]),
+    ("模組接線", ["W1", "W3", "W2", "W4"]),
     ("其他",   ["H2", "C12", "C14", "C15"]),
 ]
 
@@ -162,7 +163,10 @@ RENAME_BACK = {v: k for k, v in DESIGNATOR_RENAME.items()}
 
 # 沒有 LCSC 料號的 5 個元件，用 tools/make_symbols.py 自建的符號。
 NO_LCSC = {"D6": "LED-5MM", "D7": "LED-5MM", "D8": "LED-5MM",
-           "H1": "HDR-1X4", "H2": "HDR-1X3"}
+           "H1": "HDR-1X4", "H2": "HDR-1X3",
+           # 降壓模組的四個接線焊盤（見 eda_export.free_pads）
+           "W1": "SOLDERPAD-1P", "W2": "SOLDERPAD-1P",
+           "W3": "SOLDERPAD-1P", "W4": "SOLDERPAD-1P"}
 
 
 def natural(d):

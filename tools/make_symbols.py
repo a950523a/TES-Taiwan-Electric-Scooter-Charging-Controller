@@ -90,6 +90,22 @@ def header_symbol(n):
     return s + [g, u]
 
 
+def solderpad_symbol():
+    """單點焊線焊盤。V1.3 用 4 個這種焊盤接 120V→模組、模組→12V。
+
+    它們在 EasyEDA 裡是畫在銅箔上的自由焊盤、不是元件，所以原本不在網表裡。
+    做成元件之後，DRC 才知道這些點屬於哪條網路，間距規則也才管得到。
+    """
+    s = base("SOLDERPAD-1P", "W", "TES:SOLDERPAD-TH_3.0X1.5",
+             "焊線焊盤，3.05 x 1.52 mm / 孔 0.91 mm")
+    g = [S("symbol"), "SOLDERPAD-1P_0_1",
+         rect(-1.27, 1.27, 1.27, -1.27),
+         poly([(-1.27, 1.27), (1.27, -1.27)]),
+         poly([(-1.27, -1.27), (1.27, 1.27)])]
+    u = [S("symbol"), "SOLDERPAD-1P_1_1", pin("1", "W", -5.08, 0, 0)]
+    return s + [g, u]
+
+
 def pwr_flag_symbol():
     """電源旗標。
 
@@ -123,7 +139,7 @@ def main():
     have = {s[1] for s in sexpr.findall(lib, "symbol")}
     added = []
     for sym in (led_symbol(), header_symbol(3), header_symbol(4),
-                pwr_flag_symbol()):
+                solderpad_symbol(), pwr_flag_symbol()):
         if sym[1] in have:
             lib[:] = [c for c in lib
                       if not (isinstance(c, list) and c[:2] == [S("symbol"), sym[1]])]

@@ -102,9 +102,34 @@ def header(n):
     return s + ")\n"
 
 
+def pad_rect(num, x, y, w, h, drill):
+    """長方形通孔焊盤。pad() 只做正方形，焊線焊盤是 3.05 x 1.52 的長條。"""
+    return ('\t(pad "%s" thru_hole rect\n'
+            '\t\t(at %.3f %.3f) (size %.3f %.3f) (drill %.3f)\n'
+            '\t\t(layers \"*.Cu\" \"*.Mask\") (remove_unused_layers no) (uuid \"%s\")\n\t)\n'
+            % (num, x, y, w, h, drill, uid()))
+
+
+def solderpad():
+    """焊線焊盤。尺寸照抄 V1.3：3.048 x 1.524 mm 矩形焊盤、0.914 mm 孔。
+
+    導線穿孔再焊，比純表面焊盤耐拉扯 —— 這四條線接在會震動的車上設備裡。
+    """
+    s = HDR % dict(name="SOLDERPAD-TH_3.0X1.5",
+                   descr="焊線焊盤 3.05x1.52mm / 孔 0.91mm",
+                   ref_y=-2.2, val_y=2.2, u1=uid(), u2=uid())
+    s += pad_rect("1", 0, 0, 3.048, 1.524, 0.914)
+    for a, b, c, d in ((-1.8, -1.0, 1.8, -1.0), (1.8, -1.0, 1.8, 1.0),
+                       (1.8, 1.0, -1.8, 1.0), (-1.8, 1.0, -1.8, -1.0)):
+        s += line(a, b, c, d, layer="F.CrtYd", w=0.05)
+    s += line(-1.524, -0.762, 1.524, -0.762, layer="F.Fab", w=0.1)
+    s += line(-1.524, 0.762, 1.524, 0.762, layer="F.Fab", w=0.1)
+    return s + ")" + chr(10)
+
+
 def main():
     made = []
-    for fp in (led_5mm(), header(3), header(4)):
+    for fp in (led_5mm(), header(3), header(4), solderpad()):
         name = fp.split('"')[1]
         io.open(os.path.join(PRETTY, name + ".kicad_mod"), "w",
                 encoding="utf-8").write(fp)
