@@ -18,6 +18,7 @@ import argparse, csv, io, os, re, subprocess, sys, uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sexpr                                            # noqa: E402
+import changes_v13                                      # noqa: E402
 from sexpr import Sym                                   # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,7 +65,7 @@ BLOCKS = [
     ("指示燈",  ["D6", "R13", "D7", "R14", "D8", "R12"]),
     ("按鍵",   ["START1", "C13", "STOP1", "C12", "SETTING1", "C15",
                 "EMERGENCY1", "C14"]),
-    ("模組接線", ["W1", "W3", "W2", "W4"]),
+    ("模組接線", ["W1", "W3", "D9", "W2", "W4", "D10"]),
     ("其他",   ["H2", "C12", "C14", "C15"]),
 ]
 
@@ -78,6 +79,10 @@ def uid():
 
 
 # --------------------------------------------------------------- 輸入
+
+
+# read_netlist() 會填進來：changes_v13 新增的元件（位號 → 變更宣告）
+ADDED = {}
 
 
 def read_bom():
@@ -104,6 +109,10 @@ def read_netlist():
                 conns.append((des, m.group(2), NET_RENAME.get(net, net)))
             else:
                 open_pins.append((des, m.group(2)))
+    # 套用 changes_v13 宣告的電氣變更，讓電路圖、PCB 驗證、BOM 自動一致
+    conns, added = changes_v13.apply(conns, open_pins)
+    ADDED.clear()
+    ADDED.update(added)
     return conns, open_pins
 
 
@@ -179,7 +188,9 @@ def assign(bom, conns, by_lcsc, by_name):
     used = sorted({d for d, _, _ in conns}, key=natural)
     out = {}
     for des in used:
-        if des in NO_LCSC:
+        if des in ADDED and ADDED[des].get("symbol"):
+            out[des] = by_name[ADDED[des]["symbol"]]
+        elif des in NO_LCSC:
             out[des] = by_name[NO_LCSC[des]]
         else:
             lcsc = bom.get(des, ("", ""))[0]
@@ -280,7 +291,7 @@ def emit(syms, pos, headers, conns, open_pins, size, root, by_name):
                 [Sym("dnp"), Sym("no")],
                 [Sym("uuid"), uid()],
                 prop("Reference", des, ox, snap(oy - info["h"] / 2.0 - 2.54)),
-                prop("Value", info["name"],
+                prop("Value", ADDED.get(des, {}).get("value", info["name"]),
                      ox, snap(oy + info["h"] / 2.0 + 2.54))]
         for p in sexpr.findall(info["node"], "property"):
             if p[1] in ("Footprint", "Datasheet", "LCSC Part", "MPN"):
