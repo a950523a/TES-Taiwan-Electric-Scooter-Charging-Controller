@@ -96,6 +96,15 @@ class Maze(object):
         """這條網路看到的障礙圖（兩層）：其他網路的銅箔按所需間距膨脹。"""
         return np.stack([self._blocked_layer(li, net, width) for li in (0, 1)])
 
+    def via_blocked_for(self, net, via_dia=0.6):
+        """換層專用的障礙圖。
+
+        過孔的銅環比走線寬，對走線合法的格子放過孔不一定合法 ——
+        IO9 就是卡在這裡：A* 選的換層點對 0.25mm 走線沒問題，
+        但 0.6mm 的過孔環撞到 0.5mm 間距的 120V 銅箔。
+        """
+        return self.blocked_for(net, via_dia)
+
     def _blocked_layer(self, li, net, width):
         g = self.grid[li]
         mine = self.net_ids.get(net, -1)
@@ -151,7 +160,7 @@ NEI = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
        (-1, -1, 1.414), (-1, 1, 1.414), (1, -1, 1.414), (1, 1, 1.414)]
 
 
-def astar(blocked, starts, goals, bend_cost=0.6):
+def astar(blocked, starts, goals, bend_cost=0.6, via_blocked=None):
     """兩層 A*。節點是 (層, row, col)，層 0 = 頂層、1 = 底層。
 
     底層每一步乘 BOTTOM_COST、換層加 VIA_COST，所以路徑會盡量待在頂層，
@@ -197,9 +206,10 @@ def astar(blocked, starts, goals, bend_cost=0.6):
             if nxt in seen and seen[nxt][0] <= ng:
                 continue
             heapq.heappush(pq, (ng + hx(nr, nc), ng, nxt, node, (dr, dc)))
-        # 換層
+        # 換層。孔位要用過孔專用的障礙圖判斷，不能沿用走線的。
         ol = 1 - li
-        if not blocked[ol, r, c] or (ol, r, c) in goal:
+        vb = via_blocked if via_blocked is not None else blocked
+        if (not vb[li, r, c] and not vb[ol, r, c]) or (ol, r, c) in goal:
             ng = g + VIA_COST
             nxt = (ol, r, c)
             if not (nxt in seen and seen[nxt][0] <= ng):

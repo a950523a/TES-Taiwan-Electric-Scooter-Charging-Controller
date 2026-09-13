@@ -170,23 +170,36 @@ def verify_runs(b, net, maze, runs, width, obs):
     return bad
 
 
-def block_between(blocked_extra, li, rc1, rc2):
-    """把一段走線經過的格子標成禁用，讓下一次 A* 繞開。"""
+def block_between(blocked_extra, li, rc1, rc2, radius=1):
+    """把一段走線經過的格子標成禁用，讓下一次 A* 繞開。
+
+    過孔失敗時（rc1 == rc2）要封大一點：只封 1 格的話，下一次 A* 會把
+    過孔往旁邊挪 0.3mm 再撞一次，八次嘗試都在原地打轉。孔位受限於
+    孔對孔、孔對焊盤的距離，挪一點點沒有意義。
+    """
+    if rc1 == rc2:
+        radius = max(radius, MZ.cells(1.2))
     (r1, c1), (r2, c2) = rc1, rc2
     steps = max(abs(r2 - r1), abs(c2 - c1)) or 1
     for k in range(steps + 1):
         r = r1 + (r2 - r1) * k // steps
         c = c1 + (c2 - c1) * k // steps
-        for dr in (-1, 0, 1):
-            for dc in (-1, 0, 1):
+        for dr in range(-radius, radius + 1):
+            for dc in range(-radius, radius + 1):
                 rr, cc = r + dr, c + dc
                 if 0 <= rr < blocked_extra.shape[1] and 0 <= cc < blocked_extra.shape[2]:
                     blocked_extra[li, rr, cc] = True
 
 
+# 訊號線繞不過去時可以退讓的寬度。電源與高壓網路不在此列 ——
+# 它們的寬度是載流與間距要求，不能為了繞得過去而變細。
+NARROW = (0.2, 0.15)
+
+
 def route_net(b, maze, net):
     """把這條網路散落的各塊銅箔接成一塊。回傳 (段數, 總長, 過孔數, 失敗數)。"""
     width = WIDTH.get(net, DEFAULT_WIDTH)
+    widths = [width] if net in WIDTH else [width] + list(NARROW)
     made, length, vias, fail = 0, 0.0, 0, 0
     extra = np.zeros((2, maze.h, maze.w), dtype=bool)
     for _ in range(24):
@@ -200,23 +213,40 @@ def route_net(b, maze, net):
                                             centroid(cc)[1] - bc[1]))
         obs = RT.obstacles(b, net)
         runs = None
-        for attempt in range(6):
-            blocked = maze.blocked_for(net, width) | extra
-            path = MZ.astar(blocked, set(rest[0]), set(base))
-            if path is None:
+        base_blocked = maze.blocked_for(net, width)
+        via_blocked = maze.via_blocked_for(net)
+        # 先試「只走頂層」。板上已有上百個過孔，擁擠處常常找不到合法孔位，
+        # 而多數連接（像 IO9 那種縱向直線）本來就不需要換層。
+        # 只有頂層真的過不去時才開放底層。
+        top_only = base_blocked.copy()
+        top_only[1] = True
+        used_width = width
+        for w in widths:
+            bw = maze.blocked_for(net, w)
+            tw = bw.copy()
+            tw[1] = True
+            vbw = maze.via_blocked_for(net)
+            for attempt in range(10):
+                blocked = (tw if attempt < 3 else bw) | extra
+                path = MZ.astar(blocked, set(rest[0]), set(base),
+                                via_blocked=vbw | extra)
+                if path is None:
+                    break
+                cand = MZ.simplify(path)
+                bad = verify_runs(b, net, maze, cand, w, obs)
+                if not bad:
+                    runs, used_width = cand, w
+                    break
+                for li, rc1, rc2 in bad:
+                    block_between(extra, li, rc1, rc2)
+            if runs is not None:
                 break
-            cand = MZ.simplify(path)
-            bad = verify_runs(b, net, maze, cand, width, obs)
-            if not bad:
-                runs = cand
-                break
-            for li, rc1, rc2 in bad:
-                block_between(extra, li, rc1, rc2)
+            extra[:] = False
         if runs is None:
             fail += 1
             break
-        stamp_path(maze, net, runs, width)
-        m, L, v = add_path(b, net, maze, runs, width)
+        stamp_path(maze, net, runs, used_width)
+        m, L, v = add_path(b, net, maze, runs, used_width)
         made += m
         length += L
         vias += v
