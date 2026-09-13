@@ -52,3 +52,16 @@
 (rule "USB1 外殼腳銑槽的自身間距"
 	(constraint edge_clearance (min 0.15mm))
 	(condition "A.memberOfFootprint('USB1')"))
+
+# ---------------------------------------------------------------- 組裝
+# 決定「這兩顆零件擺得下嗎」的是焊盤之間的實體距離，不是外框餘裕有沒有碰到。
+# EasyEDA 轉來的封裝外框margin 給得很寬（0603 給到 0.25mm 以上），
+# 兩顆相鄰的零件外框幾乎一定會重疊，但焊盤其實離得很開。
+#
+# V1.3 現況：20 對外框重疊，焊盤間距 0.356–3.671 mm，最小 0.356 mm。
+# 嘉立創 SMT 的零件間距下限是 0.2 mm，而且 V1.1／V1.2 用同樣的擺放量產過。
+# 這裡把真正的約束訂在 0.3 mm 並交給 DRC 把關；
+# courtyards_overlap 則在專案設定裡降為警告 —— 它仍然會提醒，但不會蓋掉真正的錯誤。
+(rule "元件焊盤實體間距"
+	(constraint physical_clearance (min 0.3mm))
+	(condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Reference != B.Reference"))
