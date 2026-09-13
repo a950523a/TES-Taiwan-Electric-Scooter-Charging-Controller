@@ -54,6 +54,8 @@ def main():
             _f, p = hit
             old = p.GetNetname()
             if op == "set_net":
+                if old == c["net"]:
+                    continue      # 已經是目標網路，別白白把走線拆掉
                 ni = b.FindNet(c["net"])
                 if ni is None:
                     print("   找不到網路 %s" % c["net"])
