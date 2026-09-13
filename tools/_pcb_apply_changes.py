@@ -123,7 +123,9 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
         if net:
             ni = b.FindNet(net)
             if ni is None:
-                raise SystemExit("找不到網路 %s" % net)
+                # 還沒有任何焊盤用到的網路存檔時會被丟掉，所以這裡要重建
+                ni = pcbnew.NETINFO_ITEM(b, net)
+                b.Add(ni)
             p.SetNet(ni)
 
     anchor = board_pos(b, anchor_ref, anchor_pad)
@@ -152,8 +154,9 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
                 continue
             tgt = R.nearest_same_net(b, net, p.GetPosition(), exclude_pad=p)
             if tgt is None:
-                ok = False
-                break
+                # 串聯鏈的中間網路在下一顆放上去之前沒有對手（R33 的 HV_DIV2
+                # 要等 R34）。這種腳位先跳過，全部擺完再統一繞。
+                continue
             r = R.find_route(b, net, p.GetPosition(), tgt, width)
             if r is None:
                 ok = False
@@ -180,7 +183,11 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
     raise SystemExit("%s 找不到既合法又繞得通的位置" % spec["ref"])
 
 
-ANCHORS = {"D9": ("U10", "1"), "D10": ("W2", "1")}
+ANCHORS = {"D9": ("U10", "1"), "D10": ("W2", "1"),
+           # 分壓串聯的三顆要擠在一起：鏈上的節點帶 40–80V，
+           # 走線拉長等於把高壓帶到板子各處，而且串聯電阻分開擺
+           # 會讓雜訊耦合進分壓中點。依序貼著上一顆。
+           "R33": ("R10", "1"), "R34": ("R33", "1")}
 
 
 def main():

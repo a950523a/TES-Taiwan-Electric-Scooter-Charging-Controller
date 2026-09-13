@@ -65,3 +65,12 @@
 (rule "元件焊盤實體間距"
 	(constraint physical_clearance (min 0.3mm))
 	(condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Reference != B.Reference"))
+
+# 分壓串聯鏈的中間節點。R10(118k) → R33(115k) → R34(115k) → VOUT_SENSE，
+# 120V 輸入下 HV_DIV1 在 80.7 V、HV_DIV2 在 42.4 V。
+# IPC-2221B 表 6-1 B4（外層有塗層）：31–100 V 要 0.13 mm。
+# 預設的 0.15 mm 雖然已經合規，但對 80 V 只有 1.15 倍餘裕，取 0.25 mm。
+# 這兩個節點只在板子左緣那一小段，拉開不影響其他繞線。
+(rule "分壓鏈中間節點間距"
+	(constraint clearance (min 0.25mm))
+	(condition "(A.NetName == 'HV_DIV1' || A.NetName == 'HV_DIV2') && A.NetName != B.NetName"))

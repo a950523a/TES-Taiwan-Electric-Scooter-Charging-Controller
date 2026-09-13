@@ -8,7 +8,7 @@
 重點是**跨分塊**挑焊盤：早期版本隨便挑兩個焊盤，結果一直在同一塊裡面
 重複加同一條線，分塊數永遠降不下來。
 """
-import os, sys
+import math, os, sys
 import pcbnew
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,29 +60,36 @@ def close_net(b, maze, net, verbose=True):
         keys = sorted(owner)
         base = keys[0]
         std = RS.WIDTH.get(net, RS.DEFAULT_WIDTH)
-        hit = False
+
+        # 候選配對依距離排序。早期版本挑「第一個繞得通的」，
+        # 結果把 START1.2 接到 12.7 mm 外的 U1.35，
+        # 而 START1.1 就在隔壁 1 mm、且早就連著 U1.35。
+        cand = []
         for other in keys[1:]:
             for ra, pa in owner[base]:
                 for rb, pb in owner[other]:
-                    for w in WIDTHS:
-                        ww = std if w is None else w
-                        r = RT.find_route(b, net, pa.GetPosition(),
-                                          pb.GetPosition(), ww)
-                        if r:
-                            lay, pts, length = r
-                            RT.add_route(b, net, lay, pts, ww, via_at_start=True)
-                            if verbose:
-                                print("   %-6s %s.%s → %s.%s 寬 %.2f  %s %.2f mm"
-                                      % (net, ra, pa.GetNumber(), rb,
-                                         pb.GetNumber(), ww,
-                                         b.GetLayerName(lay), length))
-                            made += 1
-                            hit = True
-                            break
-                    if hit:
-                        break
-                if hit:
-                    break
+                    d = math.hypot(
+                        pcbnew.ToMM(pa.GetPosition().x - pb.GetPosition().x),
+                        pcbnew.ToMM(pa.GetPosition().y - pb.GetPosition().y))
+                    cand.append((d, ra, pa, rb, pb))
+        cand.sort(key=lambda t: t[0])
+
+        hit = False
+        for _d, ra, pa, rb, pb in cand:
+            for w in WIDTHS:
+                ww = std if w is None else w
+                r = RT.find_route(b, net, pa.GetPosition(), pb.GetPosition(), ww)
+                if not r:
+                    continue
+                lay, pts, length = r
+                RT.add_route(b, net, lay, pts, ww, via_at_start=True)
+                if verbose:
+                    print("   %-6s %s.%s → %s.%s 寬 %.2f  %s %.2f mm"
+                          % (net, ra, pa.GetNumber(), rb, pb.GetNumber(), ww,
+                             b.GetLayerName(lay), length))
+                made += 1
+                hit = True
+                break
             if hit:
                 break
         if not hit:

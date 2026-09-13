@@ -2,7 +2,7 @@
 	(version 20251024)
 	(generator "tes_sch_gen")
 	(generator_version "10.0")
-	(uuid "6a05312b-d202-4448-8c5d-b162ab744049")
+	(uuid "0f97dbb6-53f4-4e73-9d44-a35de3198165")
 	(paper "A2")
 	(lib_symbols
 		(symbol
@@ -5288,73 +5288,73 @@
 		"MCU"
 		(at 25.4 25.4 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "e91bfa5f-ad00-4072-94da-d19641b76d5b")
+		(uuid "ce4fdae1-31f6-4b8e-869b-5599393783e7")
 	)
 	(text
 		"電源"
 		(at 25.4 237.49 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "979b6c30-d6aa-4cc4-aa2b-d264d3c49062")
+		(uuid "31044bdf-0c16-490d-87fc-ac665f508ff2")
 	)
 	(text
 		"USB"
 		(at 99.06 25.4 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "1abf50fd-645c-4d56-8807-aa2d664de461")
+		(uuid "022f0cc7-7d4f-4be0-8b4a-465dcc2bf7ea")
 	)
 	(text
 		"CAN"
 		(at 99.06 160.02 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "c8b4d70d-b363-46ee-993c-5dc9226992d8")
+		(uuid "e30a6c85-eb06-4505-8464-96eacd93c9d0")
 	)
 	(text
 		"類比量測"
-		(at 99.06 224.79 0)
+		(at 162.56 25.4 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "30ca7c08-ec32-4554-8f8b-6d17e9b526b4")
+		(uuid "30ca629b-7739-4fa6-ae6c-b46f72c21392")
 	)
 	(text
 		"繼電器"
-		(at 162.56 25.4 0)
+		(at 162.56 195.58 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "170f7d2e-6585-4b35-ac03-1d03ebb3ed5e")
+		(uuid "72435e58-c873-4134-bfc2-2add07f5d42b")
 	)
 	(text
 		"電磁鎖"
-		(at 162.56 116.84 0)
+		(at 162.56 288.29 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "ed8582f3-1b1b-4b20-841d-35b4bd114f52")
+		(uuid "4e9e7e93-2142-46c0-800d-29edc0bae7b8")
 	)
 	(text
 		"VP 供電"
-		(at 162.56 193.04 0)
+		(at 223.52 25.4 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "e2ec0f50-b299-429d-bb2a-bf25ff582a42")
+		(uuid "cfcab02c-57fb-4326-88a1-b69e8d276345")
 	)
 	(text
 		"指示燈"
-		(at 162.56 298.45 0)
+		(at 223.52 129.54 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "f8c3a5f7-a438-42ad-92d0-f0a4d4b03186")
+		(uuid "727bc2a7-80bb-4839-ae4b-fa9b9353a1ed")
 	)
 	(text
 		"按鍵"
-		(at 205.74 25.4 0)
+		(at 223.52 215.9 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "15f49617-6767-4593-a467-a47eea5997e6")
+		(uuid "0bb10249-67fc-4513-9212-31d859338eab")
 	)
 	(text
 		"模組接線"
-		(at 205.74 146.05 0)
+		(at 266.7 25.4 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "e33a5c87-7a70-4181-a0ae-e88fed323df8")
+		(uuid "1536acbd-19dc-4e4d-a384-0a99054d6481")
 	)
 	(text
 		"其他"
-		(at 205.74 223.52 0)
+		(at 266.7 102.87 0)
 		(effects (font (size 3 3)) (justify left bottom))
-		(uuid "c2cf99d8-04d2-4003-9400-f42c951fd7f2")
+		(uuid "952c6ace-0994-4449-89a0-679e0d8d9276")
 	)
 	(symbol
 		(lib_id "TES:TS-1088-AR02016")
@@ -5364,7 +5364,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9da915a1-e559-4c0a-9662-8d9eff01aa62")
+		(uuid "d5162143-20bc-481d-b985-7f8f1e5ec75f")
 		(property
 			"Reference"
 			"BOOT1"
@@ -5401,13 +5401,13 @@
 			(at 33.02 208.28 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "a5daaca2-e34f-468f-8d33-826e9da63f23"))
-		(pin "2" (uuid "dbaf7f24-4e00-462b-af4e-c0730c92103e"))
+		(pin "1" (uuid "80d1e1a8-16f8-46cb-b09a-2111a7115d1a"))
+		(pin "2" (uuid "53a1d734-a601-4701-9be3-312578904dcd"))
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "BOOT1")
 					(unit 1)
 				)
@@ -5422,7 +5422,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6bda0af2-5129-40ce-a549-9aa7a93bbbaa")
+		(uuid "e24a2da1-a384-4a35-a436-fa5035718377")
 		(property
 			"Reference"
 			"C1"
@@ -5459,12 +5459,12 @@
 			(at 29.21 120.65 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "396ab650-44f3-4b31-b5a0-c0821e415aec"))
-		(pin "2" (uuid "5b8cbe77-bc4b-46c1-96a1-00cf0fdfea5c"))
+		(pin "1" (uuid "c18f8cc0-7ad2-4701-ac41-4566c5138342"))
+		(pin "2" (uuid "eefb6811-fec9-4619-a710-49f322d07780"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C1") (unit 1))
 			)
 		)
 	)
@@ -5476,7 +5476,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c0d859b0-4861-4fb6-9439-96e880ae5ccc")
+		(uuid "19d92677-6035-470a-9f20-a6f55391c39a")
 		(property
 			"Reference"
 			"C2"
@@ -5513,12 +5513,12 @@
 			(at 30.48 185.42 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "20bf1b47-015a-4512-a217-f534f073ff08"))
-		(pin "2" (uuid "e6b269fe-baba-4d6d-801c-2e418cdc399b"))
+		(pin "1" (uuid "0502e906-3eff-4521-99ec-6a0d57667aba"))
+		(pin "2" (uuid "30db5e7e-63c5-4e48-aa5b-389773f23cf2"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C2") (unit 1))
 			)
 		)
 	)
@@ -5530,7 +5530,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9133752a-82cb-481e-9243-dd740927e320")
+		(uuid "72ea1f8b-7a4c-46da-9abd-02eab9581ed4")
 		(property
 			"Reference"
 			"C3"
@@ -5567,12 +5567,12 @@
 			(at 30.48 132.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "2580163b-ac02-4544-95dd-99ed7a777485"))
-		(pin "2" (uuid "b81dafeb-2127-4a0c-9f27-66f019994953"))
+		(pin "1" (uuid "3f5dbd51-eda1-4392-a65f-e5f1a4393a5a"))
+		(pin "2" (uuid "e83060e6-3be0-41f5-b458-048e29197c5f"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C3") (unit 1))
 			)
 		)
 	)
@@ -5584,7 +5584,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7599468f-9707-4716-b409-5fa49d7bf3d3")
+		(uuid "14cef847-68dc-4a6b-8538-000197b8d350")
 		(property
 			"Reference"
 			"C4"
@@ -5621,120 +5621,120 @@
 			(at 30.48 198.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "751c86ee-f729-4cd8-be5e-f19ef3a97a9e"))
-		(pin "2" (uuid "7d6f483d-3776-4d95-bd09-e7147d909403"))
+		(pin "1" (uuid "e4999ea4-1665-4a82-86b4-6bda2100458f"))
+		(pin "2" (uuid "0fdd67af-5d44-46cf-9635-38f39222e377"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C4") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C4") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CL10A105KB8NNNC")
-		(at 104.14 302.26 0)
+		(at 167.64 102.87 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a7768e83-8117-4411-8bff-ca860496a49c")
+		(uuid "ef79626c-c317-471e-a526-1867f4d506ab")
 		(property
 			"Reference"
 			"C7"
-			(at 104.14 297.18 0)
+			(at 167.64 97.79 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CL10A105KB8NNNC"
-			(at 104.14 307.34 0)
+			(at 167.64 107.95 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 104.14 302.26 0)
+			(at 167.64 102.87 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10A105KB8NNNC_1uF-105-10-50V_C15849.html"
-			(at 104.14 302.26 0)
+			(at 167.64 102.87 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CL10A105KB8NNNC"
-			(at 104.14 302.26 0)
+			(at 167.64 102.87 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C15849"
-			(at 104.14 302.26 0)
+			(at 167.64 102.87 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "56410f79-5e15-47cd-ba0e-255e467bcaa9"))
-		(pin "2" (uuid "3d608114-267a-4f2d-9ef4-a712a945154f"))
+		(pin "1" (uuid "6164d4bc-132a-402d-8560-fd6d6ad2a257"))
+		(pin "2" (uuid "a2337e4b-f03e-4c00-a512-044176f53cde"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C7") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C7") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CL10A105KB8NNNC")
-		(at 104.14 332.74 0)
+		(at 167.64 153.67 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fc06a0f2-3e9c-464b-944d-e334665bcf8e")
+		(uuid "e0949abb-0c4a-47b6-92e7-e9dc2efc74e2")
 		(property
 			"Reference"
 			"C8"
-			(at 104.14 327.66 0)
+			(at 167.64 148.59 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CL10A105KB8NNNC"
-			(at 104.14 337.82 0)
+			(at 167.64 158.75 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 104.14 332.74 0)
+			(at 167.64 153.67 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_SAMSUNG_CL10A105KB8NNNC_1uF-105-10-50V_C15849.html"
-			(at 104.14 332.74 0)
+			(at 167.64 153.67 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CL10A105KB8NNNC"
-			(at 104.14 332.74 0)
+			(at 167.64 153.67 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C15849"
-			(at 104.14 332.74 0)
+			(at 167.64 153.67 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "685bdd55-c212-4c69-9d3d-7f894d0c7e32"))
-		(pin "2" (uuid "96190436-673b-49c2-82a3-cba008d8cb88"))
+		(pin "1" (uuid "be53d991-dd12-4398-9b86-3b4113498f92"))
+		(pin "2" (uuid "e70be17b-1593-416e-86cc-b77ef6f5db99"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C8") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C8") (unit 1))
 			)
 		)
 	)
@@ -5746,7 +5746,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2af3244d-4173-45e6-a597-3d59fc5af44d")
+		(uuid "d7a76d47-0ebb-4ee0-b2e7-06bc66a0bd33")
 		(property
 			"Reference"
 			"C9"
@@ -5783,12 +5783,12 @@
 			(at 29.21 325.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "2506eacd-9739-450f-b173-694a13cb6fd5"))
-		(pin "2" (uuid "8ef14bf3-fc06-48b3-97d0-80d18de834b7"))
+		(pin "1" (uuid "ba2450d9-56ee-4380-97a5-482b7a004c69"))
+		(pin "2" (uuid "b74cb996-3112-4018-97f5-dd217452e8cf"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C9") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C9") (unit 1))
 			)
 		)
 	)
@@ -5800,7 +5800,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "45f247bc-cfa0-4631-ac5e-722c61dca28a")
+		(uuid "278a4b5e-1bb4-4764-9098-4ac4648d980d")
 		(property
 			"Reference"
 			"C10"
@@ -5837,12 +5837,12 @@
 			(at 29.21 143.51 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "e59c7c51-f47a-40e4-aabc-d72e8d7e3a14"))
-		(pin "2" (uuid "c719583f-8e8d-4dc1-b4f0-51c4d9426486"))
+		(pin "1" (uuid "be128a0c-fbd8-47e8-af38-c5517e2c7eb4"))
+		(pin "2" (uuid "38f2acbb-dbe7-4ada-a6a5-a992c880a2d8"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C10") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C10") (unit 1))
 			)
 		)
 	)
@@ -5854,7 +5854,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "70cc4aae-9701-41aa-81df-7f4f55385d88")
+		(uuid "61860bab-d113-475a-bdf6-159436ffa3cb")
 		(property
 			"Reference"
 			"C11"
@@ -5891,228 +5891,228 @@
 			(at 30.48 218.44 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "976b286c-d343-4e19-b134-71b60cb6792e"))
-		(pin "2" (uuid "4826e616-9381-445e-87c7-de8595c12ad8"))
+		(pin "1" (uuid "c58343e4-0c60-40ff-bd5a-2d799720616a"))
+		(pin "2" (uuid "84e72d71-4b69-447f-ae00-a34f18bc7536"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C11") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C11") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CC0603KRX7R9BB104")
-		(at 210.82 82.55 0)
+		(at 228.6 273.05 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c396fefe-c906-49f6-bb78-705cf7dc6113")
+		(uuid "e5357aa6-35c1-4258-83b0-0e6adb50ae9e")
 		(property
 			"Reference"
 			"C12"
-			(at 210.82 77.47 0)
+			(at 228.6 267.97 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CC0603KRX7R9BB104"
-			(at 210.82 87.63 0)
+			(at 228.6 278.13 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 210.82 82.55 0)
+			(at 228.6 273.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_100nF-104-10-50V_C14663.html"
-			(at 210.82 82.55 0)
+			(at 228.6 273.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CC0603KRX7R9BB104"
-			(at 210.82 82.55 0)
+			(at 228.6 273.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C14663"
-			(at 210.82 82.55 0)
+			(at 228.6 273.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "d9ba4d7c-ac30-49cc-a470-f3df1991ce84"))
-		(pin "2" (uuid "cb01dfac-a5ac-4ca8-a52b-78843d84cc8e"))
+		(pin "1" (uuid "98a4f297-f7da-43fd-83e8-34172dd593f3"))
+		(pin "2" (uuid "a84d6b84-49ef-413c-884a-0517ab089c48"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C12") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C12") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CC0603KRX7R9BB104")
-		(at 210.82 55.88 0)
+		(at 228.6 246.38 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "060f3848-5956-46e2-8566-f852cc8feda1")
+		(uuid "dc12e277-6dc1-4b6d-9d6c-968c2cb98f73")
 		(property
 			"Reference"
 			"C13"
-			(at 210.82 50.8 0)
+			(at 228.6 241.3 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CC0603KRX7R9BB104"
-			(at 210.82 60.96 0)
+			(at 228.6 251.46 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 210.82 55.88 0)
+			(at 228.6 246.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_100nF-104-10-50V_C14663.html"
-			(at 210.82 55.88 0)
+			(at 228.6 246.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CC0603KRX7R9BB104"
-			(at 210.82 55.88 0)
+			(at 228.6 246.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C14663"
-			(at 210.82 55.88 0)
+			(at 228.6 246.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "25741900-4790-4f2f-9a3e-56c2f07d2292"))
-		(pin "2" (uuid "722b0ada-6c49-4cbd-b995-d49496e79c6d"))
+		(pin "1" (uuid "49919627-73a5-4ed1-afb4-5de2aada8aa0"))
+		(pin "2" (uuid "8765521e-3ddc-4e8c-b3c9-230420a5e20c"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C13") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C13") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CC0603KRX7R9BB104")
-		(at 210.82 135.89 0)
+		(at 228.6 326.39 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "96c515f0-63c4-425d-82fb-efba0bfa07b0")
+		(uuid "e243233a-e60c-4c0d-9317-b1285518819c")
 		(property
 			"Reference"
 			"C14"
-			(at 210.82 130.81 0)
+			(at 228.6 321.31 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CC0603KRX7R9BB104"
-			(at 210.82 140.97 0)
+			(at 228.6 331.47 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 210.82 135.89 0)
+			(at 228.6 326.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_100nF-104-10-50V_C14663.html"
-			(at 210.82 135.89 0)
+			(at 228.6 326.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CC0603KRX7R9BB104"
-			(at 210.82 135.89 0)
+			(at 228.6 326.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C14663"
-			(at 210.82 135.89 0)
+			(at 228.6 326.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "8e5e08b5-9966-41c7-a16a-cbd550e0dff3"))
-		(pin "2" (uuid "c4fcac6b-0290-4554-aeec-a03251f2a8a4"))
+		(pin "1" (uuid "61f20786-0a14-4d1e-beb9-a75c37ed4bdb"))
+		(pin "2" (uuid "ea59b2f2-e7ca-4884-942a-9d3d17a3130b"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C14") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C14") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:CC0603KRX7R9BB104")
-		(at 210.82 109.22 0)
+		(at 228.6 299.72 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fc476ad6-8b0a-4155-ad1d-d86ea52ff142")
+		(uuid "4e2701cd-5e32-4635-9fd3-88b395480c50")
 		(property
 			"Reference"
 			"C15"
-			(at 210.82 104.14 0)
+			(at 228.6 294.64 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"CC0603KRX7R9BB104"
-			(at 210.82 114.3 0)
+			(at 228.6 304.8 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:C0603"
-			(at 210.82 109.22 0)
+			(at 228.6 299.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_100nF-104-10-50V_C14663.html"
-			(at 210.82 109.22 0)
+			(at 228.6 299.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"CC0603KRX7R9BB104"
-			(at 210.82 109.22 0)
+			(at 228.6 299.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C14663"
-			(at 210.82 109.22 0)
+			(at 228.6 299.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "345ebfb8-b95e-40a7-aef4-9258b72388d6"))
-		(pin "2" (uuid "af7a1ccc-3116-4e4a-8825-9921da0920e8"))
+		(pin "1" (uuid "00f3b539-1c29-48f8-8634-e0d27a587c31"))
+		(pin "2" (uuid "d1c562c9-b730-4f3e-9ef4-91a4993ad670"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C15") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C15") (unit 1))
 			)
 		)
 	)
@@ -6124,7 +6124,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5e7c53c5-0e99-4d2f-a981-934e598a64c3")
+		(uuid "b6efb3b8-508d-4ecf-8f1d-aac27c3f7155")
 		(property
 			"Reference"
 			"C16"
@@ -6161,12 +6161,12 @@
 			(at 29.21 289.56 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "372dcd5e-6690-4a9e-b4ef-0a1f4b63a2dd"))
-		(pin "2" (uuid "f12c22b7-2609-4077-9aea-cca29687124f"))
+		(pin "1" (uuid "a700e321-88a5-44d8-9ed5-552e33bad051"))
+		(pin "2" (uuid "f783a1bf-b27f-4f7c-8648-387c89f4b038"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C16") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C16") (unit 1))
 			)
 		)
 	)
@@ -6178,7 +6178,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "515cd1b4-bfeb-46e8-a705-f8a552b51855")
+		(uuid "11612341-3854-44d0-995a-d34d064263b2")
 		(property
 			"Reference"
 			"C17"
@@ -6215,12 +6215,12 @@
 			(at 29.21 278.13 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "2dfd2029-bdd6-409d-a7f8-768cb93a65b2"))
-		(pin "2" (uuid "a7ddc3a2-3f61-4aad-a966-d68d1c23c1c7"))
+		(pin "1" (uuid "f23cd0dd-8aa6-485a-b79e-49837a75aaa1"))
+		(pin "2" (uuid "939eba7c-860f-4be3-b449-119e75416b24"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C17") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C17") (unit 1))
 			)
 		)
 	)
@@ -6232,7 +6232,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dbab03eb-3bde-40d7-a588-a43cb87c9813")
+		(uuid "a148626f-df34-402e-a430-9f5598268ca6")
 		(property
 			"Reference"
 			"C20"
@@ -6269,12 +6269,12 @@
 			(at 30.48 300.99 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "bb7b8d5c-9f8d-4fee-8a8f-a305db4473ac"))
-		(pin "2" (uuid "594fcc79-c306-4144-8369-4bc4221b3fd8"))
+		(pin "1" (uuid "48b11bdf-05e8-4293-a470-790da0dcf12b"))
+		(pin "2" (uuid "681f658f-08d2-4e71-ab90-7f02c501f5c6"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C20") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C20") (unit 1))
 			)
 		)
 	)
@@ -6286,7 +6286,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "25b56ef2-0275-4989-a7a3-8d0f40630210")
+		(uuid "adf2945c-1be7-45fe-9a52-d5b0e195211c")
 		(property
 			"Reference"
 			"C28"
@@ -6323,12 +6323,12 @@
 			(at 30.48 154.94 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "726f0116-8be6-45c6-9229-20acdd176a7c"))
-		(pin "2" (uuid "2f67b413-7809-4947-a982-89c66b25eceb"))
+		(pin "1" (uuid "25e07f6c-bda6-40ce-b8a5-514837fc3fbf"))
+		(pin "2" (uuid "64189666-ecab-432f-b6cd-4375e2d28049"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C28") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C28") (unit 1))
 			)
 		)
 	)
@@ -6340,7 +6340,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fc8ab151-1781-4e99-a0c5-07ac564afc4b")
+		(uuid "6751cd40-fea8-40a2-a564-dca5df5b8243")
 		(property
 			"Reference"
 			"C29"
@@ -6377,66 +6377,66 @@
 			(at 30.48 313.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "62b88d1d-86c6-421c-b221-1f027dda0d1d"))
-		(pin "2" (uuid "e145f8d9-c7fa-4d3a-9222-37b484ce0301"))
+		(pin "1" (uuid "03239ce3-9c8d-4522-84d5-72632b489c75"))
+		(pin "2" (uuid "1a10d55e-0a36-4430-9142-a216ed5f250e"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "C29") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "C29") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:B2PS-VH")
-		(at 168.91 287.02 0)
+		(at 229.87 118.11 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cd85bf0b-964b-4804-af86-e718511e4155")
+		(uuid "37491539-2601-41ab-8db4-199b422f589e")
 		(property
 			"Reference"
 			"CN1"
-			(at 168.91 280.67 0)
+			(at 229.87 111.76 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"B2PS-VH"
-			(at 168.91 293.37 0)
+			(at 229.87 124.46 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:CONN-TH_B2PS-VH-LF-SN"
-			(at 168.91 287.02 0)
+			(at 229.87 118.11 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/VH-Connectors_JST_B2PS-VH-LF-SN_VHsocket-1-2P-pitch3-96mm-Curved-needle_C158007.html"
-			(at 168.91 287.02 0)
+			(at 229.87 118.11 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"B2PS-VH(LF)(SN)"
-			(at 168.91 287.02 0)
+			(at 229.87 118.11 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C158007"
-			(at 168.91 287.02 0)
+			(at 229.87 118.11 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "39b434f0-5810-4d90-aacb-d0f299472c18"))
-		(pin "2" (uuid "5e4cf155-607e-4020-89ca-103140ba9b32"))
+		(pin "1" (uuid "d81b7eef-646e-42fd-ac48-218e759bdd56"))
+		(pin "2" (uuid "642e68b1-3d29-4d40-9fe1-69a7349e6eea"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "CN1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "CN1") (unit 1))
 			)
 		)
 	)
@@ -6448,7 +6448,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e98069f4-f2ba-46bd-9947-b811d28727ed")
+		(uuid "765a648b-c231-4fa2-8631-ed343156645b")
 		(property
 			"Reference"
 			"CN2"
@@ -6485,338 +6485,338 @@
 			(at 105.41 210.82 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "1d35cf5c-44c5-4ec3-9d48-1719695b2b4f"))
-		(pin "2" (uuid "bbe8d915-e10c-4852-b7b5-aac36316c5c5"))
-		(pin "3" (uuid "3a8c145d-eac8-4339-84e3-8a5e0bde0017"))
-		(pin "4" (uuid "24e5969b-ba1c-43ea-bb2d-f5aff817a323"))
+		(pin "1" (uuid "932daea4-2775-4d8c-9305-894f1569d5c8"))
+		(pin "2" (uuid "a5fbb56b-7192-4d64-9c70-2fbc79b0a856"))
+		(pin "3" (uuid "db1a5cff-a6eb-40ef-9d01-49b8e471431d"))
+		(pin "4" (uuid "8826cb67-361b-4274-b0bf-f7e1c5c7a46d"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "CN2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "CN2") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:DG381-3.5-02P-14-00A")
-		(at 166.37 90.17 0)
+		(at 166.37 261.62 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "abbe98c4-aa66-4569-8b0a-9c8955a2bb6e")
+		(uuid "de7db601-452d-4f4b-832f-9361d75da326")
 		(property
 			"Reference"
 			"CN3"
-			(at 166.37 83.82 0)
+			(at 166.37 255.27 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"DG381-3.5-02P-14-00A"
-			(at 166.37 96.52 0)
+			(at 166.37 267.97 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A"
-			(at 166.37 90.17 0)
+			(at 166.37 261.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C5272864.pdf"
-			(at 166.37 90.17 0)
+			(at 166.37 261.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"DG381-3.5-02P-14-00A(H)"
-			(at 166.37 90.17 0)
+			(at 166.37 261.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C5272864"
-			(at 166.37 90.17 0)
+			(at 166.37 261.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "0261324e-3a71-403d-88cf-ff7d6f1feb7e"))
-		(pin "2" (uuid "4a0e9ac1-65b4-4523-a89d-7141fff671e2"))
+		(pin "1" (uuid "f72b4e9e-c283-459e-bb38-d1fbf4fdb622"))
+		(pin "2" (uuid "2c8db4a0-97b8-476b-a484-61bd4bc8f749"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "CN3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "CN3") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:DG381-3.5-02P-14-00A")
-		(at 166.37 105.41 0)
+		(at 166.37 276.86 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "631a523d-37a9-4e38-a19e-3d9dca445043")
+		(uuid "9f042a94-b600-464e-a078-c4a50cdeccff")
 		(property
 			"Reference"
 			"CN5"
-			(at 166.37 99.06 0)
+			(at 166.37 270.51 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"DG381-3.5-02P-14-00A"
-			(at 166.37 111.76 0)
+			(at 166.37 283.21 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A"
-			(at 166.37 105.41 0)
+			(at 166.37 276.86 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C5272864.pdf"
-			(at 166.37 105.41 0)
+			(at 166.37 276.86 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"DG381-3.5-02P-14-00A(H)"
-			(at 166.37 105.41 0)
+			(at 166.37 276.86 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C5272864"
-			(at 166.37 105.41 0)
+			(at 166.37 276.86 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "c2ffea22-108a-41ee-8dc8-6d6850c83cb4"))
-		(pin "2" (uuid "8ee9074c-dfa7-4d20-a823-4d8fd3f8ba96"))
+		(pin "1" (uuid "c8dc9287-029c-406c-9ba0-22f062079d90"))
+		(pin "2" (uuid "787e9be0-8c06-4c96-8adc-4946fb05058a"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "CN5") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "CN5") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:DG381-3.5-02P-14-00A")
-		(at 166.37 181.61 0)
+		(at 166.37 353.06 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "27146ff7-2223-429b-99ae-11180a9e1cdd")
+		(uuid "d3cd283e-27e2-47eb-8b08-26b83d696deb")
 		(property
 			"Reference"
 			"CN6"
-			(at 166.37 175.26 0)
+			(at 166.37 346.71 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"DG381-3.5-02P-14-00A"
-			(at 166.37 187.96 0)
+			(at 166.37 359.41 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A"
-			(at 166.37 181.61 0)
+			(at 166.37 353.06 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C5272864.pdf"
-			(at 166.37 181.61 0)
+			(at 166.37 353.06 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"DG381-3.5-02P-14-00A(H)"
-			(at 166.37 181.61 0)
+			(at 166.37 353.06 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C5272864"
-			(at 166.37 181.61 0)
+			(at 166.37 353.06 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "8e2db9c0-5687-4669-808d-e7fe36fefdcf"))
-		(pin "2" (uuid "d51e710d-5dff-4953-8c2b-573199a14bd8"))
+		(pin "1" (uuid "9ee1f37e-8c06-4ae1-a731-3af0504c7283"))
+		(pin "2" (uuid "3c2c4e5d-b985-4e20-b363-4480e5308dd8"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "CN6") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "CN6") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SS14")
-		(at 167.64 77.47 0)
+		(at 167.64 247.65 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bfe8b950-c7b6-4882-8378-c0c0ea145ce0")
+		(uuid "ca0a64a4-da7b-462d-933e-e2ad121970b7")
 		(property
 			"Reference"
 			"D1"
-			(at 167.64 72.39 0)
+			(at 167.64 243.84 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SS14"
-			(at 167.64 81.28 0)
+			(at 167.64 251.46 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SMA_L4.2-W2.6-LS5.0-RD_1"
-			(at 167.64 77.47 0)
+			(at 167.64 247.65 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Schottky-Barrier-Diodes-SBD_SS14_C2480.html"
-			(at 167.64 77.47 0)
+			(at 167.64 247.65 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"SS14"
-			(at 167.64 77.47 0)
+			(at 167.64 247.65 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C2480"
-			(at 167.64 77.47 0)
+			(at 167.64 247.65 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "6bbab29f-7139-4e60-9b9a-a95472efdb81"))
-		(pin "2" (uuid "9ea29508-0b56-4843-b3a5-ca8bda7bebee"))
+		(pin "1" (uuid "c8f2520a-6a37-4425-bbc6-4b27b5fc9e21"))
+		(pin "2" (uuid "3c35c0bc-1261-4414-a7a0-1f2cfaf4c816"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SMBJ12A_C908793")
-		(at 167.64 273.05 0)
+		(at 228.6 105.41 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ab4c27e6-c115-40ff-ba41-a7572a86e0be")
+		(uuid "a381b4b3-4167-42cb-8b0a-0783dd687f76")
 		(property
 			"Reference"
 			"D3"
-			(at 167.64 267.97 0)
+			(at 228.6 100.33 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SMBJ12A_C908793"
-			(at 167.64 278.13 0)
+			(at 228.6 110.49 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SMB_L4.6-W3.6-LS5.3-RD"
-			(at 167.64 273.05 0)
+			(at 228.6 105.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C908793.pdf"
-			(at 167.64 273.05 0)
+			(at 228.6 105.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"SMBJ12A"
-			(at 167.64 273.05 0)
+			(at 228.6 105.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C908793"
-			(at 167.64 273.05 0)
+			(at 228.6 105.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "1b39b8f6-f77f-42bb-98c3-07ccbd3190e1"))
-		(pin "2" (uuid "df1691af-d75d-4cf6-bd37-b28934b13638"))
+		(pin "1" (uuid "e19f5703-a300-4607-a1a2-bed60d30efc4"))
+		(pin "2" (uuid "99ef1aec-cb14-47bf-8019-8539c4024a1d"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D3") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SS14")
-		(at 167.64 168.91 0)
+		(at 167.64 339.09 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3a6de24c-aeb5-4dad-9b69-94aabb362cf6")
+		(uuid "3ac9f798-6d85-43dd-8020-10317321aeda")
 		(property
 			"Reference"
 			"D4"
-			(at 167.64 165.1 0)
+			(at 167.64 335.28 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SS14"
-			(at 167.64 172.72 0)
+			(at 167.64 342.9 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SMA_L4.2-W2.6-LS5.0-RD_1"
-			(at 167.64 168.91 0)
+			(at 167.64 339.09 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Schottky-Barrier-Diodes-SBD_SS14_C2480.html"
-			(at 167.64 168.91 0)
+			(at 167.64 339.09 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"SS14"
-			(at 167.64 168.91 0)
+			(at 167.64 339.09 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C2480"
-			(at 167.64 168.91 0)
+			(at 167.64 339.09 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "ab2a847e-b7ea-4ad8-8dbf-3a45dcbfe6b9"))
-		(pin "2" (uuid "35dcc353-1c9c-4ecd-81e5-215985b486fb"))
+		(pin "1" (uuid "2e92aa8c-6efd-48aa-978f-32abda84bd42"))
+		(pin "2" (uuid "ac2e0bc6-b368-4784-88ba-c1cc5bb6c606"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D4") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D4") (unit 1))
 			)
 		)
 	)
@@ -6828,7 +6828,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4f3f107c-cd7f-452e-b82d-1ab157b5b288")
+		(uuid "78fd3364-7c50-4681-a276-7732ebf2d74c")
 		(property
 			"Reference"
 			"D5"
@@ -6865,307 +6865,307 @@
 			(at 115.57 101.6 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "39a2dc7d-6065-48fa-a65d-0c4ef6aaef27"))
-		(pin "2" (uuid "b32441a3-759a-4ac2-b8bb-da53dfdf7050"))
-		(pin "3" (uuid "0a77d561-fd90-4aa1-ba19-9430f70e5b13"))
-		(pin "4" (uuid "e997c1e2-27de-4386-b494-87f91499bdbf"))
-		(pin "5" (uuid "97afa264-1b40-4dcd-8532-bd22214b9e94"))
-		(pin "6" (uuid "c10f2b17-62bd-444a-8d33-2402d1cddebd"))
+		(pin "1" (uuid "fc11e74f-a714-40f7-af30-86874073c580"))
+		(pin "2" (uuid "3c06afe7-a2fa-4e15-a3c3-d3113f6f8bf7"))
+		(pin "3" (uuid "f4a2db9a-9379-42f2-ba1a-20da1b23fe0e"))
+		(pin "4" (uuid "334c2b9f-e0bd-49b8-820e-abc62ae456b0"))
+		(pin "5" (uuid "0be344f6-c27c-48ce-bbf7-9916d2efa65c"))
+		(pin "6" (uuid "2b6dbf0f-cff2-4044-b985-89923a2459ab"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D5") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D5") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:LED-5MM")
-		(at 167.64 314.96 0)
+		(at 228.6 146.05 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "faf85f57-7461-45c8-a447-b1098dfae86e")
+		(uuid "d9482d91-5ba3-4a15-9cdd-7edba6a47abe")
 		(property
 			"Reference"
 			"D6"
-			(at 167.64 308.61 0)
+			(at 228.6 139.7 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"LED-5MM"
-			(at 167.64 321.31 0)
+			(at 228.6 152.4 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:LED-TH_BD5.8-P2.54-FD"
-			(at 167.64 314.96 0)
+			(at 228.6 146.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 167.64 314.96 0)
+			(at 228.6 146.05 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "cdb15efa-5986-4d23-ae39-cf845ee2f039"))
-		(pin "2" (uuid "a1704bac-9885-4a01-acdc-4b31912b7526"))
+		(pin "1" (uuid "71692584-04a1-42dc-94a1-86f2e2458b1c"))
+		(pin "2" (uuid "26a31e4f-feb2-4bdb-8dcd-b45ab5e48c07"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D6") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D6") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:LED-5MM")
-		(at 167.64 339.09 0)
+		(at 228.6 170.18 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b25abf3c-f41a-4e12-ac27-d28804c01cd4")
+		(uuid "3ff539b1-9f15-4c91-9e10-b5bfb8dcb3e2")
 		(property
 			"Reference"
 			"D7"
-			(at 167.64 332.74 0)
+			(at 228.6 163.83 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"LED-5MM"
-			(at 167.64 345.44 0)
+			(at 228.6 176.53 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:LED-TH_BD5.8-P2.54-FD"
-			(at 167.64 339.09 0)
+			(at 228.6 170.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 167.64 339.09 0)
+			(at 228.6 170.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "360cd509-6056-4c41-926a-b6425fa92158"))
-		(pin "2" (uuid "da40d942-8a2d-4c8c-85f5-77949df2c3df"))
+		(pin "1" (uuid "408ed90e-8d1c-4813-9bb9-f46cc638d2fb"))
+		(pin "2" (uuid "121f2072-2a13-4d91-a4eb-19322626d26e"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D7") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D7") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:LED-5MM")
-		(at 167.64 363.22 0)
+		(at 228.6 195.58 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "717219a5-c923-4b0e-b7dc-18f065daf030")
+		(uuid "26f0d65e-9a9b-4210-baba-2946f50ba06d")
 		(property
 			"Reference"
 			"D8"
-			(at 167.64 356.87 0)
+			(at 228.6 189.23 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"LED-5MM"
-			(at 167.64 369.57 0)
+			(at 228.6 201.93 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:LED-TH_BD5.8-P2.54-FD"
-			(at 167.64 363.22 0)
+			(at 228.6 195.58 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 167.64 363.22 0)
+			(at 228.6 195.58 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "bcaace7d-a7ae-4f5c-af14-ce22de5612a9"))
-		(pin "2" (uuid "77d51ac6-3f27-4f04-aace-b73d49e59027"))
+		(pin "1" (uuid "766139bf-e099-48ab-b610-72a9682697be"))
+		(pin "2" (uuid "b3908c97-4284-4768-8717-2990a74b04c5"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D8") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D8") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SMBJ12A_C908793")
-		(at 210.82 181.61 0)
+		(at 271.78 60.96 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "90435644-456d-4d9f-9d37-088ec089f6ec")
+		(uuid "404e92ba-187b-48cb-ae63-d0ba1a304124")
 		(property
 			"Reference"
 			"D9"
-			(at 210.82 176.53 0)
+			(at 271.78 55.88 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SMBJ130A"
-			(at 210.82 186.69 0)
+			(at 271.78 66.04 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SMB_L4.6-W3.6-LS5.3-RD"
-			(at 210.82 181.61 0)
+			(at 271.78 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C908793.pdf"
-			(at 210.82 181.61 0)
+			(at 271.78 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"SMBJ12A"
-			(at 210.82 181.61 0)
+			(at 271.78 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C908793"
-			(at 210.82 181.61 0)
+			(at 271.78 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "0fbed835-dbe7-4620-b85d-c762cb8e8145"))
-		(pin "2" (uuid "4490e2b8-06f8-42ae-b0a5-6bee7425a160"))
+		(pin "1" (uuid "ddfbfb90-d02d-4327-8467-7df8ba1e2d3f"))
+		(pin "2" (uuid "66a5791f-72c7-4825-ad02-e92bd18da064"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D9") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D9") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SMBJ12A_C908793")
-		(at 210.82 213.36 0)
+		(at 271.78 92.71 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7593b1a1-2d73-40a9-bea1-495e4fa47395")
+		(uuid "78377cb5-33ac-45b9-9187-594cae93433d")
 		(property
 			"Reference"
 			"D10"
-			(at 210.82 208.28 0)
+			(at 271.78 87.63 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SMBJ13A"
-			(at 210.82 218.44 0)
+			(at 271.78 97.79 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SMB_L4.6-W3.6-LS5.3-RD"
-			(at 210.82 213.36 0)
+			(at 271.78 92.71 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C908793.pdf"
-			(at 210.82 213.36 0)
+			(at 271.78 92.71 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"SMBJ12A"
-			(at 210.82 213.36 0)
+			(at 271.78 92.71 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C908793"
-			(at 210.82 213.36 0)
+			(at 271.78 92.71 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "83144ec8-f952-408f-bea0-c3cb9fcf15ad"))
-		(pin "2" (uuid "54ecb4af-758a-4363-886a-9fdb83fda822"))
+		(pin "1" (uuid "b0fddab5-86d7-4d01-8d26-a9981757957b"))
+		(pin "2" (uuid "94b090b0-c28f-44fe-a7ca-d88a97ad59d7"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "D10") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "D10") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:TS-1187A-B-A-B")
-		(at 210.82 123.19 0)
+		(at 228.6 313.69 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4d5e546c-c902-4657-866e-c8f201faf8d0")
+		(uuid "855d03fd-9d39-4961-a4cc-646f2c8b6aae")
 		(property
 			"Reference"
 			"EMERGENCY1"
-			(at 210.82 116.84 0)
+			(at 228.6 307.34 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"TS-1187A-B-A-B"
-			(at 210.82 129.54 0)
+			(at 228.6 320.04 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5"
-			(at 210.82 123.19 0)
+			(at 228.6 313.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Tactile-Switches_XKB-Enterprise-TS-1187-B-A-A_C318884.html"
-			(at 210.82 123.19 0)
+			(at 228.6 313.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"TS-1187A-B-A-B"
-			(at 210.82 123.19 0)
+			(at 228.6 313.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C318884"
-			(at 210.82 123.19 0)
+			(at 228.6 313.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "e8deb273-a62a-4625-bda4-dcc2fea6c79d"))
-		(pin "2" (uuid "03c1fefc-9157-45fb-a1fa-7cde76a654d1"))
-		(pin "3" (uuid "bb394571-bc6f-486a-a74c-c4275ff9f646"))
-		(pin "4" (uuid "dea393c6-7150-4603-a1a5-0b7d2cbb0f78"))
+		(pin "1" (uuid "a5ee7078-1239-4108-b3d5-b3a73e8369f4"))
+		(pin "2" (uuid "7b05a266-9c74-4af0-a0fb-294be9a92434"))
+		(pin "3" (uuid "158fce52-0a80-494a-8ad3-fa6d20dc1d16"))
+		(pin "4" (uuid "0bbf9692-23a3-4a08-a318-f5b78156895d"))
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "EMERGENCY1")
 					(unit 1)
 				)
@@ -7180,7 +7180,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3ce7d6d0-10c9-4a7b-891e-d32f6788c202")
+		(uuid "a02b7d8b-2efc-4f4f-9821-ed270f02b676")
 		(property
 			"Reference"
 			"EN1"
@@ -7217,319 +7217,319 @@
 			(at 33.02 175.26 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "2801314e-caaa-4b1a-b186-d5d897aa2486"))
-		(pin "2" (uuid "26cd9033-2275-4c1e-9c3b-12892e464ca8"))
+		(pin "1" (uuid "86864cae-b19d-41c4-bb40-10ff14f4f6df"))
+		(pin "2" (uuid "a914a4c2-64f8-48e5-9f62-ecbd3c35182e"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "EN1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "EN1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:HDR-1X4")
-		(at 101.6 363.22 0)
+		(at 165.1 182.88 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c84804e6-cb3f-4bd3-9abc-e3b9ff7b784a")
+		(uuid "ef9942bd-f580-46ba-880b-6b2dd05e3e37")
 		(property
 			"Reference"
 			"H1"
-			(at 101.6 355.6 0)
+			(at 165.1 175.26 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"HDR-1X4"
-			(at 101.6 370.84 0)
+			(at 165.1 190.5 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:HDR-TH_4P-P2.54-V-F"
-			(at 101.6 363.22 0)
+			(at 165.1 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 101.6 363.22 0)
+			(at 165.1 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "06d9a53b-d466-4efb-8dbc-86027cf01905"))
-		(pin "2" (uuid "a305af53-4a99-423c-9f44-cb82a3abcf72"))
-		(pin "3" (uuid "9ec6e563-7d94-43d8-aa37-1b825ff80955"))
-		(pin "4" (uuid "109d0056-65e0-456c-8e7e-bb3e7bfe1ea7"))
+		(pin "1" (uuid "94543f47-808d-4056-b54a-2bf20b085df7"))
+		(pin "2" (uuid "130f2145-7de1-4599-983b-09f8451f1491"))
+		(pin "3" (uuid "9e95e39a-a5ba-4590-ad5c-bb795dd685c2"))
+		(pin "4" (uuid "08e1ee45-d509-4788-aa4f-17cd44497520"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "H1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "H1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:HDR-1X3")
-		(at 208.28 240.03 0)
+		(at 269.24 119.38 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4b1730eb-9a8c-4f4b-9f93-521bedeb0f52")
+		(uuid "24b1bca8-65b4-46bf-9b68-4e406a36b97e")
 		(property
 			"Reference"
 			"H2"
-			(at 208.28 233.68 0)
+			(at 269.24 113.03 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"HDR-1X3"
-			(at 208.28 246.38 0)
+			(at 269.24 125.73 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:HDR-TH_3P-P2.54-V-F"
-			(at 208.28 240.03 0)
+			(at 269.24 119.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 208.28 240.03 0)
+			(at 269.24 119.38 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "bae13cc8-c78c-474f-91fb-7a0401c6fb1d"))
-		(pin "2" (uuid "74f0484d-4ce7-4599-b2a4-e74f148b5fe1"))
-		(pin "3" (uuid "956eee53-782a-4ccc-87e0-9d63fe6d89c3"))
+		(pin "1" (uuid "5daf4265-ee69-413f-85d2-7e75c1141f95"))
+		(pin "2" (uuid "73afd8be-6cd9-463f-925b-7c3d8a6dc64e"))
+		(pin "3" (uuid "e153232c-7a68-43e2-8a70-c6faca2606e7"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "H2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "H2") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:AO3400A")
-		(at 167.64 43.18 0)
+		(at 167.64 213.36 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b49a54dd-51c4-4ade-849e-ff3f4eb2a586")
+		(uuid "df955aa4-e8e4-4a54-8b8f-24be12091473")
 		(property
 			"Reference"
 			"Q1"
-			(at 167.64 35.56 0)
+			(at 167.64 205.74 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"AO3400A"
-			(at 167.64 50.8 0)
+			(at 167.64 220.98 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR"
-			(at 167.64 43.18 0)
+			(at 167.64 213.36 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/MOSFET_AOS_AO3400A_AO3400A_C20917.html"
-			(at 167.64 43.18 0)
+			(at 167.64 213.36 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"AO3400A"
-			(at 167.64 43.18 0)
+			(at 167.64 213.36 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C20917"
-			(at 167.64 43.18 0)
+			(at 167.64 213.36 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "1275ee94-81e8-4d8d-96a6-b2aacdaa7cff"))
-		(pin "2" (uuid "ae6dcad5-fc16-47a3-9810-6bb21ad9800d"))
-		(pin "3" (uuid "ce6e82fe-536f-4eee-b966-e3b2bfe99221"))
+		(pin "1" (uuid "e4c0fab6-0348-4faa-80f2-7525db03a8c8"))
+		(pin "2" (uuid "422d4ebf-5565-4267-a7b1-fcc1a8c4825c"))
+		(pin "3" (uuid "b41559b3-f728-482d-84ee-12ea117ba9cf"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "Q1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "Q1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:AO3400A")
-		(at 167.64 210.82 0)
+		(at 228.6 43.18 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ec50037b-cda6-476c-8a3d-03f95be48008")
+		(uuid "f98c3ce5-7d5e-4f13-9664-c71bde4af3d7")
 		(property
 			"Reference"
 			"Q2"
-			(at 167.64 203.2 0)
+			(at 228.6 35.56 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"AO3400A"
-			(at 167.64 218.44 0)
+			(at 228.6 50.8 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR"
-			(at 167.64 210.82 0)
+			(at 228.6 43.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/MOSFET_AOS_AO3400A_AO3400A_C20917.html"
-			(at 167.64 210.82 0)
+			(at 228.6 43.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"AO3400A"
-			(at 167.64 210.82 0)
+			(at 228.6 43.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C20917"
-			(at 167.64 210.82 0)
+			(at 228.6 43.18 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "04150a46-05c6-4904-89bc-d4b4dbda0fd8"))
-		(pin "2" (uuid "9c04d8a7-cf62-4cf7-8e8c-53a0b10f7d10"))
-		(pin "3" (uuid "b355e283-4cb0-4436-8b6e-0a51ddb507ad"))
+		(pin "1" (uuid "6ef834dd-4f22-4fc6-862c-35dc0a71f96c"))
+		(pin "2" (uuid "78142197-92f8-4742-af5a-8fe30dccc45c"))
+		(pin "3" (uuid "ab7f6ccc-b95f-4043-ba5e-1f8f273ef9ad"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "Q2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "Q2") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:AO3400A")
-		(at 167.64 134.62 0)
+		(at 167.64 306.07 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "45abfe04-7816-42d0-a62b-6892c68f1c8b")
+		(uuid "db83eb19-518a-42b1-8afd-485428c4413c")
 		(property
 			"Reference"
 			"Q3"
-			(at 167.64 127 0)
+			(at 167.64 298.45 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"AO3400A"
-			(at 167.64 142.24 0)
+			(at 167.64 313.69 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR"
-			(at 167.64 134.62 0)
+			(at 167.64 306.07 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/MOSFET_AOS_AO3400A_AO3400A_C20917.html"
-			(at 167.64 134.62 0)
+			(at 167.64 306.07 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"AO3400A"
-			(at 167.64 134.62 0)
+			(at 167.64 306.07 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C20917"
-			(at 167.64 134.62 0)
+			(at 167.64 306.07 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "94d04592-c0c3-45eb-8552-d01d86d78cd7"))
-		(pin "2" (uuid "c7c4822b-bc40-4d6a-8e0c-37c8fa485e74"))
-		(pin "3" (uuid "165c8ee3-625d-4ba2-9621-0d50dd396df5"))
+		(pin "1" (uuid "e0a1c5a7-3ee8-4aad-aeae-5496e8eb7d94"))
+		(pin "2" (uuid "33732efe-9321-4e7d-9fa3-0d7d4eba7818"))
+		(pin "3" (uuid "5fab66b2-6157-4c90-9359-9219e45f0d49"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "Q3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "Q3") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:AO3401A")
-		(at 167.64 228.6 0)
+		(at 228.6 60.96 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fd531fa1-8e17-4e8b-ae93-7a7b3e85168d")
+		(uuid "607f0925-6991-40a7-8c61-e082b60f6e31")
 		(property
 			"Reference"
 			"Q4"
-			(at 167.64 220.98 0)
+			(at 228.6 53.34 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"AO3401A"
-			(at 167.64 236.22 0)
+			(at 228.6 68.58 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOT-23_L2.9-W1.3-P1.90-LS2.4-BR"
-			(at 167.64 228.6 0)
+			(at 228.6 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/MOSFET_AOS_AO3401A_AO3401A_C15127.html"
-			(at 167.64 228.6 0)
+			(at 228.6 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"AO3401A"
-			(at 167.64 228.6 0)
+			(at 228.6 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C15127"
-			(at 167.64 228.6 0)
+			(at 228.6 60.96 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "affcce76-3084-4da1-8f69-9a3652f00005"))
-		(pin "2" (uuid "b1ac4410-2e73-4380-aaa7-470f54301423"))
-		(pin "3" (uuid "d27bcb4e-ca35-4dc7-a2df-291e4ba97c53"))
+		(pin "1" (uuid "3da4456c-9fde-43c0-b377-4baaea05c56f"))
+		(pin "2" (uuid "69298f7c-d869-4d2b-9689-63e736a74f20"))
+		(pin "3" (uuid "86ffa581-b6bb-4412-a87c-ee0b04dce363"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "Q4") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "Q4") (unit 1))
 			)
 		)
 	)
@@ -7541,7 +7541,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1131fe18-a550-474f-aeec-3047eddd2c4b")
+		(uuid "852aaab3-fd56-449b-b9d4-0e11880e91e9")
 		(property
 			"Reference"
 			"R1"
@@ -7578,12 +7578,12 @@
 			(at 30.48 166.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "df48d121-084d-42fd-8dfa-71a9b0058e92"))
-		(pin "2" (uuid "d5b116bd-0bf8-4f51-8536-35fea5370bbb"))
+		(pin "1" (uuid "51dd5a84-ec05-4d9a-836b-7db2df7c81c3"))
+		(pin "2" (uuid "b28bf503-ff94-4882-957b-3b3d3affeeb8"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R1") (unit 1))
 			)
 		)
 	)
@@ -7595,7 +7595,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "69e7a293-3bc6-4c91-9d3e-7ae7c9ec0f76")
+		(uuid "2c7a2bb6-0fe7-4fa2-9009-58846261d866")
 		(property
 			"Reference"
 			"R2"
@@ -7632,12 +7632,12 @@
 			(at 104.14 142.24 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "265d3d34-2f2b-463a-86f1-d682eda4b40d"))
-		(pin "2" (uuid "2f18bcb8-5a9d-4727-9288-81f67c16324f"))
+		(pin "1" (uuid "0a46cc48-f65e-49be-9470-a91612d5c8bd"))
+		(pin "2" (uuid "ac82fb71-ab38-47a6-bbd1-46a7ded4d802"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R2") (unit 1))
 			)
 		)
 	)
@@ -7649,7 +7649,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "79e01538-4366-404a-9496-864c2cf95073")
+		(uuid "2e4d1ea5-e29a-4b35-9bc2-1d2a80c67887")
 		(property
 			"Reference"
 			"R3"
@@ -7686,714 +7686,714 @@
 			(at 104.14 152.4 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "c67fe79a-6f2f-4daa-954e-4d8ed8e7f35d"))
-		(pin "2" (uuid "5882b297-9b1b-40dc-9d60-0b31cc256caf"))
+		(pin "1" (uuid "680aaa67-c091-45a1-a2b5-faaada538c8f"))
+		(pin "2" (uuid "413d9ba7-ac38-433b-9619-504901745681"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R3") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 104.14 261.62 0)
+		(at 167.64 62.23 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7b845af4-5cb3-47ca-8a48-5f294225e04a")
+		(uuid "fe0a032f-2006-4436-9ea3-c61bb05a7c7d")
 		(property
 			"Reference"
 			"R5"
-			(at 104.14 257.81 0)
+			(at 167.64 58.42 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 104.14 265.43 0)
+			(at 167.64 66.04 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 104.14 261.62 0)
+			(at 167.64 62.23 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 104.14 261.62 0)
+			(at 167.64 62.23 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 104.14 261.62 0)
+			(at 167.64 62.23 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 104.14 261.62 0)
+			(at 167.64 62.23 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "80ec86b2-504c-4c36-81fc-a1cbb6440b8d"))
-		(pin "2" (uuid "c1a3bfe9-95cf-46da-a82c-fdacbd057775"))
+		(pin "1" (uuid "882ee01b-dea9-40e5-af37-e7f0ebea41ab"))
+		(pin "2" (uuid "9bf8c2fb-b98d-45bd-9049-a39e20e68b00"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R5") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R5") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 104.14 270.51 0)
+		(at 167.64 71.12 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9a767908-72ff-410a-a85a-bcf1f2604743")
+		(uuid "3d1a8cda-75ad-4172-8f00-4f68b5b6a75b")
 		(property
 			"Reference"
 			"R6"
-			(at 104.14 266.7 0)
+			(at 167.64 67.31 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 104.14 274.32 0)
+			(at 167.64 74.93 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 104.14 270.51 0)
+			(at 167.64 71.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 104.14 270.51 0)
+			(at 167.64 71.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 104.14 270.51 0)
+			(at 167.64 71.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 104.14 270.51 0)
+			(at 167.64 71.12 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "ea4e6d03-8369-41ad-ac73-4100923fb294"))
-		(pin "2" (uuid "57c5baa6-0eee-4a5c-bd01-7b1738ee6e47"))
+		(pin "1" (uuid "477e5438-9da1-44f4-8632-2914b102132f"))
+		(pin "2" (uuid "43eb1657-0365-49d9-825a-490ee8c7fb89"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R6") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R6") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:FRP1206F51R0TS")
-		(at 104.14 280.67 0)
+		(at 167.64 81.28 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ffadf4c7-9ecc-4187-96ba-aeddad45f76a")
+		(uuid "4f74eff0-4543-4ab9-a648-0d62c0de6b8a")
 		(property
 			"Reference"
 			"R8"
-			(at 104.14 276.86 0)
+			(at 167.64 77.47 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"FRP1206F51R0TS"
-			(at 104.14 284.48 0)
+			(at 167.64 85.09 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R1206"
-			(at 104.14 280.67 0)
+			(at 167.64 81.28 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C7468320.pdf"
-			(at 104.14 280.67 0)
+			(at 167.64 81.28 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"FRP1206F51R0TS"
-			(at 104.14 280.67 0)
+			(at 167.64 81.28 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C7468320"
-			(at 104.14 280.67 0)
+			(at 167.64 81.28 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "39f55fc1-b96a-4022-be21-f51a7fa92557"))
-		(pin "2" (uuid "697e3696-8586-4332-8a98-d29913cb2026"))
+		(pin "1" (uuid "2a8a1527-d60b-4622-83d0-4e35de76139c"))
+		(pin "2" (uuid "ef6bf2fe-c78b-46dd-ba72-7323e45f1283"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R8") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R8") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:FRC1210F1500TS")
-		(at 104.14 290.83 0)
+		(at 167.64 91.44 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f7cdfd74-8766-4174-a9d3-8d1d7e58c9f3")
+		(uuid "835aec58-10bb-488c-b3d1-c5df07ba3acd")
 		(property
 			"Reference"
 			"R9"
-			(at 104.14 287.02 0)
+			(at 167.64 87.63 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"FRC1210F1500TS"
-			(at 104.14 294.64 0)
+			(at 167.64 95.25 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R1210"
-			(at 104.14 290.83 0)
+			(at 167.64 91.44 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C2933805.pdf"
-			(at 104.14 290.83 0)
+			(at 167.64 91.44 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"FRC1210F1500TS"
-			(at 104.14 290.83 0)
+			(at 167.64 91.44 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C2933805"
-			(at 104.14 290.83 0)
+			(at 167.64 91.44 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "b2dae5a2-35c2-41fd-a27b-841f7344ec38"))
-		(pin "2" (uuid "4ddc0378-bc6b-4a71-9749-f3b6a3925a0a"))
+		(pin "1" (uuid "b5bfa65f-ebde-483e-8f88-26d691b8820b"))
+		(pin "2" (uuid "00c18006-8989-4661-8b7b-2801c6e78039"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R9") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R9") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:RT0603BRD07348KL")
-		(at 104.14 312.42 0)
+		(at 167.64 113.03 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2a505420-9adf-4f28-b7e2-c87b2982168f")
+		(uuid "989fbc72-0e65-49bd-9657-d7d1cfce32f4")
 		(property
 			"Reference"
 			"R10"
-			(at 104.14 308.61 0)
+			(at 167.64 109.22 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
-			"RT0603BRD07348KL"
-			(at 104.14 316.23 0)
+			"118k"
+			(at 167.64 116.84 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 104.14 312.42 0)
+			(at 167.64 113.03 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C861336.pdf"
-			(at 104.14 312.42 0)
+			(at 167.64 113.03 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"RT0603BRD07348KL"
-			(at 104.14 312.42 0)
+			(at 167.64 113.03 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C861336"
-			(at 104.14 312.42 0)
+			(at 167.64 113.03 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "32975c99-c4ba-4696-82f1-0460d1fef10b"))
-		(pin "2" (uuid "7cb73b0e-db97-4f4d-b008-404040befbe5"))
+		(pin "1" (uuid "a50dcc94-fcc2-4f73-8cf7-dc2e863357b0"))
+		(pin "2" (uuid "8e38a75f-c7c2-4843-9724-38bd02055396"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R10") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R10") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:RT0603BRD0712KL")
-		(at 104.14 322.58 0)
+		(at 167.64 142.24 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "44636ce2-71a0-4a5a-8f3e-709f87029b9c")
+		(uuid "5e0ce2f6-a5b9-4cb2-a8ab-17c62dc13b59")
 		(property
 			"Reference"
 			"R11"
-			(at 104.14 318.77 0)
+			(at 167.64 138.43 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"RT0603BRD0712KL"
-			(at 104.14 326.39 0)
+			(at 167.64 146.05 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 104.14 322.58 0)
+			(at 167.64 142.24 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Others_YAGEO-RT0603BRD0712KL_C326735.html"
-			(at 104.14 322.58 0)
+			(at 167.64 142.24 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"RT0603BRD0712KL"
-			(at 104.14 322.58 0)
+			(at 167.64 142.24 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C326735"
-			(at 104.14 322.58 0)
+			(at 167.64 142.24 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "aa1ee5dd-7cfa-4bd4-a5a9-ac619cf031ca"))
-		(pin "2" (uuid "f2641cc0-e783-4d7f-a729-76eb202164aa"))
+		(pin "1" (uuid "013b56ac-0d67-4b8d-94c0-ef8949ad7ed6"))
+		(pin "2" (uuid "33555103-356c-4056-ba24-70b4ab04e86d"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R11") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R11") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:RC0603FR-07430RL")
-		(at 167.64 375.92 0)
+		(at 228.6 207.01 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bdcdf374-9fdc-4982-95d9-7f8959ea7999")
+		(uuid "6c667885-523a-4ef4-81c7-ac4ffbc35e1b")
 		(property
 			"Reference"
 			"R12"
-			(at 167.64 372.11 0)
+			(at 228.6 203.2 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"RC0603FR-07430RL"
-			(at 167.64 379.73 0)
+			(at 228.6 210.82 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 375.92 0)
+			(at 228.6 207.01 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/_RC0603FR-07430RL_C137721.html"
-			(at 167.64 375.92 0)
+			(at 228.6 207.01 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"RC0603FR-07430RL"
-			(at 167.64 375.92 0)
+			(at 228.6 207.01 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C137721"
-			(at 167.64 375.92 0)
+			(at 228.6 207.01 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "4bc5e84f-6037-4a62-bbef-600734e50bcf"))
-		(pin "2" (uuid "196f5cc0-07f8-42c4-8fae-6fac2b604e2e"))
+		(pin "1" (uuid "ae6876b9-b68f-4f83-a6d8-4253a8b999b2"))
+		(pin "2" (uuid "d1920655-61ab-4bf8-b506-e8b6a23f061f"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R12") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R12") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF4700T5E")
-		(at 167.64 326.39 0)
+		(at 228.6 158.75 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9a3858c7-23f3-4c4e-b1be-1a977f6d6cef")
+		(uuid "73624f52-1a30-4ff8-b2de-8194af1e14cd")
 		(property
 			"Reference"
 			"R13"
-			(at 167.64 322.58 0)
+			(at 228.6 154.94 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF4700T5E"
-			(at 167.64 330.2 0)
+			(at 228.6 162.56 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 326.39 0)
+			(at 228.6 158.75 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_470R-4700-1_C23179.html"
-			(at 167.64 326.39 0)
+			(at 228.6 158.75 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF4700T5E"
-			(at 167.64 326.39 0)
+			(at 228.6 158.75 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C23179"
-			(at 167.64 326.39 0)
+			(at 228.6 158.75 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "430d784a-1451-4b02-8ee3-01a70037d7ed"))
-		(pin "2" (uuid "eefb1552-2e5d-4c83-a8b6-a69cc2ae70a7"))
+		(pin "1" (uuid "d19535a9-c33e-46d9-8077-c3648919f91a"))
+		(pin "2" (uuid "9dd6dc63-0fd9-4142-88a2-b69a8523c67d"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R13") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R13") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF5100T5E")
-		(at 167.64 351.79 0)
+		(at 228.6 182.88 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e35386a7-5ee6-4858-ac86-2539fc4cc4e2")
+		(uuid "b5cb2f50-4801-41f6-8978-b0171c5fb03e")
 		(property
 			"Reference"
 			"R14"
-			(at 167.64 347.98 0)
+			(at 228.6 179.07 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF5100T5E"
-			(at 167.64 355.6 0)
+			(at 228.6 186.69 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 351.79 0)
+			(at 228.6 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_510R-5100-1_C23193.html"
-			(at 167.64 351.79 0)
+			(at 228.6 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF5100T5E"
-			(at 167.64 351.79 0)
+			(at 228.6 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C23193"
-			(at 167.64 351.79 0)
+			(at 228.6 182.88 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "47419c9c-125d-44b5-af2d-9bf754f74b20"))
-		(pin "2" (uuid "bc51c6e3-04d5-4126-88e4-0863185142bf"))
+		(pin "1" (uuid "e58fc737-544b-4609-a035-6db5d7f15a1a"))
+		(pin "2" (uuid "5bfe9a01-d31f-48dc-9155-8b46c7d43027"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R14") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R14") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1000T5E")
-		(at 167.64 242.57 0)
+		(at 228.6 74.93 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "575523ce-69f2-4c20-a9b7-16fcc3e186d6")
+		(uuid "547f6c17-7d2f-4386-a8fb-6e5e7f077e7f")
 		(property
 			"Reference"
 			"R16"
-			(at 167.64 238.76 0)
+			(at 228.6 71.12 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1000T5E"
-			(at 167.64 246.38 0)
+			(at 228.6 78.74 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 242.57 0)
+			(at 228.6 74.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_100R-1000-1_C22775.html"
-			(at 167.64 242.57 0)
+			(at 228.6 74.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1000T5E"
-			(at 167.64 242.57 0)
+			(at 228.6 74.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C22775"
-			(at 167.64 242.57 0)
+			(at 228.6 74.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "7b22b1f3-92a2-46ea-b7aa-2b2ba0bbe56c"))
-		(pin "2" (uuid "5045d70a-19d5-4657-8258-ae16eba069d5"))
+		(pin "1" (uuid "4e3581e2-1ae2-408d-80c5-1d6b248aef00"))
+		(pin "2" (uuid "596b3f1a-a859-4cac-9c16-5285c2e120c9"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R16") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R16") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 167.64 252.73 0)
+		(at 228.6 83.82 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e9de8c79-4165-430d-a7af-8d31ff0004c2")
+		(uuid "41389a3f-0edd-4918-91a4-9d9efc3304d2")
 		(property
 			"Reference"
 			"R17"
-			(at 167.64 248.92 0)
+			(at 228.6 80.01 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 167.64 256.54 0)
+			(at 228.6 87.63 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 252.73 0)
+			(at 228.6 83.82 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 167.64 252.73 0)
+			(at 228.6 83.82 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 167.64 252.73 0)
+			(at 228.6 83.82 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 167.64 252.73 0)
+			(at 228.6 83.82 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "1180b789-6b57-458a-aff9-8ee3e264f312"))
-		(pin "2" (uuid "bcb4947b-c726-4e90-b5a2-eefe815b5f87"))
+		(pin "1" (uuid "55273541-49ca-47f8-a02c-e3c95b3ea878"))
+		(pin "2" (uuid "134a9dfb-6212-4432-be49-bdf9f0ecf557"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R17") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R17") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1000T5E")
-		(at 167.64 57.15 0)
+		(at 167.64 227.33 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "90b89d68-ab02-45b1-971f-0732e849cf49")
+		(uuid "84807171-3618-4ff4-9426-51cd642314c0")
 		(property
 			"Reference"
 			"R19"
-			(at 167.64 53.34 0)
+			(at 167.64 223.52 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1000T5E"
-			(at 167.64 60.96 0)
+			(at 167.64 231.14 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 57.15 0)
+			(at 167.64 227.33 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_100R-1000-1_C22775.html"
-			(at 167.64 57.15 0)
+			(at 167.64 227.33 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1000T5E"
-			(at 167.64 57.15 0)
+			(at 167.64 227.33 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C22775"
-			(at 167.64 57.15 0)
+			(at 167.64 227.33 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "9fea505f-f443-4a1d-a191-8a38dcea0a50"))
-		(pin "2" (uuid "8f3e31ef-5a37-4fec-bfdc-076b7fbe9bb2"))
+		(pin "1" (uuid "e8d9c4ba-3253-46fa-9047-808c152e5d91"))
+		(pin "2" (uuid "23298514-9e70-4bdc-9781-1fc9722a4bec"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R19") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R19") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 167.64 66.04 0)
+		(at 167.64 237.49 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0ce0be57-1aa9-4284-b7dd-798a31d5723a")
+		(uuid "bc8cc254-e38b-4c37-87ec-062df142a7b0")
 		(property
 			"Reference"
 			"R20"
-			(at 167.64 62.23 0)
+			(at 167.64 233.68 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 167.64 69.85 0)
+			(at 167.64 241.3 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 66.04 0)
+			(at 167.64 237.49 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 167.64 66.04 0)
+			(at 167.64 237.49 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 167.64 66.04 0)
+			(at 167.64 237.49 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 167.64 66.04 0)
+			(at 167.64 237.49 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "8710f748-1a17-46d9-a087-1e52bdb467b4"))
-		(pin "2" (uuid "eeb15b84-6e4d-467d-a96e-b1465ec3cdb6"))
+		(pin "1" (uuid "2a875737-a0a3-40cf-9003-89413f9d634d"))
+		(pin "2" (uuid "06627e0d-bab8-45f7-8a98-e6ec4e5f3c4b"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R20") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R20") (unit 1))
 			)
 		)
 	)
@@ -8405,7 +8405,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1b1c4d6e-74e8-446e-bf1b-f1aaf6452e62")
+		(uuid "3faf61e3-e55b-471b-b581-4c9b1fc1fc16")
 		(property
 			"Reference"
 			"R21"
@@ -8442,174 +8442,174 @@
 			(at 104.14 195.58 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "76adb47b-3a93-453a-9b1e-e387cefbe09c"))
-		(pin "2" (uuid "9f7ffe54-8d61-47e5-9d50-30591a087a48"))
+		(pin "1" (uuid "92063930-a542-4a18-9e18-bf8c867f8711"))
+		(pin "2" (uuid "3d1df0c1-7c51-4f1d-949d-5233103cced0"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R21") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R21") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 167.64 261.62 0)
+		(at 228.6 93.98 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "393b8456-fa40-460a-99af-f7ac9ce9f2af")
+		(uuid "3eef8c3f-9d3d-441f-ab71-a1edb17ba7d8")
 		(property
 			"Reference"
 			"R26"
-			(at 167.64 257.81 0)
+			(at 228.6 90.17 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 167.64 265.43 0)
+			(at 228.6 97.79 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 261.62 0)
+			(at 228.6 93.98 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 167.64 261.62 0)
+			(at 228.6 93.98 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 167.64 261.62 0)
+			(at 228.6 93.98 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 167.64 261.62 0)
+			(at 228.6 93.98 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "dd42baaf-b6fd-4887-86cc-a9302a9d1619"))
-		(pin "2" (uuid "6bb2f8e0-931f-4c65-b161-fe289d20112e"))
+		(pin "1" (uuid "4e1dc5ae-df84-4867-acda-267d4e2c7d7c"))
+		(pin "2" (uuid "a7479ec2-a21d-4c64-9e7a-3fc8bf338efa"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R26") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R26") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1002T5E")
-		(at 167.64 148.59 0)
+		(at 167.64 318.77 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cd8e499e-90ab-40d6-ba58-6c8156b67ba7")
+		(uuid "35001fe6-2d2d-4d36-aa6c-32a3b1257abe")
 		(property
 			"Reference"
 			"R28"
-			(at 167.64 144.78 0)
+			(at 167.64 314.96 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1002T5E"
-			(at 167.64 152.4 0)
+			(at 167.64 322.58 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 148.59 0)
+			(at 167.64 318.77 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
-			(at 167.64 148.59 0)
+			(at 167.64 318.77 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1002T5E"
-			(at 167.64 148.59 0)
+			(at 167.64 318.77 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C25804"
-			(at 167.64 148.59 0)
+			(at 167.64 318.77 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "2ed4977f-191b-474f-b7f1-63f067471914"))
-		(pin "2" (uuid "572b5c89-6364-42e8-85f5-c2153932ac56"))
+		(pin "1" (uuid "b274d057-3ba7-4405-880a-6dc5d4c70d12"))
+		(pin "2" (uuid "fdf53fa9-adda-4b94-81ba-33faf54406fe"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R28") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R28") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:0603WAF1000T5E")
-		(at 167.64 158.75 0)
+		(at 167.64 328.93 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "aa20dcf7-4fb3-4263-8db3-ccb3b4df339f")
+		(uuid "5fcb01d1-9f01-4920-9cff-9c6b17de5a85")
 		(property
 			"Reference"
 			"R29"
-			(at 167.64 154.94 0)
+			(at 167.64 325.12 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"0603WAF1000T5E"
-			(at 167.64 162.56 0)
+			(at 167.64 332.74 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:R0603"
-			(at 167.64 158.75 0)
+			(at 167.64 328.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_100R-1000-1_C22775.html"
-			(at 167.64 158.75 0)
+			(at 167.64 328.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"0603WAF1000T5E"
-			(at 167.64 158.75 0)
+			(at 167.64 328.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C22775"
-			(at 167.64 158.75 0)
+			(at 167.64 328.93 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "e6d25fbc-2db6-4924-a4a3-5cdd4df241c6"))
-		(pin "2" (uuid "77855ca7-9e1d-4eeb-a05b-1384a62e180f"))
+		(pin "1" (uuid "2c81016d-9f44-404b-83da-ce2483e7432b"))
+		(pin "2" (uuid "0217479e-00e5-432c-b479-74a03ed72371"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R29") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R29") (unit 1))
 			)
 		)
 	)
@@ -8621,7 +8621,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "338a4e65-bafd-489a-aba8-0511364ba312")
+		(uuid "d1e9ebf2-778c-4989-94f6-f62b49bdd112")
 		(property
 			"Reference"
 			"R30"
@@ -8658,12 +8658,12 @@
 			(at 104.14 123.19 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "33efc41c-0f9b-47a6-9186-71c3ae04fe10"))
-		(pin "2" (uuid "5f141cb1-5005-4650-b2b1-391eb476da24"))
+		(pin "1" (uuid "1152a737-527b-462d-b766-fe4feb19c072"))
+		(pin "2" (uuid "3503edc7-d0ee-47f2-b1af-13f087da7d3b"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R30") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R30") (unit 1))
 			)
 		)
 	)
@@ -8675,7 +8675,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b4b010fd-5440-445d-88e5-19d7ddf273c2")
+		(uuid "a22e27cf-8005-4510-92f6-8233265bdbb3")
 		(property
 			"Reference"
 			"R31"
@@ -8712,12 +8712,12 @@
 			(at 104.14 132.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "3757f5c7-e043-42ee-8860-0fc8c9264305"))
-		(pin "2" (uuid "bc409da2-9e0b-4465-830a-4ccd41adb4b6"))
+		(pin "1" (uuid "39a9cbfb-f5db-4033-9ba5-462a07faadcd"))
+		(pin "2" (uuid "fd989e1d-5b88-4a54-b5b7-4f23bd29463d"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R31") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R31") (unit 1))
 			)
 		)
 	)
@@ -8729,7 +8729,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "88478844-12a1-4296-8de8-5b928c7f11e7")
+		(uuid "54d5bcd5-6868-460e-87ee-c510720ee573")
 		(property
 			"Reference"
 			"R32"
@@ -8766,12 +8766,120 @@
 			(at 30.48 229.87 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "3a611069-3c11-47c3-8019-11755c7de811"))
-		(pin "2" (uuid "f99a8448-cef7-4542-bf7e-56d07e3c5335"))
+		(pin "1" (uuid "d29ca8d8-faec-490c-a2af-aa7b3e4335aa"))
+		(pin "2" (uuid "b6b365f7-c7fc-4326-aa0e-a348c9b6a81f"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "R32") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R32") (unit 1))
+			)
+		)
+	)
+	(symbol
+		(lib_id "TES:0603WAF1002T5E")
+		(at 167.64 123.19 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c0ec28a5-6ab9-438b-aac8-9c228f2ddef6")
+		(property
+			"Reference"
+			"R33"
+			(at 167.64 119.38 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Value"
+			"115k"
+			(at 167.64 127 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Footprint"
+			"TES:R0603"
+			(at 167.64 123.19 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
+			(at 167.64 123.19 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"MPN"
+			"0603WAF1002T5E"
+			(at 167.64 123.19 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"LCSC Part"
+			"C25804"
+			(at 167.64 123.19 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "d281af58-d0c4-4b22-a1b8-343cb49d5f13"))
+		(pin "2" (uuid "b732a91f-ebfa-40ea-82e6-90fb738becce"))
+		(instances
+			(project
+				"TES_Controller"
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R33") (unit 1))
+			)
+		)
+	)
+	(symbol
+		(lib_id "TES:0603WAF1002T5E")
+		(at 167.64 133.35 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7d6529d3-e8f7-4eff-be93-15a36fb02787")
+		(property
+			"Reference"
+			"R34"
+			(at 167.64 129.54 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Value"
+			"115k"
+			(at 167.64 137.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Footprint"
+			"TES:R0603"
+			(at 167.64 133.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			"https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount-UniOhm_10KR-1002-1_C25804.html"
+			(at 167.64 133.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"MPN"
+			"0603WAF1002T5E"
+			(at 167.64 133.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"LCSC Part"
+			"C25804"
+			(at 167.64 133.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "04063552-130f-4886-bbbf-40526fcdbb78"))
+		(pin "2" (uuid "8e74325a-4788-49fa-a053-719a72097526"))
+		(instances
+			(project
+				"TES_Controller"
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "R34") (unit 1))
 			)
 		)
 	)
@@ -8783,7 +8891,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ed0b3a0f-173c-4909-ad9c-f02d02496a4a")
+		(uuid "ba03e3a7-ab91-4259-898b-3ec3195d93fe")
 		(property
 			"Reference"
 			"SB1"
@@ -8820,69 +8928,69 @@
 			(at 30.48 353.06 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "59ac512e-8cae-4b39-8e2e-de981eb8f211"))
-		(pin "2" (uuid "d63e6b8b-dce2-4fc3-9273-8a0494ecb6a6"))
+		(pin "1" (uuid "7b9b56ce-7ab4-4220-9e1c-c3bd13c73442"))
+		(pin "2" (uuid "498a306d-f58e-40ad-81c5-74dc16634c63"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "SB1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "SB1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:TS-1187A-B-A-B")
-		(at 210.82 95.25 0)
+		(at 228.6 287.02 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "94baecc3-f14d-4ff8-b381-c3a1fb3249ce")
+		(uuid "ef43ffc7-8daf-4fd8-9b27-c500cc795bf0")
 		(property
 			"Reference"
 			"SETTING1"
-			(at 210.82 88.9 0)
+			(at 228.6 280.67 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"TS-1187A-B-A-B"
-			(at 210.82 101.6 0)
+			(at 228.6 293.37 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5"
-			(at 210.82 95.25 0)
+			(at 228.6 287.02 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Tactile-Switches_XKB-Enterprise-TS-1187-B-A-A_C318884.html"
-			(at 210.82 95.25 0)
+			(at 228.6 287.02 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"TS-1187A-B-A-B"
-			(at 210.82 95.25 0)
+			(at 228.6 287.02 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C318884"
-			(at 210.82 95.25 0)
+			(at 228.6 287.02 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "3c09e28c-7172-4e42-84a4-1995e9358f7d"))
-		(pin "2" (uuid "4d20e47d-0ed6-430f-a6f8-cf03633ed112"))
-		(pin "3" (uuid "2d7c9acc-6d3b-4c30-8801-627b22a7b914"))
-		(pin "4" (uuid "c8deadb0-1b40-451f-b958-fe314c76604d"))
+		(pin "1" (uuid "89a28b7e-79c4-4d0e-8185-cec5794ec194"))
+		(pin "2" (uuid "2c618540-b0e3-4d77-a7a0-193551d27eae"))
+		(pin "3" (uuid "2688f6c2-5324-4a1f-9e9b-93d7aa741e8d"))
+		(pin "4" (uuid "ee6bff9e-fb13-4c60-baa8-2c6c726f0322"))
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "SETTING1")
 					(unit 1)
 				)
@@ -8891,58 +8999,58 @@
 	)
 	(symbol
 		(lib_id "TES:TS-1187A-B-A-B")
-		(at 210.82 41.91 0)
+		(at 228.6 232.41 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0fa956f7-3e14-4ff3-869a-b5c334f70941")
+		(uuid "d7be79b6-88ed-4390-a787-5101e081431a")
 		(property
 			"Reference"
 			"START1"
-			(at 210.82 35.56 0)
+			(at 228.6 226.06 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"TS-1187A-B-A-B"
-			(at 210.82 48.26 0)
+			(at 228.6 238.76 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5"
-			(at 210.82 41.91 0)
+			(at 228.6 232.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Tactile-Switches_XKB-Enterprise-TS-1187-B-A-A_C318884.html"
-			(at 210.82 41.91 0)
+			(at 228.6 232.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"TS-1187A-B-A-B"
-			(at 210.82 41.91 0)
+			(at 228.6 232.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C318884"
-			(at 210.82 41.91 0)
+			(at 228.6 232.41 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "6852cd80-2f04-497a-8ada-39d8e6893dac"))
-		(pin "2" (uuid "2dcd287e-db38-4e82-b35b-e2331537e8a1"))
-		(pin "3" (uuid "6e8c099a-9b4f-4dda-8063-884c787df5f9"))
-		(pin "4" (uuid "a357977d-559d-44cb-9c18-171a8ad07ed9"))
+		(pin "1" (uuid "145ebd5b-5793-4080-8bd3-f2aed94a16a9"))
+		(pin "2" (uuid "c78c774b-3817-448b-b44c-0e587014d33d"))
+		(pin "3" (uuid "5cdaa657-5345-46c4-936b-34af3a2d34e0"))
+		(pin "4" (uuid "80620cda-7a09-490c-9d0d-30d36e051cda"))
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "START1")
 					(unit 1)
 				)
@@ -8951,58 +9059,58 @@
 	)
 	(symbol
 		(lib_id "TES:TS-1187A-B-A-B")
-		(at 210.82 68.58 0)
+		(at 228.6 259.08 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c9a8e3e5-69c1-48a8-9b41-9ccc18081ffe")
+		(uuid "7d2cf82b-288b-41b4-b03c-a8f5538522fc")
 		(property
 			"Reference"
 			"STOP1"
-			(at 210.82 62.23 0)
+			(at 228.6 252.73 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"TS-1187A-B-A-B"
-			(at 210.82 74.93 0)
+			(at 228.6 265.43 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5"
-			(at 210.82 68.58 0)
+			(at 228.6 259.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Tactile-Switches_XKB-Enterprise-TS-1187-B-A-A_C318884.html"
-			(at 210.82 68.58 0)
+			(at 228.6 259.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"TS-1187A-B-A-B"
-			(at 210.82 68.58 0)
+			(at 228.6 259.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C318884"
-			(at 210.82 68.58 0)
+			(at 228.6 259.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "6084f7e6-790f-4716-b2e1-1db81b3f7c7f"))
-		(pin "2" (uuid "14ab2622-b620-4c5e-8acb-07619839f520"))
-		(pin "3" (uuid "7382713e-ab4f-4055-a0e1-3b9e9f30edff"))
-		(pin "4" (uuid "4ff324fe-2c36-4388-bffb-7b0026a46b0d"))
+		(pin "1" (uuid "6e0978dd-d15b-4952-aff5-93ad35d5f99e"))
+		(pin "2" (uuid "8416977c-724e-4e55-b6f5-ca99ca3d190b"))
+		(pin "3" (uuid "c9719789-22da-48e3-b3ac-fea8315b0d23"))
+		(pin "4" (uuid "7a664ec9-d1d7-40a8-92d9-b35a760a23a2"))
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "STOP1")
 					(unit 1)
 				)
@@ -9017,7 +9125,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "55eab680-564a-4c2e-beeb-3b30e42677bc")
+		(uuid "7f73df87-449f-4fea-aae9-ec2204fb1207")
 		(property
 			"Reference"
 			"U1"
@@ -9054,113 +9162,113 @@
 			(at 46.99 73.66 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "30f0477e-02ac-47a2-aadb-28a7c0e59993"))
-		(pin "10" (uuid "a6a49f28-23df-466a-a6e7-fe73a94efa58"))
-		(pin "11" (uuid "ce74038f-fce7-4faf-af68-3a0bc8eabf57"))
-		(pin "12" (uuid "91b75f04-ef77-49ec-9cc6-8c3d5cf1607b"))
-		(pin "13" (uuid "96e376bc-6b52-432b-8863-477b8889625f"))
-		(pin "14" (uuid "1d4b112d-32e5-418f-b867-37daf1bb3e30"))
-		(pin "15" (uuid "30f354a9-e76f-4d63-938c-3bd7af3a18d3"))
-		(pin "16" (uuid "88d9f908-0883-48e2-ad8e-b9206701197c"))
-		(pin "17" (uuid "afebf300-45af-4108-92a5-90362b6c18bb"))
-		(pin "18" (uuid "5423232d-5958-421e-a27f-b44f474b680d"))
-		(pin "19" (uuid "0086b725-a777-4765-a942-60554f95e75c"))
-		(pin "2" (uuid "0a578006-e52c-4eb7-aa41-9d4ec50b6f2a"))
-		(pin "20" (uuid "39cef395-ace1-40d2-be3a-de1330c26367"))
-		(pin "21" (uuid "9ab46fdb-5851-4f1e-b2ed-541cb5c11142"))
-		(pin "22" (uuid "3207406e-ab1f-4e2a-8a61-f1ffcba4bbad"))
-		(pin "23" (uuid "9d8fc993-b804-4f75-8bcd-98fa6ca82046"))
-		(pin "24" (uuid "f0a76fda-5341-4f64-88c8-6154bdfb7258"))
-		(pin "25" (uuid "d16ebcd5-9889-472f-9f24-61c8dabf69c6"))
-		(pin "26" (uuid "7c825377-4347-4bb8-beef-c936f04a9b7e"))
-		(pin "27" (uuid "49fb2fe5-5d16-4d62-979f-aa4901bdde1f"))
-		(pin "28" (uuid "70fc8e92-70cf-42cd-98cc-d113f8ffcc19"))
-		(pin "29" (uuid "fc43fe83-a673-42ea-b4ea-1eb9fc004b91"))
-		(pin "3" (uuid "2d4be16c-8617-4e51-99a9-d03eb8aed16f"))
-		(pin "30" (uuid "d565e331-122f-4d5b-888d-31f21f65d8c2"))
-		(pin "31" (uuid "32a986b7-e612-441a-a49b-8e64b7785fb3"))
-		(pin "32" (uuid "dff4209f-4882-4495-ba43-cb2897d96673"))
-		(pin "33" (uuid "9fa36b1d-b588-4cec-aab7-330ea786e313"))
-		(pin "34" (uuid "d961b7aa-32fa-43f7-8718-c949f59fa027"))
-		(pin "35" (uuid "ae835823-5d35-47bb-9c77-81cfb6e1d704"))
-		(pin "36" (uuid "eda0b528-60d6-4942-af33-a3b9be0a8f7e"))
-		(pin "37" (uuid "9ee20dea-fc2b-4fa9-94bc-f4a880f3e102"))
-		(pin "38" (uuid "62737c43-7077-493c-9b30-11b3be257a79"))
-		(pin "39" (uuid "ef7f56da-2f9c-450b-969b-082cd15c33df"))
-		(pin "4" (uuid "99ce6350-28a2-448e-bcd2-b01ac3cabd93"))
-		(pin "40" (uuid "848b37b0-811e-47ad-a16c-733dbd104586"))
-		(pin "41" (uuid "0e941ebd-3d03-447d-96d6-8b9346acce70"))
-		(pin "5" (uuid "06b42b43-aefb-49a0-94bd-025430a4f157"))
-		(pin "6" (uuid "152f3405-567c-4607-a78a-ad9cb4a3729a"))
-		(pin "7" (uuid "e49dc69a-3bb3-459d-94d9-8b6b5f50a1bd"))
-		(pin "8" (uuid "ac5cc2dd-b66a-4372-8084-041b3a433bca"))
-		(pin "9" (uuid "7adbd577-ef24-4b24-80a1-9708693cb02c"))
+		(pin "1" (uuid "b5cf771e-8f2b-4544-a107-74448bf6953c"))
+		(pin "10" (uuid "964951ca-872c-42eb-8c47-e5d64544196f"))
+		(pin "11" (uuid "5a030d9f-074a-4415-9c80-8c93a2e315bb"))
+		(pin "12" (uuid "25bcaa8d-e1e5-482c-a8d4-edec22ab1feb"))
+		(pin "13" (uuid "819648a3-abe5-4035-ae84-fd50ce075eb0"))
+		(pin "14" (uuid "04a04d32-9861-4619-b881-95bceed2b804"))
+		(pin "15" (uuid "5f14e241-56ba-421d-b5f8-273264a9a11a"))
+		(pin "16" (uuid "d9abfba6-1e94-44f5-9c55-69073a18c879"))
+		(pin "17" (uuid "59474833-676b-47c8-a724-74290b7c38b6"))
+		(pin "18" (uuid "6b26f27b-338a-4f7c-8de8-cdf04ee900a6"))
+		(pin "19" (uuid "294ee1f3-5fb9-4918-b608-bea524e041d5"))
+		(pin "2" (uuid "56bf1bfc-f630-477c-b737-0caf376a3aee"))
+		(pin "20" (uuid "2b288a5c-c1de-416a-a227-11d8653b9b85"))
+		(pin "21" (uuid "eb70f508-135a-4fcd-a1f3-12a59e4c96f9"))
+		(pin "22" (uuid "aee75497-d0b4-4d23-83af-410ca11785c0"))
+		(pin "23" (uuid "92fa73b2-e177-4bac-ac85-f43ecc76d1fc"))
+		(pin "24" (uuid "a11c79ba-3461-4be3-af92-94cde5584421"))
+		(pin "25" (uuid "cd8c799c-f19d-40aa-9905-c2696f47f9d2"))
+		(pin "26" (uuid "964ca81d-1825-4dc9-8085-bc5c448a14a2"))
+		(pin "27" (uuid "582ebd61-b029-43c0-8ee4-2b2065be3152"))
+		(pin "28" (uuid "d523af81-816a-4325-ad9f-678fb971dffc"))
+		(pin "29" (uuid "0cf0e0b4-2c6e-4a0b-a031-0251a2832fb5"))
+		(pin "3" (uuid "c13613ee-69fb-4576-a2d1-dd8fb4faa475"))
+		(pin "30" (uuid "a2d49be5-ec7b-4019-a0a3-c6f3b65d6e65"))
+		(pin "31" (uuid "874a2925-2161-4bec-b0ad-acb329396e62"))
+		(pin "32" (uuid "50c46b38-94c4-438d-9659-15adcf8a5f27"))
+		(pin "33" (uuid "ddbe7b2d-876c-44f3-85c6-8d649e1d88d5"))
+		(pin "34" (uuid "68466909-deed-43ef-8882-c9e9ab6e610c"))
+		(pin "35" (uuid "349a0871-532c-4c60-8bad-4c9cefd701dc"))
+		(pin "36" (uuid "ea70f17b-0a94-4f03-a3ec-a87981228535"))
+		(pin "37" (uuid "3a570992-eead-425b-81b6-1df0f9cf4af1"))
+		(pin "38" (uuid "c9858403-8da5-4fd8-9afc-701b0fad0f53"))
+		(pin "39" (uuid "d3665c0e-8679-4070-b55b-2cf63e7072dd"))
+		(pin "4" (uuid "539efe1e-7f4f-4e9a-a00c-b59735c52736"))
+		(pin "40" (uuid "614576e0-634e-47fd-af1d-8ca03e5c3f0e"))
+		(pin "41" (uuid "b074ca8b-d85c-4780-a0d3-201b5114348c"))
+		(pin "5" (uuid "0589f39e-2631-4c18-9fe0-17e035f0e0c8"))
+		(pin "6" (uuid "487c1de9-81e6-487e-b195-ccfa38de0456"))
+		(pin "7" (uuid "061b860f-69a5-41c0-af24-536895488e1b"))
+		(pin "8" (uuid "69c4fd6e-3fde-4377-abaf-7990ec5d3fb3"))
+		(pin "9" (uuid "a1af5ede-7adb-4851-813e-a7b823da3e37"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:ADS1115IDGSR")
-		(at 114.3 245.11 0)
+		(at 177.8 45.72 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f63ff5cd-d85b-4c4e-aee1-b0fa41769d22")
+		(uuid "4e1bc3e6-b329-494e-90d1-6aae2b977fec")
 		(property
 			"Reference"
 			"U5"
-			(at 114.3 234.95 0)
+			(at 177.8 35.56 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"ADS1115IDGSR"
-			(at 114.3 255.27 0)
+			(at 177.8 55.88 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:MSOP-10_L3.0-W3.0-P0.50-LS5.0-BL"
-			(at 114.3 245.11 0)
+			(at 177.8 45.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://lcsc.com/product-detail/Analog-To-Digital-Converters-ADCs_TI_ADS1115IDGSR_ADS1115IDGSR_C37593.html"
-			(at 114.3 245.11 0)
+			(at 177.8 45.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"ADS1115IDGSR"
-			(at 114.3 245.11 0)
+			(at 177.8 45.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C37593"
-			(at 114.3 245.11 0)
+			(at 177.8 45.72 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "65848e66-899e-4d36-ac83-7237e11f0d55"))
-		(pin "10" (uuid "9030762c-1431-4d1a-be62-e1dea9112d63"))
-		(pin "2" (uuid "a4540e67-cb06-4600-878c-97ad113f8b48"))
-		(pin "3" (uuid "0072a494-cb60-4e8d-b1c1-e61a1b39ee64"))
-		(pin "4" (uuid "2d692cca-4989-4457-a0dc-a2a414ad14d0"))
-		(pin "5" (uuid "d831427c-6d00-4a27-a648-a01ca386a2cc"))
-		(pin "6" (uuid "74887025-2d76-4316-8efa-bdf478fb54f8"))
-		(pin "7" (uuid "9194db1d-1fd7-4cf3-8907-ffcdd62f332c"))
-		(pin "8" (uuid "ff7cc83b-2d7d-4942-a29b-50055e08d65d"))
-		(pin "9" (uuid "2f0acd44-d74a-408f-85b9-35503e518757"))
+		(pin "1" (uuid "01272d9b-ff36-4503-a57f-624b53dce315"))
+		(pin "10" (uuid "cb6cbe86-4dea-4398-ba75-6c02002228cc"))
+		(pin "2" (uuid "cd7e87c3-85d5-4850-8e48-ad86e7bc77dc"))
+		(pin "3" (uuid "13c14afc-f4c0-4c29-a0c7-6ce7c21f6428"))
+		(pin "4" (uuid "8ff4de1c-41de-43d4-b7f5-1f4da18cb2f6"))
+		(pin "5" (uuid "b813a561-633b-4642-96ee-419c52674423"))
+		(pin "6" (uuid "e6dbbf70-fc32-4837-8060-bc787a1cb6db"))
+		(pin "7" (uuid "4028c42c-9109-42ee-91bd-1cecf12ee041"))
+		(pin "8" (uuid "ce87cecb-aba6-4e23-9327-0dbaf24e2ff4"))
+		(pin "9" (uuid "5251dca0-13a3-4476-956d-5c213532335f"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U5") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U5") (unit 1))
 			)
 		)
 	)
@@ -9172,7 +9280,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8f9e5042-3d6d-41b5-af1f-b260e207e175")
+		(uuid "854a9574-4d80-4b5d-96bf-7e60a9ec6ab2")
 		(property
 			"Reference"
 			"U6"
@@ -9209,14 +9317,14 @@
 			(at 36.83 339.09 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "3bb478ae-c965-4210-b816-5d703fe9725e"))
-		(pin "2" (uuid "2e1bf91f-12f3-4f0f-9dfc-57397e0c7531"))
-		(pin "3" (uuid "e3f04720-a3b4-4de3-a185-f3028eadd3eb"))
-		(pin "4" (uuid "fb33cd08-cfaf-47cd-b2fa-5805fa6be95d"))
+		(pin "1" (uuid "fd3fcbad-c51b-4d66-8960-840fa2c38b79"))
+		(pin "2" (uuid "690ebbb6-f617-4871-a761-5764865a44a6"))
+		(pin "3" (uuid "056e8a4f-ea57-4a85-bc3b-402706b8ccd7"))
+		(pin "4" (uuid "4a147019-ef56-4818-ba2c-e3be674ad0e7"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U6") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U6") (unit 1))
 			)
 		)
 	)
@@ -9228,7 +9336,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1ef47586-7728-421b-a739-cf602cfb9bfe")
+		(uuid "b1aa8769-c6e5-496a-9db5-c64b4da7dad4")
 		(property
 			"Reference"
 			"U8"
@@ -9265,75 +9373,75 @@
 			(at 40.64 259.08 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "7319d0e1-e4a4-4fb4-ab79-ca452407caa1"))
-		(pin "10" (uuid "f78b7303-ad37-4eb3-a746-3c056bd34697"))
-		(pin "11" (uuid "ab6eaa75-9bad-44b7-a1f5-3f0c09e53467"))
-		(pin "2" (uuid "2b08e148-538f-4b9d-b80a-e69d8c55fcf8"))
-		(pin "3" (uuid "d5eeaede-48ee-48d3-ad3c-f757b4c78af7"))
-		(pin "4" (uuid "b911aa6b-4a9e-49de-a42a-707bdd62e3a4"))
-		(pin "5" (uuid "731feeeb-3497-45ce-9932-d6879caa83ca"))
-		(pin "6" (uuid "67ede979-f700-4e43-8be4-d84670d929b0"))
-		(pin "7" (uuid "d1c25f27-0451-41bb-93fc-91e34519235e"))
-		(pin "8" (uuid "24631723-3ad2-4415-9dda-cef87212696c"))
-		(pin "9" (uuid "c3e2efaf-1c1f-4df2-ac75-ed957ba7ac93"))
+		(pin "1" (uuid "f2894361-6fe4-4f7b-ab44-0cbebc37640b"))
+		(pin "10" (uuid "7f8b1cae-6abf-4fb3-98d6-100dacb4fca6"))
+		(pin "11" (uuid "54907c53-c74c-491a-98ef-6b3795bbff5a"))
+		(pin "2" (uuid "a837924f-bcf4-4e3f-892f-39e15d129b33"))
+		(pin "3" (uuid "cb344afe-aab6-4dea-9113-ec717a782398"))
+		(pin "4" (uuid "d4599da2-9f63-4a41-9e37-8f6b36740081"))
+		(pin "5" (uuid "b28ab6f1-cca4-419a-8487-f13b16f9af68"))
+		(pin "6" (uuid "e99a930b-620e-4a3e-aeb4-ff16c55d51c1"))
+		(pin "7" (uuid "34582f5c-2b08-49a6-9bef-a65d8b5b840c"))
+		(pin "8" (uuid "0d469191-c387-42a1-8c0a-11c4f85c4475"))
+		(pin "9" (uuid "80d2fb47-ab70-4a17-9a43-33a64fc11905"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U8") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U8") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:DG301-5.0-02P-14-00A")
-		(at 102.87 346.71 0)
+		(at 166.37 166.37 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8b1157f8-7672-42f3-a2c9-ae53dc3fa819")
+		(uuid "510d62bb-4eeb-4d6a-8810-c2a578dc79d6")
 		(property
 			"Reference"
 			"U10"
-			(at 102.87 340.36 0)
+			(at 166.37 160.02 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"DG301-5.0-02P-14-00A"
-			(at 102.87 353.06 0)
+			(at 166.37 172.72 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:CONN-TH_DEGSON_DG301-5.0-02P"
-			(at 102.87 346.71 0)
+			(at 166.37 166.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			"https://www.lcsc.com/datasheet/C5128812.pdf"
-			(at 102.87 346.71 0)
+			(at 166.37 166.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"MPN"
 			"DG301-5.0-02P-14-00A(H)"
-			(at 102.87 346.71 0)
+			(at 166.37 166.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"LCSC Part"
 			"C5128812"
-			(at 102.87 346.71 0)
+			(at 166.37 166.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "f3ba8eb9-ec3e-4522-93f1-667d702438ce"))
-		(pin "2" (uuid "c0a39cb6-f681-40a3-a508-4c55691f29f0"))
+		(pin "1" (uuid "49cc60c7-8e1c-47cd-923c-d8640849e321"))
+		(pin "2" (uuid "0a7154cd-5fd0-414a-966d-a0d076b254c9"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U10") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U10") (unit 1))
 			)
 		)
 	)
@@ -9345,7 +9453,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "31b58b99-a1ff-4e2e-ae56-ba05bb60742e")
+		(uuid "1b18f3e3-d760-4a94-b541-3b8a960df6a6")
 		(property
 			"Reference"
 			"U12"
@@ -9382,18 +9490,18 @@
 			(at 109.22 180.34 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "cb6b1f52-315d-4dfe-b906-0ea1e15749f9"))
-		(pin "2" (uuid "6913032f-37fb-473d-bb1e-da6cb4f2a327"))
-		(pin "3" (uuid "7590c81a-7171-4e3c-9b7c-b855fc13b085"))
-		(pin "4" (uuid "1c46f275-0b1c-4424-83c0-ba915e79a95d"))
-		(pin "5" (uuid "59289c1a-57c2-427f-8d5e-a597bc68282c"))
-		(pin "6" (uuid "d17b5dbd-1f8a-43bb-a345-503fdf09d2a2"))
-		(pin "7" (uuid "178af875-958b-436f-abf2-13049b80117d"))
-		(pin "8" (uuid "759ab3a4-b4ee-403c-b164-ef6c04ff8742"))
+		(pin "1" (uuid "36c5a9ac-fa6a-4d0d-b4b3-ff344c6ece9d"))
+		(pin "2" (uuid "0c46a54c-9c9a-4bf4-88bc-a824664fac15"))
+		(pin "3" (uuid "4f95cf7a-b2e7-4bcc-8288-6cb669f6a0ee"))
+		(pin "4" (uuid "80fba8a2-9d91-4977-bb6c-7fe2900aa397"))
+		(pin "5" (uuid "07467649-f694-4456-a020-9f523953e6d7"))
+		(pin "6" (uuid "55b0b258-81a0-4bf6-8119-dffa5dba5f86"))
+		(pin "7" (uuid "357d7f2c-acfc-4322-b877-470144c19be5"))
+		(pin "8" (uuid "8d33a20c-78dd-42a1-a863-87ed4333e271"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "U12") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "U12") (unit 1))
 			)
 		)
 	)
@@ -9405,7 +9513,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dff2d619-8fff-4cef-b7e3-3e3bd9b3d3a7")
+		(uuid "3d135cda-a5c5-4b29-b3e5-5c88370346a5")
 		(property
 			"Reference"
 			"USB1"
@@ -9442,190 +9550,190 @@
 			(at 106.68 59.69 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "a0ffa33c-ddfa-4fae-a79f-d51120c6b661"))
-		(pin "2" (uuid "9a7a6c03-9d39-4b9f-94a5-db2e33a9a5f5"))
-		(pin "3" (uuid "432eb25f-442c-43f1-b373-a5750bb76463"))
-		(pin "4" (uuid "ba8f74ca-014b-4a9b-975b-97f21f74ff95"))
-		(pin "A1B12" (uuid "a1935beb-aeb4-4d34-afc3-d33d14d2e992"))
-		(pin "A4B9" (uuid "6b9016d1-17ac-482e-8601-066ff6ec6b3d"))
-		(pin "A5" (uuid "76cf5e0d-c62a-49d9-8f6d-f12a2b512d05"))
-		(pin "A6" (uuid "e3f3ef98-6e2a-4add-99b9-d694f3cb7bef"))
-		(pin "A7" (uuid "a53c7738-a632-4c02-9bf4-2716c75a0ab2"))
-		(pin "A8" (uuid "93271bc6-93fe-4506-aa82-1dd042965bc1"))
-		(pin "B1A12" (uuid "434388c1-bf6d-4b7f-a1dc-bdffc8883f67"))
-		(pin "B4A9" (uuid "4980de9b-1978-47b3-89ab-152fb7719c19"))
-		(pin "B5" (uuid "4f8e884e-4d5a-4a08-a7fc-0b65e23d10c5"))
-		(pin "B6" (uuid "9c563731-eaa5-4285-be1f-a151fa394262"))
-		(pin "B7" (uuid "8f0c3a26-0d8d-4c8a-8abb-822fc1fd5cd4"))
-		(pin "B8" (uuid "082f2fe2-8809-44bf-8594-85eead1f944d"))
+		(pin "1" (uuid "18803a65-6ab3-461f-8650-3e224b5f1f6f"))
+		(pin "2" (uuid "8ad2f5d5-f2cd-4043-a481-fe4b6e682396"))
+		(pin "3" (uuid "0a8fd80e-ad71-4ecb-8f91-31148b9038f9"))
+		(pin "4" (uuid "129666a1-f083-4b89-a3f0-553fefd1a442"))
+		(pin "A1B12" (uuid "0962e0b6-284c-4a8c-befe-c09b08655fe0"))
+		(pin "A4B9" (uuid "efb53e62-5469-4c43-a92f-23cd73db86f1"))
+		(pin "A5" (uuid "917d65b9-c8ed-40f1-a0d5-f85a878d11d9"))
+		(pin "A6" (uuid "2e59fee5-a97e-4fbe-95c1-90944aa82758"))
+		(pin "A7" (uuid "6d0a156d-4cbb-4fdc-9bc8-bb68907d0948"))
+		(pin "A8" (uuid "66436a7c-c864-45ab-ac42-d3ecab07c461"))
+		(pin "B1A12" (uuid "36a3eca0-c73a-4541-b4b6-dfd79da752dc"))
+		(pin "B4A9" (uuid "e03a8d59-ec59-4fcc-9172-160d42cf5c97"))
+		(pin "B5" (uuid "1eea3daa-bf6f-41f0-8db9-47eecaf748a2"))
+		(pin "B6" (uuid "4f7929e6-2c48-4123-ab78-ff921cdbf674"))
+		(pin "B7" (uuid "377f24ac-05b9-4a00-a4d1-db9c0df5f11e"))
+		(pin "B8" (uuid "b894e8e2-cf1a-462a-8b7c-5ce73ff9bef2"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "USB1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "USB1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SOLDERPAD-1P")
-		(at 208.28 160.02 0)
+		(at 269.24 39.37 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "27ee475c-cde7-44bf-91b8-0af93b50d931")
+		(uuid "edb882b7-191b-4e63-9327-38373e1b7892")
 		(property
 			"Reference"
 			"W1"
-			(at 208.28 156.21 0)
+			(at 269.24 35.56 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SOLDERPAD-1P"
-			(at 208.28 163.83 0)
+			(at 269.24 43.18 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOLDERPAD-TH_3.0X1.5"
-			(at 208.28 160.02 0)
+			(at 269.24 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 208.28 160.02 0)
+			(at 269.24 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "79e51f1d-cf0e-4ee8-83b9-7cb09d6f0843"))
+		(pin "1" (uuid "fd9467bf-0b28-4313-b418-269b6a486b09"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "W1") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "W1") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SOLDERPAD-1P")
-		(at 208.28 191.77 0)
+		(at 269.24 72.39 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4739e23d-f5a8-461d-abf4-39dee141b98b")
+		(uuid "89a86ccc-f854-4f3e-8812-94a9e4d2207b")
 		(property
 			"Reference"
 			"W2"
-			(at 208.28 187.96 0)
+			(at 269.24 68.58 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SOLDERPAD-1P"
-			(at 208.28 195.58 0)
+			(at 269.24 76.2 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOLDERPAD-TH_3.0X1.5"
-			(at 208.28 191.77 0)
+			(at 269.24 72.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 208.28 191.77 0)
+			(at 269.24 72.39 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "28bf4be1-3b3d-4086-a18d-2da8d9ed82d2"))
+		(pin "1" (uuid "4f92e1e1-e181-4779-9b6e-b0170b721e5b"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "W2") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "W2") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SOLDERPAD-1P")
-		(at 208.28 170.18 0)
+		(at 269.24 49.53 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2d812a9e-bf74-427a-ab1b-9bc572aed8b6")
+		(uuid "2f6f2bfc-895f-4a0d-88d0-6ddf0bfa735a")
 		(property
 			"Reference"
 			"W3"
-			(at 208.28 166.37 0)
+			(at 269.24 45.72 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SOLDERPAD-1P"
-			(at 208.28 173.99 0)
+			(at 269.24 53.34 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOLDERPAD-TH_3.0X1.5"
-			(at 208.28 170.18 0)
+			(at 269.24 49.53 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 208.28 170.18 0)
+			(at 269.24 49.53 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "e4c79fde-faeb-44bb-9671-9d170f757f40"))
+		(pin "1" (uuid "c4683d6b-d21d-4811-8648-550d9ee1f263"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "W3") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "W3") (unit 1))
 			)
 		)
 	)
 	(symbol
 		(lib_id "TES:SOLDERPAD-1P")
-		(at 208.28 201.93 0)
+		(at 269.24 82.55 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b370aec3-959c-42a7-aa44-929c0a543a0f")
+		(uuid "244b43d0-ebe8-4c14-aa7f-b54b10f78e1d")
 		(property
 			"Reference"
 			"W4"
-			(at 208.28 198.12 0)
+			(at 269.24 78.74 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"SOLDERPAD-1P"
-			(at 208.28 205.74 0)
+			(at 269.24 86.36 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Footprint"
 			"TES:SOLDERPAD-TH_3.0X1.5"
-			(at 208.28 201.93 0)
+			(at 269.24 82.55 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property
 			"Datasheet"
 			""
-			(at 208.28 201.93 0)
+			(at 269.24 82.55 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
-		(pin "1" (uuid "b8df2de4-2586-4e97-9432-6106ed715205"))
+		(pin "1" (uuid "97eb46c8-db03-4e8f-a162-abd43b6f1b3f"))
 		(instances
 			(project
 				"TES_Controller"
-				(path "/6a05312b-d202-4448-8c5d-b162ab744049" (reference "W4") (unit 1))
+				(path "/0f97dbb6-53f4-4e73-9d44-a35de3198165" (reference "W4") (unit 1))
 			)
 		)
 	)
@@ -9634,1717 +9742,1745 @@
 		(at 25.4 209.55 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "c8e0cf9d-e62a-4170-bd9f-fa0a8db05c0c")
+		(uuid "25fceef1-23a2-400a-a076-0ce2ef04caad")
 	)
 	(label
 		"GND"
 		(at 40.64 209.55 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "0c57c702-ee39-47df-9eb7-faa1f0f37371")
+		(uuid "cf589e89-2482-477b-bd09-1026a7a9aa03")
 	)
 	(label
 		"GND"
 		(at 25.4 120.65 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ac6e298e-3864-442b-a488-ad31b15fe7db")
+		(uuid "9001ed43-59eb-4d73-bb18-d81d1efd1efd")
 	)
 	(label
 		"VDD33"
 		(at 33.02 120.65 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "ca8e90d2-c9ed-4197-905c-4798c6e4469d")
+		(uuid "7cd5b8ff-5d17-40f4-9880-cfa9ac899563")
 	)
 	(label
 		"GND"
 		(at 25.4 185.42 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "63ab4bc2-965a-4baa-a1fe-71188e2a640f")
+		(uuid "b8b407aa-e47e-44d5-88a3-d86c109a4edf")
 	)
 	(label
 		"EN"
 		(at 35.56 185.42 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "a5ba0cf3-45a5-4f95-ab03-dcf619ca88b2")
+		(uuid "51a87439-2f3a-4664-bfd4-e7cd1e5466f7")
 	)
 	(label
 		"GND"
 		(at 25.4 132.08 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ff2e1949-2b16-4797-af5b-e34d4b3eb3a1")
+		(uuid "59436da2-7067-4489-912e-e17a5dff3a03")
 	)
 	(label
 		"VDD33"
 		(at 35.56 132.08 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "ef9758c4-e01a-42e8-b412-52560cbd3dfb")
+		(uuid "1b4dbafe-6c14-487f-848c-f636037eee3e")
 	)
 	(label
 		"EN"
 		(at 25.4 198.12 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "0219a136-a697-44d3-be0c-db5794d88805")
+		(uuid "b50268a3-edef-4c71-a363-f33f259cd069")
 	)
 	(label
 		"GND"
 		(at 35.56 198.12 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "981ddec3-eb39-49bd-bb41-b5f280b13342")
+		(uuid "05a55a4f-c5b1-4738-a421-6c46742a9725")
 	)
 	(label
 		"CP_SENSE"
-		(at 99.06 302.26 180)
+		(at 162.56 102.87 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ab13ca46-2db6-41d5-ae96-dfd2e1b33909")
+		(uuid "8356501e-0317-441d-9773-3f6dbdbed692")
 	)
 	(label
 		"GND"
-		(at 109.22 302.26 0)
+		(at 172.72 102.87 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2b4ef12c-6710-4da6-84d0-c04ed0e34306")
+		(uuid "2124cd04-26a8-4606-bfc2-05f29177c25c")
 	)
 	(label
 		"GND_BACK"
-		(at 99.06 332.74 180)
+		(at 162.56 153.67 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "36c1267e-5224-4793-b608-c6e0bb99c02f")
+		(uuid "9160329f-930e-4391-a1b7-c73935451a02")
 	)
 	(label
 		"VOUT_SENSE"
-		(at 109.22 332.74 0)
+		(at 172.72 153.67 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "b8ee94de-a5c9-49d6-901e-86c4be3e41ab")
+		(uuid "2b7e4b6e-91e2-4d22-8bb4-bed3ea07af6d")
 	)
 	(label
 		"5V"
 		(at 25.4 325.12 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b3ab29ce-b203-49d4-9a72-612ada25f654")
+		(uuid "7b9ce2f0-4868-4ea6-a9f4-aa0bd1b05a63")
 	)
 	(label
 		"GND"
 		(at 33.02 325.12 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "511f0bd9-7f9a-458c-bedd-2bf65aef5115")
+		(uuid "67b01bd6-e08b-496f-a66a-882e122f67b6")
 	)
 	(label
 		"VDD33"
 		(at 25.4 143.51 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "233b7a50-92d0-4b2e-b215-1e8f2e807a8c")
+		(uuid "42afc2a9-0b3b-424b-90ce-9cce1401def7")
 	)
 	(label
 		"GND"
 		(at 33.02 143.51 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "6ba1ba33-83a8-47cc-b486-451068b88c47")
+		(uuid "57789c8f-de60-4085-8a33-792c9f635a87")
 	)
 	(label
 		"GND"
 		(at 25.4 218.44 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "13c042fd-d779-4167-bf71-25f4c0c2221e")
+		(uuid "0eeacdff-eb74-4b5d-9044-6a414bc81a38")
 	)
 	(label
 		"IO0"
 		(at 35.56 218.44 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "79ae8dec-8a13-4297-8dab-388ad13d77b6")
+		(uuid "ed1f9c6d-c635-4b2b-b915-95e9a51449f8")
 	)
 	(label
 		"IO39"
-		(at 205.74 82.55 180)
+		(at 223.52 273.05 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "bac8bd77-b838-47a7-9fc5-6a44fc83eec0")
+		(uuid "68d7f668-379f-4c05-81af-cad62cf09934")
 	)
 	(label
 		"GND"
-		(at 215.9 82.55 0)
+		(at 233.68 273.05 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "4ecd0e51-d2b2-4070-b2cc-bc0441b49728")
+		(uuid "b2e5c9f9-b305-45ca-a906-a07cdc4dc574")
 	)
 	(label
-		"IO42_DEBOUNCE"
-		(at 205.74 55.88 180)
+		"IO42"
+		(at 223.52 246.38 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "8c154ddc-bd18-414c-a6ae-495349e33df3")
+		(uuid "5f512310-e256-401d-916a-82a7bad1fdc0")
 	)
 	(label
 		"GND"
-		(at 215.9 55.88 0)
+		(at 233.68 246.38 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "6011279d-222a-433a-a081-938abd224b16")
+		(uuid "3236af85-0627-45ae-bca8-151188c9d5b8")
 	)
 	(label
 		"IO40"
-		(at 205.74 135.89 180)
+		(at 223.52 326.39 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "a9fb9f84-f937-4e3d-9ec8-1a3ef806a01c")
+		(uuid "770b4ef8-fc3d-4544-9c3a-a5a7e7f42135")
 	)
 	(label
 		"GND"
-		(at 215.9 135.89 0)
+		(at 233.68 326.39 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "ff55e879-4db9-4c4a-93d3-5dac8ad7cf4c")
+		(uuid "88a82647-c2db-4351-b817-4a46d24d55cd")
 	)
 	(label
 		"IO41"
-		(at 205.74 109.22 180)
+		(at 223.52 299.72 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "74856e0a-8b3a-4080-97ca-dc3d80656d19")
+		(uuid "ff39da42-a653-4a5f-a522-55f5fa328206")
 	)
 	(label
 		"GND"
-		(at 215.9 109.22 0)
+		(at 233.68 299.72 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "9decbf2b-c92a-4239-a9d3-1ad4520f3f13")
+		(uuid "a02b0df7-af7a-4d88-9d1f-37dfdcbfddec")
 	)
 	(label
 		"GND"
 		(at 25.4 289.56 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ac75f83e-305e-4938-99b1-6994bc734ee0")
+		(uuid "0f961bc5-6e30-42fd-9c59-4113d399d1c1")
 	)
 	(label
 		"5V"
 		(at 33.02 289.56 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "0c5493d3-c572-49e8-82b1-bfb8a29fb7ca")
+		(uuid "3e770cb9-c2de-466b-863f-3c506b071b21")
 	)
 	(label
 		"GND"
 		(at 25.4 278.13 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "5e29703b-9d57-47ba-ada1-8ac60b92ee82")
+		(uuid "c37af02f-184f-4eee-810d-3296d87408c2")
 	)
 	(label
 		"12V"
 		(at 33.02 278.13 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "680cb530-68a0-4d79-9ff1-892b33834cb2")
+		(uuid "ff6793bc-ec84-4649-abcb-5fabe78877f7")
 	)
 	(label
 		"5V"
 		(at 25.4 300.99 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "0709ca34-bd67-4231-b767-dafce7b638de")
+		(uuid "445c88c0-f046-4be3-922a-22d932740794")
 	)
 	(label
 		"GND"
 		(at 35.56 300.99 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "e59dc2e4-cfe3-4f1e-89ff-4ea3f28a65a5")
+		(uuid "0ba693f9-01d0-4420-b2f8-ec990f8d4dee")
 	)
 	(label
 		"GND"
 		(at 25.4 154.94 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "87c24a46-5bf1-4dc0-9b6c-f772224c4abf")
+		(uuid "01db2cf6-2819-472a-8d08-340732034e61")
 	)
 	(label
 		"VDD33"
 		(at 35.56 154.94 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "6effa8be-16d4-46dc-a1be-16b115bd226d")
+		(uuid "bdb2e0b9-0535-455c-ab66-6eec0986e0a3")
 	)
 	(label
 		"5V"
 		(at 25.4 313.69 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "19ad5c28-53d2-4531-9b81-13c3aaa56172")
+		(uuid "85f4e44a-2d57-417f-84cb-fc6defc56f32")
 	)
 	(label
 		"GND"
 		(at 35.56 313.69 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "04ab24e3-596a-4ee6-838a-c67682d5a363")
+		(uuid "74d8ccda-0530-4cc9-8b9e-33ab2fd72594")
 	)
 	(label
 		"GND"
-		(at 162.56 285.75 180)
+		(at 223.52 116.84 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "dd85ea2c-8d28-4722-9029-4cbbdff8418e")
+		(uuid "056ee39c-cd1f-4bd5-951a-448b981c738a")
 	)
 	(label
 		"VP"
-		(at 162.56 288.29 180)
+		(at 223.52 119.38 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "c301bcc7-8e70-4afc-9bd4-adf87d97c6ec")
+		(uuid "c418e2af-ab8a-4cc8-a1e7-22657ff8045f")
 	)
 	(label
 		"CANL"
 		(at 99.06 207.01 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "896afb81-f80b-4978-b8c6-e4fee982a9e9")
+		(uuid "a7867dfd-4d4d-4057-b22d-f75964428d4f")
 	)
 	(label
 		"CANH"
 		(at 99.06 209.55 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "eaed2d5f-11c6-4d38-b050-9efb4c756833")
+		(uuid "9f4e8d03-e621-4aea-beb3-feb486e3a809")
 	)
 	(label
 		"GND"
 		(at 99.06 212.09 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "7d47756f-0e53-4133-a10d-40991349a286")
+		(uuid "caa7d8b5-fe92-4211-ae13-69f16fec9d73")
 	)
 	(label
 		"CP"
 		(at 99.06 214.63 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b773697b-9649-49f6-a9b4-7cb381028563")
+		(uuid "7703a398-20b4-4b42-8546-b7657b9c6ef2")
 	)
 	(label
 		"12V"
-		(at 162.56 88.9 180)
+		(at 162.56 260.35 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "e4d68ee8-2a90-49ca-a429-67f04e06fb43")
+		(uuid "187c40f8-8c6e-43af-9b65-c6d12025a77b")
 	)
 	(label
 		"DC_RELAY"
-		(at 162.56 91.44 180)
+		(at 162.56 262.89 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "a2ce6747-1ed2-411a-9ff5-eaedf1167550")
+		(uuid "51781461-0d04-4d4e-bc0d-35f19270d1ed")
 	)
 	(label
 		"12V"
-		(at 162.56 104.14 180)
+		(at 162.56 275.59 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "226300d2-6da7-497b-8444-2a19a36ca310")
+		(uuid "ddfa28b5-c403-487d-984f-2e2e54328c66")
 	)
 	(label
 		"DC_RELAY"
-		(at 162.56 106.68 180)
+		(at 162.56 278.13 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "70ae6e9f-4887-44e5-84b2-4069139efa2d")
+		(uuid "3fd006a1-5fe0-4cb8-b24f-5ed0b1796e21")
 	)
 	(label
 		"12V"
-		(at 162.56 180.34 180)
+		(at 162.56 351.79 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1d279258-a3ce-4484-b6a9-1b3d286bfbaf")
+		(uuid "a758bea8-602b-4689-98d8-06f265cff08a")
 	)
 	(label
 		"COUPLER"
-		(at 162.56 182.88 180)
+		(at 162.56 354.33 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "5c1c1c74-dcab-4660-8745-7d5df228d82f")
+		(uuid "18e96aef-23a3-4460-a911-2f1913955af7")
 	)
 	(label
 		"12V"
-		(at 162.56 77.47 180)
+		(at 162.56 247.65 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "75b5e312-27a2-4528-accd-86e8d69b86c3")
+		(uuid "e0a924f6-bc6c-403a-9366-00bec403d626")
 	)
 	(label
 		"DC_RELAY"
-		(at 172.72 77.47 0)
+		(at 172.72 247.65 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "449c9368-ef8e-4484-9c08-9eebbe3fb83e")
+		(uuid "e573849a-06f3-4395-be28-d66dc115fe41")
 	)
 	(label
 		"VP"
-		(at 162.56 273.05 180)
+		(at 223.52 105.41 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1150b3f3-f871-4cf0-8d6a-a776db32539f")
+		(uuid "25191bbe-aff9-4e5d-972f-0e643e27b935")
 	)
 	(label
 		"GND"
-		(at 172.72 273.05 0)
+		(at 233.68 105.41 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "679fae9c-baba-4433-8bc6-489d8af0a0de")
+		(uuid "36d4f52c-42c8-4067-a918-2eece128df77")
 	)
 	(label
 		"12V"
-		(at 162.56 168.91 180)
+		(at 162.56 339.09 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "080787b4-4a18-4f2b-b81d-8a170048105d")
+		(uuid "7ac63575-c8d5-40a8-a77e-528d9a85bb78")
 	)
 	(label
 		"COUPLER"
-		(at 172.72 168.91 0)
+		(at 172.72 339.09 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "fc4255f6-7165-4016-8637-b4934c71ab1d")
+		(uuid "d52b371b-0c41-4580-b50c-2d97cc2e96f4")
 	)
 	(label
 		"UD+"
 		(at 99.06 93.98 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b461e6c1-59bd-40d2-a394-e2da26ba09c0")
+		(uuid "c88b1c94-454b-4e2c-a63b-a54813d5d95a")
 	)
 	(label
 		"GND"
 		(at 99.06 101.6 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "23423952-d32f-47fd-a7a2-6d9604445411")
+		(uuid "ec0221bb-f3da-4b0a-9304-a8689a74ee14")
 	)
 	(label
 		"UD-"
 		(at 99.06 109.22 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "9bf9d0f8-1c75-44f6-ab2f-dcec545ddb5d")
+		(uuid "eb011a57-5370-4626-becd-bd97a69f2349")
 	)
 	(label
 		"USB_DN_ESD"
 		(at 132.08 109.22 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2783729e-4377-45dd-b98f-93e5eb2088f8")
+		(uuid "b2d1a34b-d092-47b2-baf1-40a0130e0817")
 	)
 	(label
 		"VBUS"
 		(at 132.08 101.6 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "34fda919-606c-4081-a6cd-9b8ba5247964")
+		(uuid "287d1c2d-d32a-49fb-bfdb-3e3aa3a8e294")
 	)
 	(label
 		"USB_DP_ESD"
 		(at 132.08 93.98 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "db262849-746f-42c0-a2e9-abfbdc9d1b96")
+		(uuid "d1adb7b7-2ced-4d6a-8189-a130cc46fe19")
 	)
 	(label
 		"IO40"
-		(at 215.9 120.65 0)
+		(at 233.68 311.15 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "6c0050a8-b383-46ed-bde0-59ad48916cd1")
+		(uuid "88bdd067-c085-44b4-a9f5-0446f8a6c4e1")
 	)
 	(label
 		"GND"
-		(at 205.74 128.27 180)
+		(at 223.52 318.77 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "974a18e8-4ac2-4a2f-b945-417aa5698ec8")
+		(uuid "c330a30f-ac64-43ca-8ad2-3b7f19275ea7")
 	)
 	(label
 		"GND"
-		(at 215.9 128.27 0)
+		(at 233.68 318.77 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "0c6d65fd-831b-49ca-b357-0e9bbfc0db24")
+		(uuid "9b754a36-775d-4b6e-8666-90f795d99fb0")
 	)
 	(label
 		"GND"
 		(at 25.4 176.53 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "4c3bb3ad-69a4-4445-bb76-73d8019b5b88")
+		(uuid "a592097a-9a4f-4c64-924f-9e972411b4c7")
 	)
 	(label
 		"EN"
 		(at 40.64 176.53 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "faec3342-9c02-4d9a-9ac7-4fd15ac2cfd5")
+		(uuid "176e40d5-0e1f-4bae-83df-28e7ff7a66ee")
 	)
 	(label
 		"IO6"
-		(at 162.56 339.09 180)
+		(at 223.52 170.18 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "49962d0d-099e-4eb1-9471-70c6b30c7094")
+		(uuid "30fea6e8-3bab-48f4-b968-6cd647057efa")
 	)
 	(label
 		"LED_G_K"
-		(at 172.72 339.09 0)
+		(at 233.68 170.18 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "94d823cc-88b9-4672-92a8-5cc0bcdd7276")
+		(uuid "294bbf27-cd1c-4f89-814e-d0b60cf4ed38")
 	)
 	(label
 		"GND"
-		(at 96.52 359.41 180)
+		(at 160.02 179.07 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "0ecd9ce6-678e-4ef7-b903-9040b7ad91ef")
+		(uuid "d3f7d04a-1d03-4b29-a37c-0d58cd3154d3")
 	)
 	(label
 		"VDD33"
-		(at 96.52 361.95 180)
+		(at 160.02 181.61 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "087addcf-9acc-47a7-93c3-3ebae9e4da2f")
+		(uuid "6358bc50-98a8-4208-978f-fab63f0b2550")
 	)
 	(label
 		"SCL"
-		(at 96.52 364.49 180)
+		(at 160.02 184.15 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "c827ea82-25a3-406c-bd98-a9dacc03c55a")
+		(uuid "0975c846-8a43-40ea-8081-5e7c856bdd5d")
 	)
 	(label
 		"SDA"
-		(at 96.52 367.03 180)
+		(at 160.02 186.69 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1b72eb2a-8a98-4227-a8dc-72653bd7c11b")
+		(uuid "d88a0744-914b-47ff-a8b5-c57008d3422d")
 	)
 	(label
 		"GND"
-		(at 203.2 237.49 180)
+		(at 264.16 116.84 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d880dc54-b33d-4664-8cb9-2d389033ada9")
+		(uuid "d76121ed-6447-4a51-b8ca-c9bd2cf4091c")
 	)
 	(label
 		"TXD0"
-		(at 203.2 240.03 180)
+		(at 264.16 119.38 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "deece168-0e7a-4a91-8ec1-38a0eb116d01")
+		(uuid "d8bf0664-503b-4a23-82bb-a7a45d8e4d06")
 	)
 	(label
 		"RXD0"
-		(at 203.2 242.57 180)
+		(at 264.16 121.92 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d4e3b235-3c3a-46ef-aa54-d55a0ed3e95e")
+		(uuid "ac9116d6-06ee-4e70-b6c2-13836aa52b44")
 	)
 	(label
 		"GND"
-		(at 162.56 43.18 180)
+		(at 162.56 213.36 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "46e36e78-4935-4dcd-a64c-a31406eb1734")
+		(uuid "c3360249-0490-4cd9-9409-42da9f374169")
 	)
 	(label
 		"RELAY_GATE"
-		(at 170.18 48.26 270)
+		(at 170.18 218.44 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "0efbdca3-c110-469e-860e-116e37096c0e")
+		(uuid "2844b481-b812-422a-9344-1343838bef89")
 	)
 	(label
 		"DC_RELAY"
-		(at 170.18 38.1 90)
+		(at 170.18 208.28 90)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "3dd731a9-421d-4962-a8d4-4627d435db95")
+		(uuid "f1e25c7b-e6c8-45fd-ae66-b680219bf667")
 	)
 	(label
 		"GND"
-		(at 162.56 210.82 180)
+		(at 223.52 43.18 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "69ae6dad-ac8f-4d86-99c6-df4438f3ac35")
+		(uuid "0a0f5545-0fa7-4ecf-9519-10a142499a22")
 	)
 	(label
 		"VP_NGATE"
-		(at 170.18 215.9 270)
+		(at 231.14 48.26 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "79f67c9c-e117-44bd-b44d-c05237d343ab")
+		(uuid "8620be07-7f89-455a-9f54-70d84807feeb")
 	)
 	(label
 		"VP_PGATE"
-		(at 170.18 205.74 90)
+		(at 231.14 38.1 90)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "df2bc48c-1a16-4b31-906c-93866f3307f9")
+		(uuid "7d3ee728-963e-4ac1-9ba5-6666f920255c")
 	)
 	(label
 		"GND"
-		(at 162.56 134.62 180)
+		(at 162.56 306.07 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b5c9fa99-b457-4ea1-b3bb-2638ff68ec8f")
+		(uuid "4e65ddd7-ec06-42c7-899f-1cb90e7c5dc6")
 	)
 	(label
 		"COUPLER_GATE"
-		(at 170.18 139.7 270)
+		(at 170.18 311.15 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "70ba06e4-b880-43a0-a09d-3d8fac432de1")
+		(uuid "5fac8e03-8026-4b8f-9a8a-448339e430d4")
 	)
 	(label
 		"COUPLER"
-		(at 170.18 129.54 90)
+		(at 170.18 300.99 90)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "b2095204-56d7-4a9c-bdbf-c55eaec614d9")
+		(uuid "ace5f3ee-5672-49d7-a2cd-55ba6e7ba97b")
 	)
 	(label
 		"VP_PGATE"
-		(at 162.56 228.6 180)
+		(at 223.52 60.96 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d5b5cc41-b456-431b-b0dd-21f124584740")
+		(uuid "8fcdfba6-2020-426b-bc22-efdeb2df2374")
 	)
 	(label
 		"12V"
-		(at 170.18 233.68 270)
+		(at 231.14 66.04 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2c12c32b-f871-42f2-8d68-61d736f8eeff")
+		(uuid "56dcba5d-dd7e-4f22-a7e7-664e4e2c4f7f")
 	)
 	(label
 		"VP"
-		(at 170.18 223.52 90)
+		(at 231.14 55.88 90)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "bd966e23-54e0-4641-97f3-ba96b83a59f3")
+		(uuid "33c3385b-5c3c-4fbf-a91d-a18eabfbfb38")
 	)
 	(label
 		"IO7"
-		(at 162.56 363.22 180)
+		(at 223.52 195.58 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "0fd5de5a-ddad-4ca4-bb2e-2ae76a0edbf4")
+		(uuid "ae96ee83-7c65-44fd-8337-84b8a2a80583")
 	)
 	(label
 		"LED_R_K"
-		(at 172.72 363.22 0)
+		(at 233.68 195.58 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "83c1805f-627b-4198-bc22-16be4ab5f81c")
+		(uuid "73247eaf-3bd1-4c7c-866e-3563dbf1c853")
 	)
 	(label
 		"VDD33"
 		(at 25.4 166.37 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d9e2c248-bf80-455a-be68-21883133144d")
+		(uuid "b35c93f7-9a10-4b7f-b587-d7ad5f9beeeb")
 	)
 	(label
 		"EN"
 		(at 35.56 166.37 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "be645348-6e37-4b72-9a29-be112dc1a134")
+		(uuid "d36c5162-bbdb-4e29-8eb0-2298f48f581c")
 	)
 	(label
 		"GND"
 		(at 99.06 142.24 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d330a4ab-c740-455d-a694-3eba04aaf14a")
+		(uuid "c72e3777-9ac6-4359-b6c3-ac6bbbec9cb7")
 	)
 	(label
 		"USB_CC1"
 		(at 109.22 142.24 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "8d6cd940-d890-46f1-ad33-d32338444267")
+		(uuid "ce2bfb48-30b0-486c-b4ab-7ee2af42c566")
 	)
 	(label
 		"GND"
 		(at 99.06 152.4 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "e65c64ac-ea6e-4700-828b-abb88c5e5be4")
+		(uuid "357c0b6c-808d-480b-bc5f-ba788b6947e5")
 	)
 	(label
 		"USB_CC2"
 		(at 109.22 152.4 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "7f90c632-980a-4886-8059-529279511b4e")
+		(uuid "74aaa32b-cfcf-4fff-beb0-78cf64b327b0")
 	)
 	(label
 		"SCL"
-		(at 99.06 261.62 180)
+		(at 162.56 62.23 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1145f4d2-48b6-4b53-b0c8-181edd57b075")
+		(uuid "5c89e9f2-c317-453d-ab15-f55f4d880605")
 	)
 	(label
 		"VDD33"
-		(at 109.22 261.62 0)
+		(at 172.72 62.23 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "fe9bebf5-2f63-4d1c-82cd-fbab10eab21f")
+		(uuid "08426d1a-f5d8-4ea2-81cb-f8b61a1a12c3")
 	)
 	(label
 		"SDA"
-		(at 99.06 270.51 180)
+		(at 162.56 71.12 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "87697653-6271-46b6-bc75-c24e54f33e55")
+		(uuid "76a26819-c525-492b-9ac2-ddfbb46ad4f6")
 	)
 	(label
 		"VDD33"
-		(at 109.22 270.51 0)
+		(at 172.72 71.12 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "f3a4d38f-47be-4f7e-ac8b-bfdfa655be60")
+		(uuid "2516828e-e3d3-4457-992e-1139139ed16f")
 	)
 	(label
 		"CP_SENSE"
-		(at 99.06 280.67 180)
+		(at 162.56 81.28 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "8c5256f6-5c3f-44f6-b39b-7c8bcac9338b")
+		(uuid "baccc5be-73fe-49a2-b3ed-488aca2782b1")
 	)
 	(label
 		"GND"
-		(at 109.22 280.67 0)
+		(at 172.72 81.28 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "28aceb04-959a-4648-b590-9a9acaa52a9d")
+		(uuid "97388c2e-6e4e-4642-a2e7-174da1860241")
 	)
 	(label
 		"CP"
-		(at 99.06 290.83 180)
+		(at 162.56 91.44 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "46029326-261a-46d7-996d-507d258e91d8")
+		(uuid "15f1278e-ddbc-4664-95fb-6aa206f5880e")
 	)
 	(label
 		"CP_SENSE"
-		(at 109.22 290.83 0)
+		(at 172.72 91.44 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "9dcfdef9-6b5e-459a-be7a-4a34f7f5ba83")
+		(uuid "d6d154f2-6dcc-4d7c-ab7e-0491eab33cdf")
 	)
 	(label
-		"VOUT_SENSE"
-		(at 99.06 312.42 180)
+		"HV_DIV1"
+		(at 162.56 113.03 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "99bdb109-4f4b-4d2d-bd70-9504f0c2ca76")
+		(uuid "ae410920-3405-47a4-9ca1-a87da548e8d8")
 	)
 	(label
 		"120V"
-		(at 109.22 312.42 0)
+		(at 172.72 113.03 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "b8938054-504c-4753-bdbf-7675bde9690c")
+		(uuid "199001b7-fbc0-445e-928e-a6015fa7f5aa")
 	)
 	(label
 		"GND_BACK"
-		(at 99.06 322.58 180)
+		(at 162.56 142.24 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "e54a9f39-ec9e-4492-9df2-04a603ba844b")
+		(uuid "e4e0bb45-2c40-4bf3-a6ce-f4caedef6f1b")
 	)
 	(label
 		"VOUT_SENSE"
-		(at 109.22 322.58 0)
+		(at 172.72 142.24 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "ded165fa-689c-4ab5-8c98-d9e7ffc56474")
+		(uuid "99e401a0-200d-4859-b494-11a7c56878b3")
 	)
 	(label
 		"GND"
-		(at 162.56 375.92 180)
+		(at 223.52 207.01 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "9f522608-5cc7-4b2a-ae77-b7e5d271e40c")
+		(uuid "763eaf3f-dc11-4618-8966-44dce63f9bfd")
 	)
 	(label
 		"LED_R_K"
-		(at 172.72 375.92 0)
+		(at 233.68 207.01 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "b9c1e6cf-9d8d-4b76-8369-437ecac213ca")
+		(uuid "05d96b3c-c2d8-47f8-a57c-79fa78013c9a")
 	)
 	(label
 		"GND"
-		(at 162.56 326.39 180)
+		(at 223.52 158.75 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "2b94d910-2ae5-452e-af5b-687542fd6b2b")
+		(uuid "41b5e9c7-e7fa-439e-82fd-5da52db1008a")
 	)
 	(label
 		"LED_Y_K"
-		(at 172.72 326.39 0)
+		(at 233.68 158.75 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "00c931d6-c77a-4cd3-b9c5-2b41cde47330")
+		(uuid "4c7e2518-533f-449f-a0a1-cb76342e7c04")
 	)
 	(label
 		"GND"
-		(at 162.56 351.79 180)
+		(at 223.52 182.88 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "4795b3e4-c8da-47f2-bca9-50ed21d6ba93")
+		(uuid "b5f8d46c-1f25-424b-8e3e-81bf34d8e39f")
 	)
 	(label
 		"LED_G_K"
-		(at 172.72 351.79 0)
+		(at 233.68 182.88 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "a9e68da6-4e5f-4762-8be9-abc0d38bf95f")
+		(uuid "36025377-fd81-49a5-bdf8-1be95e68c6fb")
 	)
 	(label
 		"IO9"
-		(at 162.56 242.57 180)
+		(at 223.52 74.93 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "53fa8763-a79c-4c2a-90d1-b3eac5058849")
+		(uuid "89b8c83a-20e9-4233-a639-af1b72eb8886")
 	)
 	(label
 		"VP_NGATE"
-		(at 172.72 242.57 0)
+		(at 233.68 74.93 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "a2a881b0-f1d4-4615-b27f-1c673e5d0686")
+		(uuid "60b4afa8-67d1-4b2f-b914-fcb8f692410e")
 	)
 	(label
 		"GND"
-		(at 162.56 252.73 180)
+		(at 223.52 83.82 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b51750fb-6985-4e36-82bf-84475313fdff")
+		(uuid "6432b8a4-b6ea-4d04-8ede-922bac250f23")
 	)
 	(label
 		"VP_NGATE"
-		(at 172.72 252.73 0)
+		(at 233.68 83.82 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "33dd57f7-04da-4ccf-980b-7c8bf063584c")
+		(uuid "573f1ee5-07af-4e2a-8c57-23697512b7ab")
 	)
 	(label
 		"IO11"
-		(at 162.56 57.15 180)
+		(at 162.56 227.33 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "6e5c3426-9168-49d2-a5b8-d9d22a9e91f1")
+		(uuid "a0dbd24c-0b6b-4acf-8717-646809d5ecef")
 	)
 	(label
 		"RELAY_GATE"
-		(at 172.72 57.15 0)
+		(at 172.72 227.33 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "00a35aed-fc14-45d7-8da8-bf71b8c050ad")
+		(uuid "3e622d58-9e60-4b2c-ab38-40321ade775a")
 	)
 	(label
 		"GND"
-		(at 162.56 66.04 180)
+		(at 162.56 237.49 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ab5b3be8-1d99-4db1-bf34-1af03048109f")
+		(uuid "85fd3805-131b-459d-a533-2184cb3530d9")
 	)
 	(label
 		"RELAY_GATE"
-		(at 172.72 66.04 0)
+		(at 172.72 237.49 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "121bad0f-fafe-4f40-8f6d-ab0beb0893e6")
+		(uuid "90b869ba-0d06-4bb2-ad3b-5fc64a6459ab")
 	)
 	(label
 		"CANH"
 		(at 99.06 195.58 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "a53c8865-25fb-4c77-b022-7177db831fdc")
+		(uuid "8b8b7ab9-ff18-49db-a4ec-d4165615060a")
 	)
 	(label
 		"CANL"
 		(at 109.22 195.58 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "6235da3f-8575-46aa-b046-bceea7acb516")
+		(uuid "6389659d-171f-471f-9b9b-a80cfbda3d5b")
 	)
 	(label
 		"VP_PGATE"
-		(at 162.56 261.62 180)
+		(at 223.52 93.98 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "31a7f68c-aee9-4d7d-bb42-3dc8de35ae75")
+		(uuid "a91f59b1-baea-469a-80af-f176db9c13fb")
 	)
 	(label
 		"12V"
-		(at 172.72 261.62 0)
+		(at 233.68 93.98 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "89526e5e-4d0a-4930-9498-16ab8f94b684")
+		(uuid "f4aa3d5e-54a3-42a3-8886-0da1cd60e89b")
 	)
 	(label
 		"GND"
-		(at 162.56 148.59 180)
+		(at 162.56 318.77 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "bd9c0769-e5ce-4fd6-a3b5-5912aaa742c4")
+		(uuid "8f71c6e0-48ee-4a86-8ebe-fcb985ced77d")
 	)
 	(label
 		"COUPLER_GATE"
-		(at 172.72 148.59 0)
+		(at 172.72 318.77 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "e079ee84-a153-4f07-82d2-2ad7850b0f4e")
+		(uuid "7d75ca63-0463-4574-af4c-f3ffadf854a5")
 	)
 	(label
 		"IO10"
-		(at 162.56 158.75 180)
+		(at 162.56 328.93 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "26dbb9f4-5a3c-4dd7-94c9-fe9e8ce09a3f")
+		(uuid "48379ee3-8ff0-45b1-8305-075550a7a893")
 	)
 	(label
 		"COUPLER_GATE"
-		(at 172.72 158.75 0)
+		(at 172.72 328.93 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "09856eaa-435a-4111-bce6-f3bbb2a420bb")
+		(uuid "d5cdcde1-c6f3-40f1-b815-8e7e77c722df")
 	)
 	(label
 		"USB_DN_ESD"
 		(at 99.06 123.19 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "f3d62036-aa06-4a02-a845-27c3ee484cfd")
+		(uuid "53eb823e-4001-4e33-868c-89f8c821458d")
 	)
 	(label
 		"D-"
 		(at 109.22 123.19 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "81736d6f-0fad-47d5-8a63-4ab9084a22a3")
+		(uuid "28e2be22-52ed-4f2e-ae41-75c84b58a772")
 	)
 	(label
 		"USB_DP_ESD"
 		(at 99.06 132.08 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "0e41b35e-bd78-450a-b54e-7bb792eb675c")
+		(uuid "a0254a84-1621-483c-a600-5a4bf29450b3")
 	)
 	(label
 		"D+"
 		(at 109.22 132.08 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "829186a6-b6b3-4d0b-b09a-f0a6b165304b")
+		(uuid "39cd8ecb-ad57-4652-835c-ba533f837a66")
 	)
 	(label
 		"VDD33"
 		(at 25.4 229.87 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "be299bd9-356f-40dc-a516-d0a2e084981d")
+		(uuid "46887314-6eab-49f1-8d5c-9b6387aa4ae1")
 	)
 	(label
 		"IO0"
 		(at 35.56 229.87 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "76958e89-2410-43a1-bdae-457a68c76cb4")
+		(uuid "f1cdd34c-e058-41c5-a3df-d97a85f321a3")
 	)
 	(label
 		"VBUS"
 		(at 25.4 353.06 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "71c1a3f6-7347-4c71-9285-fce8719d1428")
+		(uuid "d030b5a5-3c0d-4809-acf6-df08ae6fad8a")
 	)
 	(label
 		"5V"
 		(at 35.56 353.06 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2d6a5128-40a2-4e8c-aa56-85196eb62cd8")
+		(uuid "8a913ca3-a308-4e2c-82ab-b4705e41ee2b")
 	)
 	(label
 		"IO41"
-		(at 215.9 92.71 0)
+		(at 233.68 284.48 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "67dc827a-97fa-4c8b-acf3-9a69516e7f29")
+		(uuid "b00d5c7b-87f2-45b6-b0e5-cd083ad09477")
 	)
 	(label
 		"GND"
-		(at 205.74 100.33 180)
+		(at 223.52 292.1 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "54235262-da2d-4972-9303-e6a1f7e2ebd3")
+		(uuid "0c1c04ac-17a7-4138-a186-3b41c1c8d108")
 	)
 	(label
 		"GND"
-		(at 215.9 100.33 0)
+		(at 233.68 292.1 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "037edb60-c1ed-42ae-bdca-c2d12173f08c")
+		(uuid "aa470c51-e0be-42b6-82df-d905b3a927b1")
 	)
 	(label
 		"IO42"
-		(at 205.74 39.37 180)
+		(at 223.52 229.87 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "ed0cb791-da8a-4d2f-a92b-c68010f8ad57")
+		(uuid "9b4b505c-aebc-48ae-b0b1-8334b07dadeb")
 	)
 	(label
-		"IO42_DEBOUNCE"
-		(at 215.9 39.37 0)
+		"IO42"
+		(at 233.68 229.87 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "b9867330-f59c-49cf-b079-acc5181a7f25")
+		(uuid "2c73fe57-4c77-49df-a19c-acdd5d6e1bc5")
 	)
 	(label
 		"GND"
-		(at 205.74 46.99 180)
+		(at 223.52 237.49 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "48ca4c10-17c4-49e3-ba7b-ce20c82c7627")
+		(uuid "a326855a-0408-44ae-9790-9ea2c3f738a9")
 	)
 	(label
 		"GND"
-		(at 215.9 46.99 0)
+		(at 233.68 237.49 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "57de0b72-4572-4d1e-a237-0de76d3fea7d")
+		(uuid "f18333d8-7438-4ac4-8749-f75a6f87ff8f")
 	)
 	(label
 		"IO39"
-		(at 215.9 66.04 0)
+		(at 233.68 256.54 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "38ba9857-928d-42d0-8a83-f64c5485af2a")
+		(uuid "9d6f9e76-1587-4769-807a-8703dfa6f863")
 	)
 	(label
 		"GND"
-		(at 205.74 73.66 180)
+		(at 223.52 264.16 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "84014f0a-e6c6-4b45-8089-f2deeb917eb4")
+		(uuid "f55552ba-b272-4599-aec4-5fd37cb11bdc")
 	)
 	(label
 		"GND"
-		(at 215.9 73.66 0)
+		(at 233.68 264.16 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "36f5933e-e78e-46ef-9d24-6a4b2cfb6d39")
+		(uuid "8a91d47b-5e12-4469-9c77-b63c0148007a")
 	)
 	(label
 		"GND"
 		(at 25.4 62.23 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "33bc2a9a-5310-42af-b53c-5f5c9dfebcc0")
+		(uuid "c42b401b-6204-4b76-bc72-5fd3413a2001")
 	)
 	(label
 		"VDD33"
 		(at 25.4 64.77 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "4511faed-d4c1-4975-a52d-6c0c84a7a680")
+		(uuid "4a75769e-5f80-4769-b2d0-4eab27eb4dc4")
 	)
 	(label
 		"EN"
 		(at 25.4 67.31 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "8515b50d-7930-4f42-a419-8dc692d2b561")
+		(uuid "269e095c-6e1c-4d98-b6e7-10dc643ed655")
 	)
 	(label
 		"IO5"
 		(at 25.4 72.39 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "a0c367f9-140e-4782-b1ef-6efcfb6295e4")
+		(uuid "6906b8b7-d84b-472b-acce-0624e1d22a2b")
 	)
 	(label
 		"IO6"
 		(at 25.4 74.93 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "777ae9d7-4c5f-4313-9b10-335fa39dea68")
+		(uuid "cf079270-bd15-455b-8a57-9d99d272015c")
 	)
 	(label
 		"IO7"
 		(at 25.4 77.47 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1e7d7254-2c4e-4e62-a9ec-68bd3251b27d")
+		(uuid "ad5fafaa-0ad1-44db-9bc9-3b7e2ce9da5f")
 	)
 	(label
 		"SCL"
 		(at 25.4 80.01 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "83ba7668-5436-4454-906b-f72536c64973")
+		(uuid "09786aba-4013-497f-83af-35e338edcf68")
 	)
 	(label
 		"SDA"
 		(at 25.4 82.55 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "bb96403f-33c1-4386-abf7-365cc96fb098")
+		(uuid "bf51414c-7217-42ef-b4de-6fae57d15e99")
 	)
 	(label
 		"IO17"
 		(at 25.4 85.09 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "b7e93a9e-6d0d-43d7-ad24-b1e3c90d4fe4")
+		(uuid "b746c365-b3b8-49d5-8604-29e1e8ab1851")
 	)
 	(label
 		"IO18"
 		(at 25.4 87.63 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "36b50e7f-f2d8-4a83-8eed-f6d41d7fa9d7")
+		(uuid "39b10777-7f82-4af8-a3a0-7e78d382568a")
 	)
 	(label
 		"D-"
 		(at 25.4 92.71 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "5da22267-c48f-4da6-a52c-8cd1af988f9c")
+		(uuid "31976c0a-7ca7-4ccb-98db-862385ccdb03")
 	)
 	(label
 		"D+"
 		(at 25.4 95.25 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "9905ff1f-ee95-47c2-8fb0-b88a69281042")
+		(uuid "bbed393a-3542-44b1-95a6-481324812239")
 	)
 	(label
 		"IO9"
 		(at 39.37 109.22 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "a38e0109-fcb9-45c8-9a7e-6fed188f68d7")
+		(uuid "624801ee-2cec-49de-9a9c-8d94ada5a278")
 	)
 	(label
 		"IO10"
 		(at 41.91 109.22 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "916e5c55-881f-4a9e-8758-b70f71022ed1")
+		(uuid "f45ca7af-09fa-4e76-821c-d858e1fc401f")
 	)
 	(label
 		"IO11"
 		(at 44.45 109.22 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "547cf85e-c7d7-4ff7-8913-285f9c88839e")
+		(uuid "9210b1b4-4ea7-4fb0-84d7-62bea4b8e52d")
 	)
 	(label
 		"IO0"
 		(at 68.58 95.25 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "bf1fe27d-642d-4f38-81a1-45790a4255ca")
+		(uuid "3b63129a-0e2b-409e-a014-5fbddd2ad354")
 	)
 	(label
 		"IO39"
 		(at 68.58 82.55 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "f58d8797-41f2-4e88-bd2c-a61648f02b03")
+		(uuid "ef2d299f-a308-46d0-94e0-60d240e135ff")
 	)
 	(label
 		"IO40"
 		(at 68.58 80.01 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "cd08d8f2-c608-497e-9ab6-2eda2ce7d149")
+		(uuid "9a2e466a-fa17-4c69-8a72-678245a2f5b5")
 	)
 	(label
 		"IO41"
 		(at 68.58 77.47 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "79b72639-b478-4488-9dfd-49870ee42f19")
+		(uuid "f5aec08d-fde8-4bd5-89b7-575c10f08390")
 	)
 	(label
 		"IO42"
 		(at 68.58 74.93 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "eff2aa36-c310-4226-aea4-e899267b660c")
+		(uuid "2acd8ea6-6d12-48ff-a0a9-2ce0635d1659")
 	)
 	(label
 		"RXD0"
 		(at 68.58 72.39 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "763664f1-b916-4292-a83e-ada222f0f25b")
+		(uuid "b338259e-a6e2-4772-96e1-2f961fcc6a49")
 	)
 	(label
 		"TXD0"
 		(at 68.58 69.85 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "7b6e4e8b-4853-4b12-b8dc-0317c1adfd8f")
+		(uuid "d93064e6-2ba5-4a0d-a2d0-cf03c8a18899")
 	)
 	(label
 		"GND"
 		(at 68.58 62.23 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2009466b-ea6d-4381-8107-758ca943dfe2")
+		(uuid "f444c17b-7e2b-4556-8ca8-26c5725f9cce")
 	)
 	(label
 		"GND"
 		(at 68.58 58.42 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "9ca35b61-15c9-40c2-a16a-e65384f89400")
+		(uuid "be0145e3-ba23-4e49-a373-c17351c9f1e3")
 	)
 	(label
 		"GND"
-		(at 99.06 240.03 180)
+		(at 162.56 40.64 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "85982c98-d6e0-45b3-a0e6-5d18031ac4cd")
+		(uuid "43e6ba5f-e8f8-4e69-b5db-ce37e29e436f")
 	)
 	(label
 		"GND"
-		(at 99.06 245.11 180)
+		(at 162.56 45.72 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "62522f27-ca03-4ae0-b2c8-11432394fd58")
+		(uuid "11640798-bde0-4a6b-ac2e-696e683aa730")
 	)
 	(label
 		"VOUT_SENSE"
-		(at 99.06 247.65 180)
+		(at 162.56 48.26 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "034e6fc5-f599-45a3-bc9a-cfa43ad504b2")
+		(uuid "653bca01-262f-404c-bfe0-901afeda9fa3")
 	)
 	(label
 		"GND_BACK"
-		(at 99.06 250.19 180)
+		(at 162.56 50.8 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1a70110d-9d6a-4108-93bf-d8bbef096eb4")
+		(uuid "e7abca73-35a1-4179-a83e-b3e0bf79b248")
 	)
 	(label
 		"CP_SENSE"
-		(at 129.54 250.19 0)
+		(at 193.04 50.8 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "e427c249-aa66-4dc2-a6fb-a69776899086")
+		(uuid "07438ffe-a36c-4a5d-ae73-d0f2d8956631")
 	)
 	(label
 		"GND"
-		(at 129.54 247.65 0)
+		(at 193.04 48.26 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "dd80bf5a-a4bd-479f-8e09-bf8c3c178c70")
+		(uuid "15e9d2ca-8fa5-4d4a-990b-682f913aff66")
 	)
 	(label
 		"5V"
-		(at 129.54 245.11 0)
+		(at 193.04 45.72 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "7d413dc9-7abf-466b-a575-1d124a48e6f7")
+		(uuid "e2ee3b23-b786-4786-9379-9d2b42001f8a")
 	)
 	(label
 		"SDA"
-		(at 129.54 242.57 0)
+		(at 193.04 43.18 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "bbcfe069-9dee-4929-b7fa-a5adddf95fa7")
+		(uuid "e05f8774-2077-4de3-8a96-201583b5b30a")
 	)
 	(label
 		"SCL"
-		(at 129.54 240.03 0)
+		(at 193.04 40.64 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "450f02b5-f2c9-4417-ab1b-4eb4a8dd7ea6")
+		(uuid "2a250b62-b4a7-4c50-a5a9-f33700c089fd")
 	)
 	(label
 		"GND"
 		(at 25.4 336.55 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "6a06cad2-fd8f-4df9-aa93-19fd23b9320d")
+		(uuid "571070fc-9f04-4677-85d5-f105ea0b5abd")
 	)
 	(label
 		"VDD33"
 		(at 25.4 339.09 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "97d4bfab-8bcd-4b4d-87d6-602750c310dc")
+		(uuid "04dac27b-6b23-4bd2-82e4-987bb7a10da9")
 	)
 	(label
 		"5V"
 		(at 25.4 341.63 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "09dd8938-8c3e-4744-a6e4-168c525b3bc6")
+		(uuid "2742ffca-1184-4757-a18f-c27a72b53c99")
 	)
 	(label
 		"VDD33"
 		(at 48.26 339.09 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "da2d7119-b738-4dfa-864b-69ae1eba99be")
+		(uuid "e46d4741-f155-46df-a049-b20079e1e71a")
 	)
 	(label
 		"GND"
 		(at 25.4 252.73 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "62d93801-8707-4753-9a54-24bfa2407004")
+		(uuid "00f5082a-6b0a-44f6-8e2c-8d686765c31e")
 	)
 	(label
 		"GND"
 		(at 25.4 255.27 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "973de586-b4ee-45c2-a9ee-207aefa8f8a7")
+		(uuid "510816eb-e305-4566-a533-01084ef2b94d")
 	)
 	(label
 		"12V"
 		(at 25.4 257.81 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "f0e8bf54-50f9-473e-9f4c-7ed848c0d6e9")
+		(uuid "b277ddb5-f15e-494a-a42a-c2dcdde52fa5")
 	)
 	(label
 		"12V"
 		(at 25.4 260.35 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "28878d60-fdd5-4065-bb0e-0334566619de")
+		(uuid "35d59ecb-d56d-40b5-9e5e-40fafb28d6f2")
 	)
 	(label
 		"5V"
 		(at 55.88 262.89 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "626a26d8-ca42-4a17-9546-114a5ae57c8a")
+		(uuid "9fe7a221-3c75-4834-addf-550ea3809fbd")
 	)
 	(label
 		"5V"
 		(at 55.88 260.35 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "fd8de9e2-ae77-4bad-8bc8-a274426130a3")
+		(uuid "088b7d33-536c-4d01-8735-c7d499e3973d")
 	)
 	(label
 		"GND"
 		(at 40.64 267.97 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "2438bba4-6e5f-4ddb-9d49-1e6e3e467794")
+		(uuid "3cf85c6a-0833-4917-b64d-c3ff1e6ac9d3")
 	)
 	(label
 		"120V"
-		(at 99.06 345.44 180)
+		(at 162.56 165.1 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "01ba7bb5-a57b-4a5d-8a16-775605a83499")
+		(uuid "4e580253-9f6d-4b2f-b93a-e0108ce3db92")
 	)
 	(label
 		"GND_BACK"
-		(at 99.06 347.98 180)
+		(at 162.56 167.64 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "e5cce56a-79c6-44a6-a3ae-4a76e0b504b8")
+		(uuid "fceb52d5-6079-47ca-8faf-fd3b62bf97c4")
 	)
 	(label
 		"IO17"
 		(at 99.06 176.53 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "1138eab0-3d9f-4bb6-894d-f87cceaa9ed9")
+		(uuid "4bbf0fca-c02d-4692-b533-4eead3de5cc9")
 	)
 	(label
 		"GND"
 		(at 99.06 179.07 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "4a40a519-28fa-4d07-bad5-6f292029577e")
+		(uuid "13d31f99-d046-4e7a-bb6a-855e8dc9a9d7")
 	)
 	(label
 		"5V"
 		(at 99.06 181.61 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "f1f1b8b0-4bd8-41b3-940f-7b8d821bfa8a")
+		(uuid "9ab28a2f-a087-4c52-ae60-e9bab4fa0114")
 	)
 	(label
 		"IO18"
 		(at 99.06 184.15 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "5a934d1a-b2c6-4974-b396-fac92982a780")
+		(uuid "2ac28fac-d5de-4e5b-bfed-11ac4d9c4a2b")
 	)
 	(label
 		"VDD33"
 		(at 119.38 184.15 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "cdb9222a-4c3b-48ba-b2b8-bedfb28d87db")
+		(uuid "8e75e446-0016-4492-bc9c-770e20ad33ae")
 	)
 	(label
 		"CANL"
 		(at 119.38 181.61 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "f901c4bc-93f3-4295-8698-4f03db51a859")
+		(uuid "989fe07a-a740-4b40-a6e2-44e8d475bee4")
 	)
 	(label
 		"CANH"
 		(at 119.38 179.07 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "13cadb4c-479e-4ebf-a2d0-35770881428b")
+		(uuid "8e6f66b0-39d2-4951-9e26-ab1833654fe8")
 	)
 	(label
 		"GND"
 		(at 119.38 176.53 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "5a97454b-d412-45c8-b319-68cb805fe5d7")
+		(uuid "050b5743-d80c-4286-8b82-b3f1f4c8c1b0")
 	)
 	(label
 		"GND"
 		(at 101.6 71.12 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "4f3f454c-5879-4ec6-aad3-915837a24a2a")
+		(uuid "bb45a695-9b00-4076-af3e-7d8fb4f8dc90")
 	)
 	(label
 		"GND"
 		(at 101.6 73.66 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "fccab1ce-974c-4e7c-a1f1-e8c561d141b8")
+		(uuid "3fe052ac-9dc4-455d-8a8e-c87ba4ac2978")
 	)
 	(label
 		"GND"
 		(at 101.6 76.2 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "d2d9ece2-5745-4c6d-8e5b-35d1d7ce10bf")
+		(uuid "96748481-daf7-45f3-ace5-39d59172699f")
 	)
 	(label
 		"GND"
 		(at 101.6 78.74 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "6a3c430c-77ef-4a0f-855f-534ad24f846a")
+		(uuid "dd4b0987-2b69-428f-b4e8-47504566027d")
 	)
 	(label
 		"GND"
 		(at 101.6 40.64 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "072734b5-77c9-4819-adea-333be340ffd2")
+		(uuid "f5bbf98c-3e99-40fd-9cba-ecb3cc79af19")
 	)
 	(label
 		"VBUS"
 		(at 101.6 43.18 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "30196e8d-6aed-4778-9d01-586ee0db35d6")
+		(uuid "5891776c-6f68-482a-bf3e-a00648fa6369")
 	)
 	(label
 		"USB_CC1"
 		(at 101.6 45.72 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "61b99eca-a9d5-4840-ab78-2a6a46b1325f")
+		(uuid "b2c56177-5744-41e1-b0fb-c6382cced944")
 	)
 	(label
 		"UD+"
 		(at 101.6 48.26 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "804e24d1-d3e5-4c5b-9f18-f335854ddbc1")
+		(uuid "271a2247-adf6-406f-a37b-06fd74fa98b9")
 	)
 	(label
 		"UD-"
 		(at 101.6 50.8 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "682b9937-1565-476f-a108-99e3edbf6619")
+		(uuid "aa9f50e1-7477-4d34-8158-5edb101d7625")
 	)
 	(label
 		"GND"
 		(at 101.6 68.58 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "30bd27da-d7af-496d-8d06-3cafe670160e")
+		(uuid "0b945dca-345e-45cf-bcba-30469dae236f")
 	)
 	(label
 		"VBUS"
 		(at 101.6 66.04 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "2b50c6dd-6bf8-4095-b384-6894ddeb85fb")
+		(uuid "a8829d87-f60d-4738-8899-e7129976f4a2")
 	)
 	(label
 		"USB_CC2"
 		(at 101.6 55.88 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "fcc9d449-2d07-436d-bc8a-69b8542ffe8b")
+		(uuid "08c36cd1-bff9-486c-85d2-74b714f939f6")
 	)
 	(label
 		"UD+"
 		(at 101.6 58.42 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "89d5c6eb-62f6-4d03-98fd-0ba6e25f05b8")
+		(uuid "c244c281-9f69-4b9c-95bb-a0414858bb76")
 	)
 	(label
 		"UD-"
 		(at 101.6 60.96 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "cd3ab92d-c981-48f4-a39a-0d705df2ba5f")
+		(uuid "3d926f07-3db6-46d8-8b4b-3eb36b0a73f7")
 	)
 	(label
 		"120V"
-		(at 203.2 160.02 180)
+		(at 264.16 39.37 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "294cbf77-fc3b-4025-b71c-b778eb54d83d")
+		(uuid "3c3ba88e-21a2-4df0-b713-80950e1987d7")
 	)
 	(label
 		"12V"
-		(at 203.2 191.77 180)
+		(at 264.16 72.39 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "9d0902b1-732e-4c94-9d25-90ec0cd777ce")
+		(uuid "c85c980c-af57-43f2-ae29-22704b174d50")
 	)
 	(label
 		"GND_BACK"
-		(at 203.2 170.18 180)
+		(at 264.16 49.53 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "e34bcb5d-45f1-4d3f-87d0-8a54b38a2e27")
+		(uuid "6a3e9551-a401-4a6f-9afc-d0ab6020782b")
 	)
 	(label
 		"GND"
-		(at 203.2 201.93 180)
+		(at 264.16 82.55 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "85f36cd0-71a8-4e77-a697-09cd4c2dc6e1")
+		(uuid "a73cd947-a597-487a-b5d3-74d9bac97862")
 	)
 	(label
 		"IO5"
-		(at 162.56 314.96 180)
+		(at 223.52 146.05 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "3d2f0e71-52ef-4684-95f8-50d8171e65e2")
+		(uuid "7243a814-f7ea-444d-9345-5143fc007205")
 	)
 	(label
 		"LED_Y_K"
-		(at 172.72 314.96 0)
+		(at 233.68 146.05 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "a6b68d82-475b-4a45-8cd8-a767705342c7")
+		(uuid "527fccfe-2d6c-4d84-96d7-1f037f9516a9")
 	)
 	(label
 		"120V"
-		(at 205.74 181.61 180)
+		(at 266.7 60.96 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "26420005-e6e1-4bf2-821e-b3c6b8a017d9")
+		(uuid "90fa297d-e1ac-4109-bd57-a4a71566a1d6")
 	)
 	(label
 		"GND_BACK"
-		(at 215.9 181.61 0)
+		(at 276.86 60.96 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "55b33fd1-be4c-4b96-a15a-783065709186")
+		(uuid "b7a133a4-6b98-4224-a55a-5dfb349b7f7b")
 	)
 	(label
 		"12V"
-		(at 205.74 213.36 180)
+		(at 266.7 92.71 180)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify right))
-		(uuid "728e0335-b5b0-4469-9e3e-cff3ceb7a254")
+		(uuid "28f13971-1199-4f15-a5d3-f09c044b819e")
 	)
 	(label
 		"GND"
-		(at 215.9 213.36 0)
+		(at 276.86 92.71 0)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "c1397370-3644-47cf-b3f1-2707383ae5c1")
+		(uuid "237399d6-faaa-4238-97b2-b707e27ef53f")
+	)
+	(label
+		"HV_DIV2"
+		(at 162.56 123.19 180)
+		(fields_autoplaced yes)
+		(effects (font (size 1.27 1.27)) (justify right))
+		(uuid "947f6693-c787-44e5-bc36-ac5f9fe9b711")
+	)
+	(label
+		"HV_DIV1"
+		(at 172.72 123.19 0)
+		(fields_autoplaced yes)
+		(effects (font (size 1.27 1.27)) (justify left))
+		(uuid "1afa3b48-361a-43a9-bde9-ed01826bcb94")
+	)
+	(label
+		"VOUT_SENSE"
+		(at 162.56 133.35 180)
+		(fields_autoplaced yes)
+		(effects (font (size 1.27 1.27)) (justify right))
+		(uuid "9f39aa63-9729-42d3-b017-3d92c8111c77")
+	)
+	(label
+		"HV_DIV2"
+		(at 172.72 133.35 0)
+		(fields_autoplaced yes)
+		(effects (font (size 1.27 1.27)) (justify left))
+		(uuid "9b2c1c7d-1fc0-4f77-947b-be3bc47b9039")
 	)
 	(no_connect
-		(at 205.74 120.65)
-		(uuid "d5c009fa-82a4-449f-ad01-8f605b460772")
+		(at 223.52 311.15)
+		(uuid "8f66b6ff-ff88-43f8-9eee-7ccb44adef2e")
 	)
 	(no_connect
-		(at 205.74 92.71)
-		(uuid "90e5efb8-3707-45e8-87e5-6cec252da1ca")
+		(at 223.52 284.48)
+		(uuid "36c254dd-9d30-488f-8cf0-0de456c97220")
 	)
 	(no_connect
-		(at 205.74 66.04)
-		(uuid "854107db-aad6-49e7-904a-f3026d18a364")
+		(at 223.52 256.54)
+		(uuid "36600d01-c6ce-420c-9350-722443326fbb")
 	)
 	(no_connect
 		(at 25.4 69.85)
-		(uuid "32b4fd04-9197-4449-ad4b-116bafc191e9")
+		(uuid "ea44a8d3-5c5e-45dc-b97b-9c47fd61167d")
 	)
 	(no_connect
 		(at 25.4 90.17)
-		(uuid "8c7409c7-151f-4cff-92f2-13938bf8542b")
+		(uuid "6350a5aa-5ce9-430a-bd4f-cc7ab66d0492")
 	)
 	(no_connect
 		(at 34.29 109.22)
-		(uuid "29434d06-12f0-4c7c-8606-4591cbca0324")
+		(uuid "bbfa7df3-f01f-4004-9b6d-931155462381")
 	)
 	(no_connect
 		(at 36.83 109.22)
-		(uuid "77021c4f-c771-4179-8a6f-1e5ca80937e1")
+		(uuid "5c80e0c5-8aa0-47d5-9aa0-c3dbeb2c5db1")
 	)
 	(no_connect
 		(at 46.99 109.22)
-		(uuid "c9b3d85b-971e-4f8a-8d82-8ef38a5f8291")
+		(uuid "da827b7a-40e5-4572-891d-c41556bb2352")
 	)
 	(no_connect
 		(at 49.53 109.22)
-		(uuid "76306437-aa4c-4e7c-97ea-190ebfb999c8")
+		(uuid "1e9ab567-f0b7-44b3-815f-8a8088517e65")
 	)
 	(no_connect
 		(at 52.07 109.22)
-		(uuid "bc48982a-d9cb-4fac-bccd-0e028f5a0eb2")
+		(uuid "3066d0e3-2063-44c8-a8d7-6bc8044955e2")
 	)
 	(no_connect
 		(at 54.61 109.22)
-		(uuid "eb5dce22-5481-446e-9e14-c371fd61a3d1")
+		(uuid "d0c73e5a-a829-4119-81ea-162092813d6e")
 	)
 	(no_connect
 		(at 57.15 109.22)
-		(uuid "0c05ae8d-8355-4a37-880b-4f480eb03575")
+		(uuid "ea5b216c-e521-4538-9ef6-3a5bd2a041d5")
 	)
 	(no_connect
 		(at 59.69 109.22)
-		(uuid "e88b8c3f-ddba-4690-be59-ad328b2ede45")
+		(uuid "44263c7c-8205-4231-a56f-435837b5afea")
 	)
 	(no_connect
 		(at 62.23 109.22)
-		(uuid "1038b8e1-eba6-4993-a152-3defbb01d848")
+		(uuid "0ee296f2-cfc0-43a1-8f68-5a7ca1f85232")
 	)
 	(no_connect
 		(at 68.58 92.71)
-		(uuid "16c318dd-827b-48c8-9994-b3793101d3d9")
+		(uuid "e1d909ec-557b-4899-b1cc-46b68d5acdc2")
 	)
 	(no_connect
 		(at 68.58 90.17)
-		(uuid "0e294ae7-d765-4940-a62f-fbc21e2d6aa1")
+		(uuid "445aa101-19c6-467a-b283-bba7edab4cbd")
 	)
 	(no_connect
 		(at 68.58 87.63)
-		(uuid "d80e3a32-43b8-463a-8c5d-86c50317b91d")
+		(uuid "bc6e8ffb-b460-4b12-b563-cdcc0ba40bd2")
 	)
 	(no_connect
 		(at 68.58 85.09)
-		(uuid "e914b5a6-aa59-4b0b-84e9-15d953cfaed9")
+		(uuid "c7566ca0-ac35-4c60-a98d-2992275d1b44")
 	)
 	(no_connect
 		(at 68.58 67.31)
-		(uuid "d5cbe03f-aa38-427c-b6d1-9d5810705e85")
+		(uuid "0935efdc-653c-4efb-8e24-3cdd6a53e927")
 	)
 	(no_connect
 		(at 68.58 64.77)
-		(uuid "2c27f46e-edef-4cfd-9170-f7cd945d35fb")
+		(uuid "6e44ffc0-f21d-4ddc-8243-778e0a56ccac")
 	)
 	(no_connect
-		(at 99.06 242.57)
-		(uuid "12aa3057-997f-4206-b96d-dd944b7ab403")
+		(at 162.56 43.18)
+		(uuid "a3d89280-a775-44e6-8dd1-c067e88d2c82")
 	)
 	(no_connect
 		(at 25.4 262.89)
-		(uuid "457e32f5-d1db-45b8-b84d-2bff0806bd12")
+		(uuid "c03dab63-445b-468b-94d1-df2f2cc7e8f7")
 	)
 	(no_connect
 		(at 55.88 257.81)
-		(uuid "b61cba73-e26f-45f5-a5df-510754a22df7")
+		(uuid "536265c4-0157-4ba9-bf99-52e46d010279")
 	)
 	(no_connect
 		(at 55.88 255.27)
-		(uuid "8db0f48f-12a8-4415-974a-263ff65936a7")
+		(uuid "b2c7c673-7234-4e34-9f43-9d04e76ef556")
 	)
 	(no_connect
 		(at 55.88 252.73)
-		(uuid "8fba4cc5-1819-4561-93fa-6b5edb294e5e")
+		(uuid "fa4399b2-116e-492a-ae15-7d0d1ce6483e")
 	)
 	(no_connect
 		(at 101.6 53.34)
-		(uuid "111a429b-f766-4ca6-b8ff-361bc5f65d0d")
+		(uuid "3f86ae78-4c56-4df1-a6ec-5b2a2008a305")
 	)
 	(no_connect
 		(at 101.6 63.5)
-		(uuid "a184d7eb-2427-4669-82bb-90723fa56fcc")
+		(uuid "3360d2aa-6765-4af9-86a6-d08a16866f39")
 	)
 	(symbol
 		(lib_id "TES:PWR_FLAG")
-		(at 251.46 25.4 0)
+		(at 312.42 25.4 0)
 		(unit 1)
 		(exclude_from_sim yes)
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "011ebcf1-04b3-4a00-8109-d9aec1f63e1f")
+		(uuid "46e55d8a-da3c-4b10-b623-4794ee3cff8e")
 		(property
 			"Reference"
 			"#FLG01"
-			(at 251.46 21.59 0)
+			(at 312.42 21.59 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"PWR_FLAG"
-			(at 251.46 29.21 0)
+			(at 312.42 29.21 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "#FLG01")
 					(unit 1)
 				)
@@ -11353,37 +11489,37 @@
 	)
 	(label
 		"12V"
-		(at 251.46 25.4 270)
+		(at 312.42 25.4 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "ba715600-022b-42bf-8fec-f47e25ece85e")
+		(uuid "23f49d1d-789c-4ece-8ed7-8ff7bf58ec27")
 	)
 	(symbol
 		(lib_id "TES:PWR_FLAG")
-		(at 251.46 45.72 0)
+		(at 312.42 45.72 0)
 		(unit 1)
 		(exclude_from_sim yes)
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "6b152ffa-10ea-4740-83ab-5521abdc8060")
+		(uuid "448c5fd4-d416-4ac9-8bb1-f31c9472833e")
 		(property
 			"Reference"
 			"#FLG02"
-			(at 251.46 41.91 0)
+			(at 312.42 41.91 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(property
 			"Value"
 			"PWR_FLAG"
-			(at 251.46 49.53 0)
+			(at 312.42 49.53 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(instances
 			(project
 				"TES_Controller"
 				(path
-					"/6a05312b-d202-4448-8c5d-b162ab744049"
+					"/0f97dbb6-53f4-4e73-9d44-a35de3198165"
 					(reference "#FLG02")
 					(unit 1)
 				)
@@ -11392,10 +11528,10 @@
 	)
 	(label
 		"GND"
-		(at 251.46 45.72 270)
+		(at 312.42 45.72 270)
 		(fields_autoplaced yes)
 		(effects (font (size 1.27 1.27)) (justify left))
-		(uuid "789f9b77-59af-46a5-88bc-e2f1a37db823")
+		(uuid "b7977322-e7e4-4bb9-933e-b36809e24fca")
 	)
 	(sheet_instances (path "/" (page "1")))
 	(embedded_fonts no)
