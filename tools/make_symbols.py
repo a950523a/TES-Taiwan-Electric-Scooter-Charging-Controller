@@ -60,7 +60,7 @@ def base(name, ref, footprint, desc):
 
 def led_symbol():
     """5mm 直插 LED。pin1 = 陽極，和 V1.3 網表一致（非 KiCad 內建的 1=K）。"""
-    s = base("LED-5MM", "D", "TES:LED-TH_5MM",
+    s = base("LED-5MM", "D", "TES:LED-TH_BD5.8-P2.54-FD",
              "5mm 直插 LED；pin1=A pin2=K（沿用 V1.3 編號）")
     g = [S("symbol"), "LED-5MM_0_1",
          poly([(-1.27, 2.54), (-1.27, -2.54)]),          # 陽極側豎線
@@ -80,7 +80,7 @@ def led_symbol():
 def header_symbol(n):
     """1xN 2.54mm 排針，腳位由上往下 1..N。"""
     name = "HDR-1X%d" % n
-    s = base(name, "H", "TES:HDR-TH_1X%d_P2.54" % n,
+    s = base(name, "H", "TES:HDR-TH_%dP-P2.54-V-F" % n,
              "2.54mm 單排排針 %d pin" % n)
     top = (n - 1) * 1.27
     g = [S("symbol"), name + "_0_1", rect(-1.27, top + 1.27, 1.27, top - n * 2.54 + 1.27)]
