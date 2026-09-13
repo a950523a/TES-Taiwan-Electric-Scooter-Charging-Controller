@@ -42,3 +42,13 @@
 (rule "繼電器與電磁鎖輸出最小寬度"
 	(constraint track_width (min 0.6mm))
 	(condition "A.NetName == 'DC_RELAY' || A.NetName == 'COUPLER' || A.NetName == 'VP'"))
+
+# ---------------------------------------------------------------- 例外
+# USB-C（TYPE-C16PIN / C393939）的外殼腳銑槽就開在自己的焊盤旁邊，
+# 實測焊盤到槽 0.177–0.210 mm、VBUS 走線到槽 0.156 mm。
+# 這是這顆連接器的固有幾何，不是佈線失誤 —— 我們沒辦法把它的焊盤移遠一點。
+# V1.1／V1.2 用同一個封裝已經在嘉立創量產過，製程接受。
+# 只對「USB1 自己的銅箔 vs 自己的槽」放寬，板子其他地方仍是 0.3 mm。
+(rule "USB1 外殼腳銑槽的自身間距"
+	(constraint edge_clearance (min 0.15mm))
+	(condition "A.memberOfFootprint('USB1')"))

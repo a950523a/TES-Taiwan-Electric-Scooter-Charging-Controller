@@ -153,8 +153,14 @@ def find_route(b, net, start, target, width, layers=(pcbnew.F_Cu, pcbnew.B_Cu),
     for layer in layers:
         for pts in paths(start, target):
             segs = [(p, q) for p, q in zip(pts, pts[1:]) if p != q]
-            if segs and all(seg_ok(b, net, layer, p, q, width, obs)
-                            for p, q in segs):
+            if not segs:
+                continue
+            # 走底層代表兩端都要打過孔，過孔本身也要合規
+            if layer != pcbnew.F_Cu and not all(
+                    via_ok(b, net, at, obs=obs) for at in (pts[0], pts[-1])):
+                continue
+            if all(seg_ok(b, net, layer, p, q, width, obs)
+                   for p, q in segs):
                 length = sum(math.hypot(pcbnew.ToMM(q.x - p.x),
                                         pcbnew.ToMM(q.y - p.y))
                              for p, q in segs)
