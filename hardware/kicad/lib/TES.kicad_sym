@@ -5104,7 +5104,7 @@
 		)
 		(property
 			"Footprint"
-			"TES:LED-TH_5MM"
+			"TES:LED-TH_BD5.8-P2.54-FD"
 			(at 0 -7.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
@@ -5208,7 +5208,7 @@
 		)
 		(property
 			"Footprint"
-			"TES:HDR-TH_1X3_P2.54"
+			"TES:HDR-TH_3P-P2.54-V-F"
 			(at 0 -7.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
@@ -5276,7 +5276,7 @@
 		)
 		(property
 			"Footprint"
-			"TES:HDR-TH_1X4_P2.54"
+			"TES:HDR-TH_4P-P2.54-V-F"
 			(at 0 -7.62 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)

@@ -59,3 +59,7 @@ hardware/kicad/fp-info-cache
 # Python
 __pycache__/
 *.pyc
+
+# KiCad 執行中的暫存與鎖定檔
+hardware/kicad/*.lck
+hardware/kicad/~*

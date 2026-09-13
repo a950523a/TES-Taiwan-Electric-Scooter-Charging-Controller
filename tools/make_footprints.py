@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-補上 3 個 EasyEDA 沒有匯出封裝幾何的通用元件：5mm LED、1x3 與 1x4 排針。
+補上焊線焊盤封裝。
+
+原本這裡還畫了 5mm LED 與 1x3／1x4 排針 —— 那是誤會：easyeda2kicad 走
+LCSC 料號那條路看不到通用元件，但 EasyEDA Pro 的**專案 zip** 裡其實有，
+匯入板子時就帶進來了。板上那份才是 V1.1／V1.2 實際做出來的
+（LED 的 1 腳左右相反、孔徑 1.00 而不是 0.90），所以改用它們，
+由 tools/pcb_export_fp.py 從板檔匯出到元件庫。
 
 不用 KiCad 內建庫的原因和符號一樣是焊盤編號：內建 LED_THT:LED_D5.0mm
 是 pad1=K，但 V1.3 的網表是 pad1=陽極。沿用內建封裝會讓絲印把陰極標在
@@ -129,7 +135,7 @@ def solderpad():
 
 def main():
     made = []
-    for fp in (led_5mm(), header(3), header(4), solderpad()):
+    for fp in (solderpad(),):
         name = fp.split('"')[1]
         io.open(os.path.join(PRETTY, name + ".kicad_mod"), "w",
                 encoding="utf-8").write(fp)
