@@ -40,6 +40,7 @@ KPY="C:/Program Files/KiCad/10.0/bin/python.exe"
 "$KPY" tools/_pcb_repair.py       hardware/kicad/TES_Controller.kicad_pcb 2>&1 | grep -v 'memory leak\|image handler' || true
 
 echo "7/8 PCB DRC"
+"$PY" tools/check_project.py
 "$KICAD" pcb drc --output /dev/null --severity-error hardware/kicad/TES_Controller.kicad_pcb 2>&1 | grep -oE 'Found [0-9]+ (violations|unconnected items)'
 
 echo "8/8 機構鎖定座標"
