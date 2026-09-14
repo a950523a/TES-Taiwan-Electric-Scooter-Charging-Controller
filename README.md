@@ -10,6 +10,18 @@
 
 ---
 
+> ## ⏸ 專案狀態：暫停更新
+>
+> **本專案因個人規劃，自 2026-09-15 起暫停更新。**
+>
+> - 既有的程式碼、硬體設計與文件**維持公開**，可自由依授權條款使用。
+> - 已發布的 **v3.5.0 韌體**與 GitHub Pages 上的燒錄工具**繼續可用**。
+> - 新功能開發與硬體改版暫停；**Issue 與 PR 可能不會回覆**。
+>
+> 恢復更新時會更新本節。
+
+---
+
 ## ⚠️ 免責聲明與安全警告
 
 **本專案僅包含「控制板」的軟硬體設計，不包含功率級電源模組。**
@@ -149,7 +161,7 @@ idf.py -p <PORT> flash monitor
 ## 🤝 社群與支援
 
 - **Facebook 社群**：[TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
-- **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)
+- **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)（專案暫停更新期間可能不會回覆，見頁首說明）
 
 ---
 
