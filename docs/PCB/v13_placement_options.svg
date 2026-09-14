@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="476" height="653" viewBox="0 0 476 653">
+<rect width="100%" height="100%" fill="#fbfbf7"/>
+<rect x="14.0" y="14.0" width="448.9" height="625.2" fill="#fff" stroke="#b00" stroke-width="2"/>
+<rect x="52.5" y="274.4" width="374.5" height="210.0" fill="#d8e6f5" stroke="#36c" stroke-width="1.5" opacity="0.75"/>
+<text x="238.0" y="378.0" font-family="sans-serif" font-size="13" fill="#25a" text-anchor="middle">DC120V-DC12V 降壓板（疊放在上面）</text>
+<rect x="416.9" y="151.7" width="42.7" height="24.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="438.3" y="149.7" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">BOOT1</text>
+<rect x="417.6" y="128.1" width="42.7" height="24.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="438.9" y="126.1" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">EN1</text>
+<rect x="54.7" y="190.4" width="44.4" height="25.1" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="76.9" y="188.4" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">U5</text>
+<rect x="414.8" y="334.8" width="25.2" height="32.2" fill="#fdd" stroke="#e33" stroke-width="1"/>
+<text x="427.4" y="332.8" font-family="sans-serif" font-size="9" fill="#e33" text-anchor="middle">D10</text>
+<rect x="124.9" y="185.5" width="38.4" height="56.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="37.7" y="524.5" width="59.1" height="116.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="131.6" y="-30.9" width="136.5" height="186.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="199.8" y="-32.9" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">U1</text>
+<rect x="21.3" y="201.2" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="147.6" y="490.0" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="381.1" y="543.4" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="185.1" y="179.6" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="190.0" y="177.6" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">R5</text>
+<rect x="31.3" y="214.2" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="24.8" y="53.5" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="402.9" y="543.3" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="124.0" y="514.7" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="292.7" y="540.5" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="110.7" y="124.7" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="109.3" y="37.5" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="122.7" y="545.1" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="25.8" y="150.0" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="271.6" y="540.2" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="45.3" y="213.5" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="146.8" y="499.5" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="110.7" y="135.8" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="168.3" y="179.6" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="173.2" y="177.6" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">R6</text>
+<rect x="24.8" y="102.0" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="275.8" y="153.8" width="9.8" height="20.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="306.7" y="150.6" width="39.8" height="52.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="306.7" y="26.6" width="39.8" height="52.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="369.6" y="150.6" width="39.8" height="52.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="306.7" y="88.8" width="39.8" height="52.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="355.2" y="66.7" width="27.1" height="24.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="20.2" y="379.4" width="24.8" height="14.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="32.6" y="377.4" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">W1</text>
+<rect x="302.2" y="538.7" width="26.2" height="24.4" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="238.3" y="189.5" width="15.6" height="36.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="75.0" y="18.6" width="36.2" height="15.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="313.8" y="218.2" width="15.6" height="36.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="368.0" y="218.2" width="15.6" height="36.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="238.3" y="228.2" width="15.6" height="36.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="394.2" y="58.9" width="7.6" height="13.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="394.4" y="87.3" width="7.6" height="13.5" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="281.2" y="562.2" width="41.6" height="22.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="390.5" y="565.7" width="41.6" height="22.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="274.5" y="585.7" width="53.1" height="55.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="301.0" y="583.7" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">CN6</text>
+<rect x="330.5" y="585.7" width="53.1" height="55.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="357.0" y="583.7" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">CN5</text>
+<rect x="384.7" y="585.7" width="53.1" height="55.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="411.3" y="583.7" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">CN3</text>
+<rect x="53.0" y="132.3" width="42.2" height="45.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="52.0" y="35.4" width="42.2" height="45.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="52.1" y="84.3" width="42.2" height="45.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="161.1" y="159.6" width="77.6" height="21.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="199.9" y="157.6" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">H1</text>
+<rect x="20.5" y="187.8" width="20.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="432.7" y="407.4" width="24.8" height="14.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="445.2" y="405.4" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">W4</text>
+<rect x="432.7" y="379.4" width="24.8" height="14.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="445.2" y="377.4" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">W2</text>
+<rect x="411.6" y="542.2" width="26.2" height="24.4" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="424.7" y="540.2" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">Q1</text>
+<rect x="332.2" y="223.8" width="30.7" height="25.1" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="347.5" y="221.8" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">U8</text>
+<rect x="353.2" y="113.1" width="20.5" height="9.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="194.0" y="584.2" width="78.3" height="57.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="233.2" y="582.2" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">U10</text>
+<rect x="123.7" y="488.9" width="24.4" height="26.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="95.1" y="502.1" width="24.4" height="26.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="188.4" y="535.2" width="32.7" height="15.4" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="201.8" y="551.7" width="32.2" height="25.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="20.2" y="407.4" width="24.8" height="14.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="32.6" y="405.4" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">W3</text>
+<rect x="172.5" y="210.0" width="62.0" height="49.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="42.1" y="494.4" width="50.9" height="29.3" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="403.4" y="46.1" width="59.3" height="71.0" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="433.0" y="44.1" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">USB1</text>
+<rect x="316.4" y="141.8" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="115.1" y="216.0" width="9.8" height="18.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="429.5" y="117.6" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="46.3" y="226.0" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="316.5" y="17.8" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="85.7" y="215.0" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="110.3" y="49.1" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="134.5" y="176.0" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="428.8" y="177.3" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="438.3" y="175.3" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">C11</text>
+<rect x="379.9" y="141.8" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="316.8" y="80.0" width="18.9" height="9.8" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="120.2" y="16.1" width="9.8" height="18.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="100.0" y="194.5" width="9.8" height="18.9" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="98.8" y="556.0" width="93.3" height="86.4" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="166.6" y="511.8" width="32.7" height="23.2" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="351.5" y="22.7" width="60.9" height="21.6" fill="#eee" stroke="#999" stroke-width="1"/>
+<rect x="431.6" y="337.1" width="24.5" height="36.4" fill="none" stroke="#0a0" stroke-width="2.5" stroke-dasharray="5,3"/>
+<text x="460.1" y="355.2" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0a0">A: D10→SMA 上方</text>
+<rect x="431.6" y="426.3" width="24.5" height="36.4" fill="none" stroke="#0a0" stroke-width="2.5" stroke-dasharray="5,3"/>
+<text x="460.1" y="444.5" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0a0">B: D10→SMA 下方</text>
+<rect x="414.8" y="488.9" width="41.3" height="30.1" fill="none" stroke="#f80" stroke-width="2.5" stroke-dasharray="5,3"/>
+<text x="460.0" y="504.0" font-family="sans-serif" font-size="11" font-weight="bold" fill="#f80">C: D10 維持 SMB</text>
+<rect x="79.1" y="229.6" width="29.4" height="29.4" fill="none" stroke="#70c" stroke-width="2.5" stroke-dasharray="5,3"/>
+<text x="112.5" y="244.3" font-family="sans-serif" font-size="11" font-weight="bold" fill="#70c">E1: EEPROM SOT-23-5</text>
+<rect x="257.2" y="208.2" width="49.0" height="45.5" fill="none" stroke="#70c" stroke-width="2.5" stroke-dasharray="5,3"/>
+<text x="310.2" y="231.0" font-family="sans-serif" font-size="11" font-weight="bold" fill="#70c">E2: EEPROM SOIC-8</text>
+<text x="14.0" y="649.2" font-family="sans-serif" font-size="12" fill="#444">紅=D10 現在位置（壓在模組下）  綠/橘=D10 候選  紫=EEPROM 候選</text>
+</svg>

@@ -404,6 +404,62 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
 
+### ⏸ Paused 2026-09-15 — three changes half-applied
+
+**Work on the board is on hold** while the patent question is decided (see
+**Publication status** in Current Status). The state below is deliberate, not
+an accident, and it is self-consistent: the schematic and library carry three
+new changes, the PCB does not.
+
+| | Schematic + library | PCB |
+|---|---|---|
+| **U13** 24C02S EEPROM (LCSC C18723540) + **C30** 100 nF | ✅ placed, verified | ❌ **blocked — see below** |
+| **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ❌ not applied |
+| **R35** 10 kΩ, Q4 gate divider | ✅ | ❌ not applied |
+
+Schematic verifies at **239 of 239 connections, zero difference**, ERC 0. The
+PCB is back at its last committed state: 81 footprints, **0 DRC errors, 0
+unconnected**. Nothing half-routed was left on it.
+
+**Why the EEPROM is blocked: the board is full where the I2C bus is.** Counting
+existing tracks and vias, not just component courtyards:
+
+| Free area needed | Distance to the nearest SDA/SCL pad |
+|---|---|
+| 4.0 × 4.0 mm (the footprint and nothing else) | **31.9 mm** |
+| 6.5 × 6.5 mm (footprint plus room for three pins to escape) | **49.3 mm** |
+
+A SOT-23-5 cannot be placed near U5/R5/R6 at all. Anchoring the auto-placer at
+U5, R6 or R5 — and forcing an explicit coordinate — all fail on pad clearance.
+Left to itself the placer puts it 25 mm away and sends SDA and SCL down the
+**bottom layer for 28 mm each**, which cuts the ground plane the restructure
+work existed to create.
+
+Distance itself is not the problem: 30–50 mm of I2C trace adds 3–5 pF against a
+400 pF budget. The missing thing is a routing channel. Three ways forward, none
+chosen yet:
+
+- **A.** Place it in the open strip along the bottom of the board and force the
+  maze router to stay on the top layer. Touches no existing copper.
+- **B.** Re-route a few tracks near U5 to open ~4 × 4 mm. Best electrically,
+  but it modifies verified copper and needs a full DRC re-run.
+- **C.** Nudge one existing small part. Between the two.
+
+### Two bugs found on the way, both fixed
+
+1. **`easyeda2kicad --overwrite` appends, it does not replace.** Every library
+   regeneration added a second copy of every symbol — 35 duplicates were
+   removed. This is where the mystery duplicate `ADS1115IDGSR` came from, and
+   it was worse than untidy: the duplicate **silently reverted the AO3400A pin
+   renumbering**, so the library held one symbol with 1=G and one with 1=S.
+   `kicad_lib.py` now dedupes (keeping the last copy) before applying
+   `PIN_RENUMBER`.
+2. **The buck-module keepout used the wrong rectangle.** It was the one bounded
+   by the four mounting holes (127.86–176.46 × 100.22–124.22), not the module
+   body (125.5–179.0 × 97.2–127.2, the outline drawn on F.SilkS). Every edge
+   was 2.4–3.0 mm short, and **that is how D10 ended up under the module** —
+   it slipped through the 2.5 mm gap on the right.
+
 ### What is deliberately not done
 
 - **No Gerbers yet.** Fabrication output is the next step, and nothing has been
@@ -621,6 +677,26 @@ deliberately, as was done for the eight above and for the CI fix (`939743e`, a
 cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so bringing
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
 already identical on both sides, so it will not conflict.
+
+**⏸ Publication status — check before pushing anything (2026-09-15).** Work is
+paused while it is decided whether to file for a patent and move to a private
+repository. **Do not push, tag or release without asking**; a push to `main`
+also republishes the flashing tool on GitHub Pages.
+
+What is already public is a matter of record, and going private later does not
+retract it:
+
+| | |
+|---|---|
+| Repository | public since **2025-06-19** (~15 months) |
+| Releases | **10**, earliest 2025-10-17, latest v3.5.0 on 2026-09-10 |
+| GitHub Pages | live, serving `tes_charger_flash.bin` |
+| Copies in other hands | **1 fork, 23 stars** |
+
+That timeline is what a patent attorney will ask for first. Nobody on this
+project should be guessing at whether it affects patentability — the rules
+differ by jurisdiction and the answer is not something to infer from a
+changelog.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
