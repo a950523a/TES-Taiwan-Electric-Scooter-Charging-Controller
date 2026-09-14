@@ -545,7 +545,7 @@ field. No migration was written.
 
 **Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
-**ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
+**ESP-NOW PSU transport (implemented 2026-05-16, ✅ hardware-tested 2026-09-15):** `psu_driver` supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. The LianMing PSU Controller side has been updated to match, and the pair → publish → command path has been exercised on real hardware.
 
 **PSU disconnect fault fix (commit 89bc1c4, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
 
@@ -556,25 +556,40 @@ Details, and what is deliberately left undone, in **Hardware — V1.3 board (KiC
 Note that V1.3 is **not compatible with the shipped firmware constant**: its divider
 reads 38.954, deployed units read 30.000.
 
+**⚠️ On `main`, in no release yet.** Eight commits from 2026-09-11 to 09-13 sit on
+`main` above the v3.5.0 tag. Three of them change how the device behaves, so anything
+built from `main` is **not** what a deployed unit is running:
+
+| | Consequence |
+|---|---|
+| CSRF protection on the seven state-changing endpoints | `curl` and scripts must send `X-TES-Request: 1` or get 403 — including `POST /ota/upload` |
+| MQTT TLS + `mqtt_cmd` opt-out | new NVS key, defaults to true (see **Security**) |
+| ESP-IDF v5.5.5 | CI and the dev machine; v3.5.0 itself was built with v5.5.1 |
+
+Pushing `main` deploys GitHub Pages, which republishes `tes_charger_flash.bin` on the
+public first-flash tool — so a push is what actually puts these in front of users, tag
+or no tag.
+
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
 **✅ Vehicle-verified as of v3.5.0:** manual START → full charge sequence; CP transition
 0 V → 8.99 V; `trace_svc` session start; web UI latency (measured with curl, see above).
 
+**✅ Confirmed on hardware 2026-09-15** — everything v3.5.0 shipped without having been
+exercised has since been checked, and the ESP-NOW PSU transport with it:
+- **Fault display persistence** (OLED / LED / web) — the reason now holds instead of the
+  screen reverting to Standby when FAULT auto-recovers.
+- **Fault reason in charge history** — `/history` renders through the same `FAULTS[]`
+  table as the live panel, so a fault stop reads "充電槍鬆脫" rather than a bare "故障".
+- **`Reset Fault` in IDLE** — the menu item does something in that state now.
+- **ESP-NOW PSU transport**, against the updated LianMing PSU Controller.
+
+The pass/fail was recorded, the procedure was not. If any of these is ever suspected
+again, the repro steps have to be rebuilt from scratch — worth writing down next time.
+
 **⚠️ Still not vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan,
 mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge
-timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
-
-**⚠️ Shipped in v3.5.0 but never exercised on hardware** — verify these before trusting them:
-- **Fault display persistence** (OLED / LED / web). Needs a real fault to confirm the
-  screen holds instead of reverting to Standby. Easiest repro: start charging, reach
-  CHARGING, unplug the connector (manual mode auto-recovers in 1 s, so the old build
-  showed nothing).
-- **Fault reason in charge history.** `/history` was emptied by the struct change, so
-  no record with `fault_source` has ever been rendered. Expect "充電槍鬆脫" rather than
-  a bare "故障".
-- **`Reset Fault` in IDLE.** Newly wired up; previously the menu item did nothing in
-  that state.
+timer stop, scheduler, beta auto-start.
 
 **⚠️ Beta auto-start bug (still unconfirmed as of v3.5.0):** the v3.5.0 vehicle test used
 **manual START only**, so this remains untested. Vehicle sends `fault_flags=0x01` in 0x500
@@ -917,7 +932,7 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 4. 設定：對應現有 REST `/config` API
 5. 充電歷史：對應 `GET /history`
 
-**開發狀態：** 尚未開始，ESP-NOW 韌體完成後進行。
+**開發狀態：** 尚未開始。原本卡在 ESP-NOW 韌體，該項已於 2026-09-15 測試通過，前置條件解除。
 
 ---
 
