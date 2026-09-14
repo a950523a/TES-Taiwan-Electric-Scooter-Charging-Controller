@@ -611,7 +611,16 @@ built from `main` is **not** what a deployed unit is running:
 
 Pushing `main` deploys GitHub Pages, which republishes `tes_charger_flash.bin` on the
 public first-flash tool — so a push is what actually puts these in front of users, tag
-or no tag.
+or no tag. (It did, on 2026-09-15: main now builds green and the published binary
+carries the CSRF header requirement. The Releases the OTA button pulls from are still
+v3.5.0, which does not — only re-flashed units have it.)
+
+**`main` carries firmware only; the V1.3 hardware work stays on `dev`** (decided
+2026-09-15). Do **not** fast-forward `main` to `dev` — pick the firmware commits across
+deliberately, as was done for the eight above and for the CI fix (`939743e`, a
+cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so bringing
+`dev` over later needs a merge commit rather than a fast-forward; the workflow file is
+already identical on both sides, so it will not conflict.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
