@@ -62,6 +62,48 @@ def relocate_3d_paths(pretty_dir):
     return n
 
 
+# 嘉立創給 C20917（AOS AO3400A）配的 SOT-23-3 封裝，焊盤 1、2 的編號和
+# JEDEC TO-236 相反 —— 俯視應該是 1→2→3 逆時針，它是順時針，所以標成
+# 「1」的那個焊盤實際上落在晶片的腳 2（Source）位置上。
+#
+# 同一個庫裡另外五種封裝（MSOP-10、SOIC-8、SOT-23-6、SOT-223，以及
+# AO3401A 用的 SOT-23）全部是逆時針，功能也都對得上（TJA1051 腳1=TXD、
+# AMS1117 腳1=GND、USBLC6 腳2=GND），所以錯的是這一顆封裝。
+#
+# 板子是照著這個編號畫的、也已經驗證過，所以封裝維持原樣，改成讓**符號**
+# 跟著它 —— 原本 EasyEDA 的稿子就是這樣處理的（用 AO3400A-MS 這顆
+# 1、2 腳相反的符號）。照嘉立創原本的符號畫，閘極會被接到 GND、源極吃
+# 閘極驅動，MOSFET 永遠不導通。
+PIN_RENUMBER = {"AO3400A": {"G": "2", "S": "1", "D": "3"}}
+
+
+def renumber_pins(sym_path):
+    """把 PIN_RENUMBER 列的符號腳位改號，回傳改動的符號數。"""
+    if not os.path.exists(sym_path):
+        return 0
+    lines = io.open(sym_path, encoding="utf-8").read().splitlines(True)
+    cur, name, n = None, None, 0
+    touched = set()
+    for i, ln in enumerate(lines):
+        t = ln.strip()
+        m = re.fullmatch(r'"([^"]+)"', t)
+        if m and i and lines[i - 1].strip() == "(symbol":
+            base = m.group(1).rsplit("_", 2)[0]
+            cur = base if base in PIN_RENUMBER else None
+        if cur and t.startswith('(name "'):
+            name = t.split('"')[1]
+        elif cur and name and t.startswith('(number "'):
+            want = PIN_RENUMBER[cur].get(name)
+            if want and t.split('"')[1] != want:
+                lines[i] = ln.replace('(number "%s"' % t.split('"')[1],
+                                      '(number "%s"' % want, 1)
+                touched.add(cur)
+            name = None
+    if touched:
+        io.open(sym_path, "w", encoding="utf-8").write("".join(lines))
+    return len(touched)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -101,6 +143,8 @@ def main():
     print("產生符號 %d 個" % created)
     for f in fails:
         print("  " + f)
+    print("腳位編號修正：%d 個符號（見 PIN_RENUMBER 的說明）"
+          % renumber_pins(OUT_SYM))
     print("3D 路徑改為相對：%d 個封裝"
           % relocate_3d_paths(os.path.join(os.path.dirname(OUT_SYM), "TES.pretty")))
     cache = os.path.join(REPO, ".easyeda_cache")
