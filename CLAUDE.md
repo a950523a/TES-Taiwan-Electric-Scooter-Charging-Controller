@@ -678,6 +678,12 @@ cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
 already identical on both sides, so it will not conflict.
 
+**⏸ The project is paused as of 2026-09-15.** README.md carries a notice at the
+top: existing code, hardware and documentation stay public and the released
+v3.5.0 firmware and flashing tool keep working, but development is stopped and
+issues may go unanswered. The reason given publicly is "personal plans" — keep
+it that way in anything user-facing.
+
 **Publication status — decided 2026-09-15: the repository stays public.** It was
 briefly paused over whether to go private ahead of a patent filing; the call was
 that what is already out there cannot be retracted, and the history is worth
