@@ -678,25 +678,29 @@ cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
 already identical on both sides, so it will not conflict.
 
-**⏸ Publication status — check before pushing anything (2026-09-15).** Work is
-paused while it is decided whether to file for a patent and move to a private
-repository. **Do not push, tag or release without asking**; a push to `main`
-also republishes the flashing tool on GitHub Pages.
-
-What is already public is a matter of record, and going private later does not
-retract it:
+**Publication status — decided 2026-09-15: the repository stays public.** It was
+briefly paused over whether to go private ahead of a patent filing; the call was
+that what is already out there cannot be retracted, and the history is worth
+keeping as a record of the work. Normal pushing and releasing resumed.
 
 | | |
 |---|---|
-| Repository | public since **2025-06-19** (~15 months) |
+| Repository | public since **2025-06-19** |
 | Releases | **10**, earliest 2025-10-17, latest v3.5.0 on 2026-09-10 |
 | GitHub Pages | live, serving `tes_charger_flash.bin` |
-| Copies in other hands | **1 fork, 23 stars** |
+| Copies in other hands | 1 fork, 23 stars |
 
-That timeline is what a patent attorney will ask for first. Nobody on this
-project should be guessing at whether it affects patentability — the rules
-differ by jurisdiction and the answer is not something to infer from a
-changelog.
+**No patent application has been filed.** README.md carries a
+reservation-of-rights section explaining that CC BY-NC-SA 4.0 licenses copyright
+only — its own §2(b)(2) says patent and trademark rights are not licensed — so
+publishing under it grants nobody a patent licence. That section deliberately
+does **not** say "Patent Pending": marking that without a live application is a
+false marking in several jurisdictions. Update it when there is an actual
+application, not before.
+
+Nobody on this project should be reasoning about whether the publication
+timeline affects patentability. The rules differ by jurisdiction and it is a
+question for a patent attorney; the table above is what they will ask for.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 

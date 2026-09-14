@@ -153,14 +153,58 @@ idf.py -p <PORT> flash monitor
 
 ---
 
-## ⚖️ 授權
+## ⚖️ 授權與權利保留
 
-本專案採用 **[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權。
+### 著作權
+
+本專案的程式碼與設計檔案採用 **[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW)** 授權。
 
 - ✅ 分享與改作：需標示原作者，並以相同條款釋出
 - 🚫 禁止商業使用：不得將本專案之設計圖檔、程式碼用於商業量產或販售營利
 
-Copyright (c) 2025 Chris Huang
+### 專利權不在本授權範圍內
+
+CC BY-NC-SA 4.0 **只授權著作權，不授權專利權**。這不是本專案額外附加的限制，
+而是授權條款本文第 2(b)(2) 節的明文規定（見 [`LICENSE.md`](LICENSE.md) 第 52 行）：
+
+> Patent and trademark rights are not licensed under this Public License.
+>
+> （本公眾授權條款不授權專利權與商標權。）
+
+因此，本專案以開源授權公開，**不代表作者放棄或授予任何專利權利**。作者保留
+就本專案所涉技術方案申請專利之權利，以及已取得或未來取得之一切專利權利。
+
+依 CC BY-NC-SA 4.0 使用本專案者，僅取得著作權範圍內之授權。**如需專利授權或
+商業使用授權，請另行聯絡作者。**
+
+> ⚠️ **目前尚未提出任何專利申請。** 本節是權利保留聲明，**不是**「專利申請中
+> （Patent Pending）」的標示 —— 在沒有實際申請案的情況下標示 Patent Pending，
+> 在多個法域屬於不實標示。待有實際申請案再更新本節。
+>
+> 本節文字未經法律專業審閱。本專案自 2025-06-19 起即為公開狀態（詳見下方
+> 專案紀錄），此一公開時程對可專利性的影響因法域而異，請務必諮詢專利師。
+
+Copyright (c) 2025-2026 Chris Huang.
+All rights not expressly granted under the above license are reserved.
+
+---
+
+## 📌 專案紀錄
+
+| 階段 | 時間 | 內容 |
+|---|---|---|
+| 專案開始 | 2025-06-19 | Arduino 原型 |
+| V2 系列 | 2025-10 ~ 2025-12 | PlatformIO / C++，v2.4.0 ~ v2.5.0-beta |
+| **V3 重構** | 2026-05-02 | 改用 ESP-IDF 原生 C99，協定層抽成零相依模組 |
+| 遠端監控 | 2026-05 ~ 2026-09 | MQTT、Cloud PWA、排程充電、ESP-NOW PSU 傳輸 |
+| 最新釋出 | 2026-09-10 | v3.5.0，**實車驗證完整充電流程** |
+| 硬體 V1.3 | 2026-09 | 由 EasyEDA Pro 遷移至 KiCad，改為工具鏈可重現、可驗證 |
+
+技術範圍涵蓋：TES-0D-02-01 協定狀態機、CAN Bus 通訊、即時 FreeRTOS 任務架構、
+電源模組控制（UART／ESP-NOW 雙傳輸）、Web UI／REST API／PWA、OTA 更新、
+以及 PCB 設計與驗證工具鏈。
+
+作者：**Chris Huang**（[@a950523a](https://github.com/a950523a)）
 
 ---
 
