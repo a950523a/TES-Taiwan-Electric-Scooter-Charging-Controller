@@ -106,6 +106,59 @@ def solderpad_symbol():
     return s + [g, u]
 
 
+def power_symbol(name, kind):
+    """電源／接地符號。
+
+    電路圖上最花眼力的就是滿版的 GND 標籤 —— 這塊板子 238 個標籤裡有 114 個
+    是電源或接地（光 GND 就 73 個）。換成符號之後，「這裡接地」變成一眼可見
+    的圖形，不必逐個讀字。
+
+    GND 與 GND_BACK 用不同圖形：前者是訊號地，後者是 120V 的回流端，
+    在板子上是分開的兩個節點（只透過降壓模組的線束共通），畫成一樣會誤導。
+    """
+    s = [S("symbol"), name,
+         [S("power")],
+         [S("pin_numbers"), [S("hide"), S("yes")]],
+         [S("pin_names"), [S("offset"), 0.0], [S("hide"), S("yes")]],
+         [S("exclude_from_sim"), S("no")],
+         [S("in_bom"), S("no")],
+         [S("on_board"), S("yes")],
+         prop("Reference", "#PWR", 0, -3.81, hide=True),
+         prop("Value", name, 0, 3.81 if kind == "gnd" else -3.81),
+         prop("Footprint", "", 0, -6.35, hide=True),
+         prop("Datasheet", "", 0, -7.62, hide=True),
+         prop("Description", "電源符號", 0, -8.89, hide=True)]
+    g = [S("symbol"), name + "_0_1"]
+    if kind == "gnd":
+        # 三條遞減橫線（訊號地）
+        g += [poly([(0, 0), (0, -1.27)]),
+              poly([(-1.905, -1.27), (1.905, -1.27)]),
+              poly([(-1.27, -1.905), (1.27, -1.905)]),
+              poly([(-0.635, -2.54), (0.635, -2.54)])]
+    elif kind == "earth":
+        # 斜線接地（機殼／回流端），刻意和訊號地不同
+        g += [poly([(0, 0), (0, -1.27)]),
+              poly([(-1.905, -1.27), (1.905, -1.27)])]
+        for dx in (-1.27, 0, 1.27):
+            g += [poly([(dx, -1.27), (dx - 0.635, -2.54)])]
+    else:
+        # 電源軌：一條橫線加一個小三角
+        g += [poly([(0, 0), (0, 1.27)]),
+              poly([(-1.27, 1.27), (1.27, 1.27)]),
+              poly([(-0.762, 1.27), (0, 2.032), (0.762, 1.27)], fill="outline")]
+    u = [S("symbol"), name + "_1_1",
+         pin("1", name, 0.0, 0.0, 270 if kind in ("gnd", "earth") else 90,
+             etype="power_in")]
+    return s + [g, u]
+
+
+# 符號名稱**必須**和板子上的網路名一模一樣。KiCad 的電源符號會用自己的名字
+# 當網路名，取成 +12V 就會把整條 12V 網路改名，連 PCB 的網表都跟著變。
+POWER_SYMBOLS = [("GND", "gnd"), ("GND_BACK", "earth"),
+                 ("5V", "rail"), ("VDD33", "rail"),
+                 ("12V", "rail"), ("120V", "rail")]
+
+
 def pwr_flag_symbol():
     """電源旗標。
 
@@ -138,8 +191,10 @@ def main():
     lib = sexpr.load(LIB)
     have = {s[1] for s in sexpr.findall(lib, "symbol")}
     added = []
-    for sym in (led_symbol(), header_symbol(3), header_symbol(4),
-                solderpad_symbol(), pwr_flag_symbol()):
+    syms = [led_symbol(), header_symbol(3), header_symbol(4),
+            solderpad_symbol(), pwr_flag_symbol()]
+    syms += [power_symbol(n, k) for n, k in POWER_SYMBOLS]
+    for sym in syms:
         if sym[1] in have:
             lib[:] = [c for c in lib
                       if not (isinstance(c, list) and c[:2] == [S("symbol"), sym[1]])]
