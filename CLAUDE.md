@@ -377,6 +377,54 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 **V2 Hardware GPIO (for reference):** buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/15), PSU UART (43/44). ADS1115 at 0x48. CP divider: 150 Ω / 51 Ω.
 
+---
+
+## Hardware — V1.3 board (KiCad)
+
+**The board design moved from EasyEDA Pro to KiCad 10.0.6 and is done, except
+for fabrication output.** The EasyEDA project stays in `docs/PCB/` as the
+reference; `hardware/TES_Controller_V1.3/` holds its text export (netlist, BOM,
+rules, raw `.esch`/`.epcb`), which is what every check is run against.
+
+`sh tools/regen_hw.sh` rebuilds the whole design from that export and verifies
+it. Eight idempotent steps; add `--relib` to re-pull the component library from
+LCSC (slow, needs network — the library is committed, so normally skip it).
+**Close KiCad first** — see the warning below.
+
+### Where it stands
+
+| | State |
+|---|---|
+| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 28 footprints. 3D models regenerate on demand and are gitignored (39 MB) |
+| Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
+| Netlist | **230 of 230 connections, zero difference** against the EasyEDA export, checked on every regeneration |
+| ERC | 0 violations |
+| PCB | 2-layer, single-sided SMT. 81 footprints, 522 tracks, 134 vias, bottom layer is one 5333 mm² ground pour |
+| DRC | **0 errors, 0 unconnected pads.** 167 warnings remain, all silkscreen overlap / courtyard / library-mismatch |
+| Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
+| Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
+
+### What is deliberately not done
+
+- **No Gerbers yet.** Fabrication output is the next step, and nothing has been
+  ordered from this design.
+- **DRC and ERC stay out of CI.** Design checks belong to the moment of
+  designing, not to every push.
+- **The V1.3-only parts borrow a library symbol.** R33/R34 (115 k), R10's new
+  value, R11 (9.09 k), D9 (SMBJ130A) and D10 (SMBJ13A) carry the right MPN in
+  their `Value` field but reuse the graphic of a same-package part, because the
+  library is generated from the V1.3 BOM and those part numbers are not in it.
+  Footprints happen to be right in every case (0603, SMB). Regenerate the
+  library from an updated BOM before trusting a KiCad-side BOM export.
+- **`ADS1115IDGSR` is in `TES.kicad_sym` twice**, identical apart from a `-0.00`
+  on one pin. Harmless, but it is duplication nobody put there on purpose.
+
+### Firmware consequences still outstanding
+
+The divider coefficient goes 30.000 → 38.954 (next section), and that constant
+cannot simply be changed — deployed units run the old divider. It waits on the
+planned `hw_info` EEPROM, per **Deployment constraints**.
+
 ### ⚠ The voltage divider changes in hardware V1.3 — the firmware constant must follow
 
 | | shipped hardware (V1.1 / V1.2) | V1.3 |
@@ -500,6 +548,13 @@ field. No migration was written.
 **ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
 
 **PSU disconnect fault fix (commit 89bc1c4, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
+
+**Hardware V1.3 (2026-09-15):** the EasyEDA → KiCad migration is finished and the
+board passes every check it has — netlist zero-difference, ERC clean, DRC 0 errors
+and 0 unconnected. Gerbers are the only step left, and nothing has been ordered.
+Details, and what is deliberately left undone, in **Hardware — V1.3 board (KiCad)**.
+Note that V1.3 is **not compatible with the shipped firmware constant**: its divider
+reads 38.954, deployed units read 30.000.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
