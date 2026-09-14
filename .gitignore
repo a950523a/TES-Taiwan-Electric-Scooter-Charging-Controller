@@ -63,3 +63,6 @@ __pycache__/
 # KiCad 執行中的暫存與鎖定檔
 hardware/kicad/*.lck
 hardware/kicad/~*
+
+# KiCad 的本機歷史（KiCad 自己維護的，不進版控）
+hardware/kicad/.history/

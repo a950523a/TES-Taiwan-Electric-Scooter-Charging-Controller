@@ -382,18 +382,19 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 | | shipped hardware (V1.1 / V1.2) | V1.3 |
 |---|---|---|
 | ADS1115 supply | 3.3 V (V1.1/V1.2) | **3.3 V** |
-| upper arm | 348 kΩ, one 0603 | **118k + 115k + 115k = 348 kΩ** |
+| upper arm | 348 kΩ, one 0603 | **115k × 3 = 345 kΩ** |
 | lower arm | 12 kΩ | **9.09 kΩ** |
-| coefficient | 30.000 | **39.284** |
-| reading at 120 V | 4.000 V | 3.055 V |
-| measurement ceiling | 122.9 V (PGA-limited) | 141.4 V (pin-limited) |
+| coefficient | 30.000 | **38.954** |
+| reading at 120 V | 4.000 V | 3.081 V |
+| measurement ceiling | 122.9 V (PGA-limited) | 140.2 V (pin-limited) |
 
 Two separate defects drove this, both in `hardware/kicad` and both explained
 with their reasoning in `tools/changes_v13.py`:
 
 1. **A single 0603 cannot hold off 120 V.** Its rated working voltage is
-   75 V and the upper arm sees 116 V. Three in series drop 38-39 V each.
-   They sum to exactly 348 kΩ, so this part alone changes no firmware.
+   75 V and the upper arm sees 116 V. Three in series drop 39 V each.
+   All three are the same value, which is one fewer part number and one
+   fewer per-part setup fee at JLCPCB.
 2. **The ADS1115 could not read the I2C bus.** V_IH is 0.7 × VDD, so a 5 V
    part needs 3.50 V while the pull-ups only reach 3.3 V. Returning it to
    3.3 V is what forces the lower arm to 9.09 kΩ, and *that* is what moves
@@ -403,9 +404,22 @@ with their reasoning in `tools/changes_v13.py`:
 supply. Charging was measured at 8.99 V; confirm against a real vehicle
 before assuming the margin is adequate.
 
-Do not hard-code 39.284 for every board. Units in the field run the 30.000
+Do not hard-code 38.954 for every board. Units in the field run the 30.000
 divider, one binary has to serve both, and that is precisely what the
 planned `hw_info` EEPROM is for — see **Deployment constraints**.
+
+> ### ⚠ Close KiCad before regenerating anything under `hardware/kicad/`
+>
+> KiCad holds the project in memory and writes it back on close. Twice now it
+> has silently reverted `TES_Controller.kicad_sch` (losing 8 components) and
+> `TES_Controller.kicad_pro` (restoring deleted netclasses and a 0.2 mm
+> clearance). Nothing reports an error — the symptom is hundreds of
+> inexplicable DRC violations on the next run, against netclasses that were
+> deleted days ago.
+>
+> `python tools/check_project.py` compares the key settings and says so;
+> `regen_hw.sh` runs it before DRC. Recovery is
+> `git checkout hardware/kicad/TES_Controller.kicad_pro`.
 
 ---
 
