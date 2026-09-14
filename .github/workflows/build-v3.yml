@@ -55,11 +55,14 @@ jobs:
         with:
           esp_idf_version: ${{ matrix.idf_version }}
           target: ${{ matrix.target }}
-          # safe.directory：建置在容器內進行，工作目錄的擁有者與容器使用者不同時
-          # git 會拒絕操作，describe 靜默失敗（CMake 端是 ERROR_QUIET），
-          # 版本字串就變成 "dev"。加這行是廉價的保險。
+          # 這裡不要加 `git config --global --add safe.directory`：
+          #   1. 這個 action 自己已經做了，command 是被包進
+          #      `bash -c 'git config --global --add safe.directory "*" && <command>'`；
+          #   2. 我們的版本用單引號寫 '*'，插進去之後會把 action 的單引號提前關掉，
+          #      `*` 變成裸的、被外層 shell 展開成工作目錄下的所有檔名，
+          #      git 收到一堆多餘參數就印用法並以 129 結束。
+          # 2026-09-11 到 09-15 之間每一次建置都是這樣掛的。
           command: >-
-            git config --global --add safe.directory '*' &&
             idf.py build &&
             idf.py merge-bin -o tes_charger_flash.bin
           path: firmware
