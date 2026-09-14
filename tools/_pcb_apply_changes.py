@@ -18,7 +18,11 @@ import _pcb_route as R                                      # noqa: E402
 LIB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                    "hardware", "kicad", "lib", "TES.pretty")
 # 降壓模組的高度禁置區（PCB 座標，板框左上為 (120,60)）
-KEEPOUT = (127.86, 100.22, 176.46, 124.22)
+# 疊放在上面的降壓模組佔掉的板面。用**模組本體的外框**（F.SilkS 上那個
+# 矩形，也是絲印寫 "DC120V-DC12V Buck" 的地方），不是四個鎖點圍成的矩形
+# —— 鎖點矩形每一邊都比本體小 2.4~3.0mm，D10 第一版就是從右邊那 2.5mm
+# 的縫隙擠進去、結果卡在模組底下。
+KEEPOUT = (125.5, 97.2, 179.0, 127.2)
 MARGIN = 1.0
 
 
@@ -132,7 +136,14 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
     if anchor is None:
         raise SystemExit("找不到定位基準 %s.%s" % (anchor_ref, anchor_pad))
     width = spec.get("track_width", 0.4)
-    for x, y, rot in candidates(anchor):
+    best = None
+    # spec["at"] = (x, y, 角度) 表示位置是人挑的，不要自動搜。
+    # 自動搜位置對細腳距的多腳元件不管用：它的繞通性測試只會試幾條 L 形
+    # 路徑，分不出「這裡三支腳出得來」和「這裡出不來」，結果 U13 被推到
+    # 離 I2C 25mm、SDA/SCL 各走 28mm 底層 —— 正好把整片地平面切開。
+    fixed = spec.get("at")
+    seq = [(fixed[0], fixed[1], int(fixed[2]) * 10)] if fixed else         candidates(anchor, reach=spec.get("reach", 20.0))
+    for x, y, rot in seq:
         fp.SetPosition(pcbnew.VECTOR2I_MM(x, y))
         fp.SetOrientation(pcbnew.EDA_ANGLE(rot, pcbnew.TENTHS_OF_A_DEGREE_T))
         if not inside_board(b, fp) or in_keepout(fp):
@@ -145,7 +156,12 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
             continue
         # 位置合法還不夠 —— 每個腳位都要真的繞得出來。
         # D9 第一次就是擺在 12V 幹線的另一側，位置沒問題但怎麼繞都要跨過去。
-        plan, ok = [], True
+        # 但「一條都繞不出來就整個放棄」也不對：U13 在 ADS1115 旁邊時，
+        # 104 個幾何上合法的位置全都有 SCL 繞不通（這裡的繞線器只試幾條
+        # 簡單的 L 形路徑，不是迷宮搜尋），結果是連擺都擺不上去。
+        # 改成挑「繞不通的最少、其次最靠近錨點」的位置，剩下的交給
+        # _pcb_repair.py 的修補迴圈，並且把欠的網路印出來。
+        plan, unrouted = [], []
         for p in fp.Pads():
             net = p.GetNetname()
             # 有完整平面的網路（GND）就近打孔，不要在平面上拉長線
@@ -159,31 +175,49 @@ def add_part(b, spec, anchor_ref, anchor_pad, existing=None):
                 continue
             r = R.find_route(b, net, p.GetPosition(), tgt, width)
             if r is None:
-                ok = False
-                break
-            plan.append((p.GetNumber(), net, r))
-        if not ok:
-            continue
-        d = math.hypot(x - pcbnew.ToMM(anchor.x), y - pcbnew.ToMM(anchor.y))
-        print("   %s %-9s → (%.2f, %.2f) rot %d，距 %s.%s %.2f mm"
-              % (spec["ref"], spec["value"], x, y, rot // 10,
-                 anchor_ref, anchor_pad, d))
-        for num, net, r in plan:
-            if r == "plane":
-                pad = [q for q in fp.Pads() if q.GetNumber() == num][0]
-                d = R.via_to_plane(b, net, pad.GetPosition(), width)
-                print("      腳 %-2s %-10s 過孔接地平面（%.2f mm）"
-                      % (num, net, d if d else 0))
+                unrouted.append(net)
                 continue
-            lay, pts, length = r
-            R.add_route(b, net, lay, pts, width, via_at_start=True)
-            print("      腳 %-2s %-10s %s 繞線 %.2f mm"
-                  % (num, net, b.GetLayerName(lay), length))
-        return fp
-    raise SystemExit("%s 找不到既合法又繞得通的位置" % spec["ref"])
+            plan.append((p.GetNumber(), net, r))
+        d = math.hypot(x - pcbnew.ToMM(anchor.x), y - pcbnew.ToMM(anchor.y))
+        key = (len(unrouted), d)
+        if best is None or key < best[0]:
+            best = (key, x, y, rot, list(plan), list(unrouted))
+        if not unrouted:
+            break
+
+    if best is None:
+        raise SystemExit("%s 找不到合法位置（幾何上就放不下）" % spec["ref"])
+    _key, x, y, rot, plan, unrouted = best
+    fp.SetPosition(pcbnew.VECTOR2I_MM(x, y))
+    fp.SetOrientation(pcbnew.EDA_ANGLE(rot, pcbnew.TENTHS_OF_A_DEGREE_T))
+    print("   %s %-9s → (%.2f, %.2f) rot %d，距 %s.%s %.2f mm"
+          % (spec["ref"], spec["value"], x, y, rot // 10,
+             anchor_ref, anchor_pad, _key[1]))
+    for num, net, r in plan:
+        if r == "plane":
+            pad = [q for q in fp.Pads() if q.GetNumber() == num][0]
+            dd = R.via_to_plane(b, net, pad.GetPosition(), width)
+            print("      腳 %-2s %-10s 過孔接地平面（%.2f mm）"
+                  % (num, net, dd if dd else 0))
+            continue
+        lay, pts, length = r
+        R.add_route(b, net, lay, pts, width, via_at_start=True)
+        print("      腳 %-2s %-10s %s 繞線 %.2f mm"
+              % (num, net, b.GetLayerName(lay), length))
+    for net in unrouted:
+        print("      ** %s 這裡繞不通，留給 _pcb_repair.py **" % net)
+    return fp
+
 
 
 ANCHORS = {"D9": ("U10", "1"), "D10": ("W2", "1"),
+           # R35 是 Q4 的閘極分壓，要和閘極同一處，走線拉長沒有意義
+           "R35": ("Q4", "1"),
+           # EEPROM 錨在 I2C 上拉電阻 R5（SCL）那一側，不是 ADS1115 的腳下。
+           # U5 是 MSOP-10、0.5mm 腳距，旁邊又有 CP_SENSE 的 0.762mm 幹線，
+           # SOT-23-5 擠進去之後三支訊號腳出不來（SDA 只剩 0.45mm 的縫，
+           # 0.25mm 的線需要 0.55mm）。錨在 R5 會往旁邊比較空的地方找。
+           "U13": ("R5", "1"), "C30": ("U13", "4"),
            # 分壓串聯的三顆要擠在一起：鏈上的節點帶 40–80V，
            # 走線拉長等於把高壓帶到板子各處，而且串聯電阻分開擺
            # 會讓雜訊耦合進分壓中點。依序貼著上一顆。
@@ -193,7 +227,14 @@ ANCHORS = {"D9": ("U10", "1"), "D10": ("W2", "1"),
 def main():
     path = sys.argv[1]
     b = pcbnew.LoadBoard(path)
-    redo = "--redo" in sys.argv
+    # --redo 會把已經擺好的元件全部重新定位，連帶扯掉它們既有的走線。
+    # --redo=D10 只重擺指定的那幾顆，其餘保持不動。
+    redo = set()
+    for a in sys.argv[2:]:
+        if a == "--redo":
+            redo = None                      # None = 全部重擺
+        elif a.startswith("--redo="):
+            redo = set(a.split("=", 1)[1].split(","))
     have = {}
     for f in b.GetFootprints():
         have[f.GetReference()] = f
@@ -201,9 +242,11 @@ def main():
         if spec["op"] != "add_part":
             continue
         cur = have.get(spec["ref"])
-        if cur is not None and not redo:
+        again = redo is None or spec["ref"] in (redo or ())
+        if cur is not None and not again:
             continue
         add_part(b, spec, *ANCHORS[spec["ref"]], existing=cur)
+        print("   擺放 %s" % spec["ref"])
     b.BuildConnectivity()
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.BuildConnectivity()

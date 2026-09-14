@@ -17,10 +17,22 @@
 """
 import argparse, csv, io, os, re, subprocess, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sexpr                                                # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_BOM = os.path.join(REPO, "hardware", "TES_Controller_V1.3", "bom.csv")
 OUT_SYM = os.path.join(REPO, "hardware", "kicad", "lib", "TES.kicad_sym")
 VENV_PY = os.path.expanduser(r"~\.venvs\eda\Scripts\python.exe")
+
+
+# V1.3 新增、但不在 EasyEDA 匯出的 BOM 裡的料號。bom.csv 是原稿的匯出結果，
+# 不該去改它（它是驗證的基準），所以新料號列在這裡。
+# 對應的接線在 tools/changes_v13.py。
+EXTRA_LCSC = [
+    "C18723540",   # XBLW 24C02S，SOT-23-5 I2C EEPROM。存硬體版本，
+                   # 讓一份韌體能同時服務 V1.3 與現場的舊分壓板
+]
 
 
 def lcsc_ids(bom_path):
@@ -77,6 +89,31 @@ def relocate_3d_paths(pretty_dir):
 PIN_RENUMBER = {"AO3400A": {"G": "2", "S": "1", "D": "3"}}
 
 
+def dedupe_symbols(sym_path):
+    """同名符號只留最後一份，回傳刪掉的數量。
+
+    easyeda2kicad 的 --overwrite 是覆蓋**整個輸出檔**的語意，但它是附加寫入
+    —— 對已經存在的庫重跑，同一顆料號會多出一份。庫裡原本就有的
+    ADS1115IDGSR 兩份就是這樣來的，沒人是故意放的。留最後一份是因為
+    整條流程是 kicad_lib → make_symbols → fix_pin_types，後面的才是最新的。
+    """
+    if not os.path.exists(sym_path):
+        return 0
+    lib = sexpr.load(sym_path)
+    seen, keep = {}, []
+    for node in lib[1:]:
+        if isinstance(node, list) and node and str(node[0]) == "symbol":
+            seen[node[1]] = node
+        else:
+            keep.append(node)
+    out = [lib[0]] + keep + list(seen.values())
+    dropped = sum(1 for n in lib[1:]
+                  if isinstance(n, list) and n and str(n[0]) == "symbol") - len(seen)
+    if dropped:
+        io.open(sym_path, "w", encoding="utf-8").write(sexpr.dumps(out) + chr(10))
+    return dropped
+
+
 def renumber_pins(sym_path):
     """把 PIN_RENUMBER 列的符號腳位改號，回傳改動的符號數。"""
     if not os.path.exists(sym_path):
@@ -118,8 +155,12 @@ def main():
         return 1
 
     ids, skipped = lcsc_ids(a.bom)
+    for extra in EXTRA_LCSC:
+        if extra not in ids:
+            ids.append(extra)
     print("BOM: %s" % os.path.relpath(a.bom, REPO))
-    print("LCSC 料號 %d 個" % len(ids))
+    print("LCSC 料號 %d 個（含 %d 個 BOM 以外的新料號）"
+          % (len(ids), len(EXTRA_LCSC)))
     if skipped:
         print("無 LCSC 料號、需用 KiCad 內建庫替代的元件：")
         for des, dev in skipped:
@@ -143,6 +184,7 @@ def main():
     print("產生符號 %d 個" % created)
     for f in fails:
         print("  " + f)
+    print("移除重複符號：%d 個" % dedupe_symbols(OUT_SYM))
     print("腳位編號修正：%d 個符號（見 PIN_RENUMBER 的說明）"
           % renumber_pins(OUT_SYM))
     print("3D 路徑改為相對：%d 個封裝"

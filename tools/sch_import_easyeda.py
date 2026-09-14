@@ -423,7 +423,7 @@ def emit():
     # 下面還要放 V1.3 新增區（base_y = 元件最低點 + 70）和一排電源旗標
     # （再 +60），紙張要留得下，否則那一排會被裁在圖框外面。
     w = (max(xs) + 60) * U
-    h = (max(ys) + 70 + 240 + 100) * U
+    h = (max(ys) + 70 + 380 + 100) * U
 
     sch = [Sym("kicad_sch"),
            [Sym("version"), Sym("20251024")],
@@ -503,7 +503,8 @@ def emit():
 
 # EasyEDA 原稿裡沒有的元件（V1.3 新增的），擺在圖面下方一塊獨立區域
 EXTRA_AT = {"R33": (0, 0), "R34": (14, 0), "D9": (28, 0), "D10": (42, 0),
-            "W1": (0, 12), "W3": (14, 12), "W2": (28, 12), "W4": (42, 12)}
+            "W1": (0, 12), "W3": (14, 12), "W2": (28, 12), "W4": (42, 12),
+            "R35": (0, 24), "U13": (16, 24), "C30": (34, 24)}
 
 
 def main():
@@ -561,7 +562,7 @@ def main():
     # 只有 power_in 腳、沒有任何 power_out 的網路 —— 12V、GND、120V、
     # GND_BACK 全是從板外的降壓板經焊盤進來的，補電源旗標告訴 ERC 這件事。
     for i, nm in enumerate(("120V", "GND_BACK", "12V", "GND")):
-        fx, fy = base_x + i * 140, base_y + 240
+        fx, fy = base_x + i * 140, base_y + 380
         ref = "#FLG%02d" % (i + 1)
         sch.append(sym_node("TES:PWR_FLAG", ref, "PWR_FLAG",
                             fx, fy, 0, 0, root, in_bom=False,

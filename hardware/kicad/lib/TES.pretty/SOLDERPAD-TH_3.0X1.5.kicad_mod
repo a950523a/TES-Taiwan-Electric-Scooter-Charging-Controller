@@ -1,62 +1,42 @@
-(footprint
-	"SOLDERPAD-TH_3.0X1.5"
+(footprint "SOLDERPAD-TH_3.0X1.5"
 	(version 20241229)
-	(generator "tes_pcb_export_fp")
+	(generator "tes_make_footprints")
 	(generator_version "10.0")
 	(layer "F.Cu")
-	(property
-		"Reference"
-		"REF**"
-		(at 0 0 0)
+	(descr "焊線焊盤 3.05x1.52mm / 孔 0.91mm")
+	(attr through_hole)
+	(property "Reference" "REF**"
+		(at 0 -2.20 0)
 		(layer "F.SilkS")
-		(uuid "69e32c5e-444f-4580-a6fd-e06494a3641d")
-		(effects (font (size 1.27 1.27)))
+		(uuid "3f28aee9-d54b-43e0-ad12-dcfcb35fa32b")
+		(effects (font (size 1 1) (thickness 0.15)))
 	)
-	(property
-		"Value"
-		"SOLDERPAD-1P"
-		(at 0 0 0)
+	(property "Value" "SOLDERPAD-TH_3.0X1.5"
+		(at 0 2.20 0)
 		(layer "F.Fab")
-		(uuid "245b4683-cd6f-46d0-ae4a-3ba8e07a84b5")
-		(effects (font (size 1.27 1.27)))
+		(uuid "75501525-2473-4dd0-a355-b160707db63d")
+		(effects (font (size 1 1) (thickness 0.15)))
 	)
-	(property
-		"Datasheet"
-		""
-		(at 0 0 0)
-		(layer "F.Fab")
-		(hide yes)
-		(uuid "19ae7d53-823f-4759-8a0a-afa2ac05adae")
-		(effects (font (size 1.27 1.27)))
+	(pad "1" thru_hole rect
+		(at 0.000 0.000) (size 3.048 1.524) (drill 0.914)
+		(layers "*.Cu" "*.Mask") (remove_unused_layers no) (uuid "d264f31b-569f-4b85-9a32-4be629a72479")
 	)
-	(property
-		"Description"
-		""
-		(at 0 0 0)
-		(layer "F.Fab")
-		(hide yes)
-		(uuid "d8f9de59-19b9-4af9-b592-dc9ddd4a606b")
-		(effects (font (size 1.27 1.27)))
+	(fp_line (start -1.800 -1.000) (end 1.800 -1.000)
+		(stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "c1686a18-a618-4a03-8cdf-c1740898cd86")
 	)
-	(duplicate_pad_numbers_are_jumpers no)
-	(fp_rect
-		(start -1.774 -1.012)
-		(end 1.774 1.012)
-		(stroke (width 0.05) (type default))
-		(fill no)
-		(layer "F.CrtYd")
-		(uuid "a7901d0c-aa52-4046-a7a9-42221426e0b2")
+	(fp_line (start 1.800 -1.000) (end 1.800 1.000)
+		(stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "43ca8e56-128f-4e1b-ba0d-50b8dca7a9c0")
 	)
-	(pad
-		"1"
-		thru_hole
-		rect
-		(at 0 0)
-		(size 3.048 1.524)
-		(drill 0.9145)
-		(layers "*.Cu" "*.Mask")
-		(remove_unused_layers no)
-		(uuid "45e93513-d113-4a18-a1fa-625080e9c9e7")
+	(fp_line (start 1.800 1.000) (end -1.800 1.000)
+		(stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "f8a79a5f-eff8-4ff8-a1ba-adf5692eab4f")
 	)
-	(embedded_fonts no)
+	(fp_line (start -1.800 1.000) (end -1.800 -1.000)
+		(stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "1af25812-bf03-4fed-9ece-253165ccd59c")
+	)
+	(fp_line (start -1.524 -0.762) (end 1.524 -0.762)
+		(stroke (width 0.10) (type solid)) (layer "F.Fab") (uuid "37307687-dc6d-41b4-b64f-9fa6445a2179")
+	)
+	(fp_line (start -1.524 0.762) (end 1.524 0.762)
+		(stroke (width 0.10) (type solid)) (layer "F.Fab") (uuid "a3fb9186-d185-42bb-be80-24c6a7423260")
+	)
 )
