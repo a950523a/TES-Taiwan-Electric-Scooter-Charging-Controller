@@ -408,6 +408,45 @@ Do not hard-code 38.954 for every board. Units in the field run the 30.000
 divider, one binary has to serve both, and that is precisely what the
 planned `hw_info` EEPROM is for — see **Deployment constraints**.
 
+### ⚠ Q1-Q3: the SOT-23 footprint numbers its pads backwards, and the symbol
+### compensates. Do not "fix" either one alone.
+
+LCSC's `SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR` footprint — the one their C20917
+(AOS AO3400A) ships with — numbers pads 1 and 2 the opposite way round from
+JEDEC TO-236. Viewed from the top, `1 → 2 → 3` runs **clockwise**; the
+convention, and every other package in this library, runs counter-clockwise.
+So the pad stamped "1" physically sits under the chip's **pin 2 (Source)**.
+
+Evidence, all checkable from the repo:
+
+| Package in `TES.pretty` | `1 → 2 → last` from top | Cross-check |
+|---|---|---|
+| MSOP-10 (U5), SOIC-8 (U12), SOT-23-6 (D5), SOT-223 (U6) | counter-clockwise | TJA1051 pin1=TXD, AMS1117 pin1=GND, USBLC6 pin2=GND — all correct |
+| `SOT-23_…-BR` (Q4, AO3401A) | counter-clockwise | gate on pad 1, standard symbol, correct |
+| `SOT-23-3_…-BR` (Q1-Q3, AO3400A) | **clockwise** | the odd one out |
+
+The AOS AO3400A datasheet labels the leads D/G/S without numbers; its SOT23
+top view puts D alone on one side and G, S counter-clockwise from it, which
+under TO-236 numbering is **1=G, 2=S, 3=D**.
+
+The original EasyEDA design handles this by drawing Q1-Q3 with the
+`AO3400A-MS` symbol, whose pins 1 and 2 are swapped, so the net lands on the
+right copper: pad 1 → Source → GND, pad 2 → Gate → RELAY_GATE / VP_NGATE /
+COUPLER_GATE. `tools/kicad_lib.py` reproduces that with `PIN_RENUMBER`,
+applied every time the library is regenerated. **The KiCad symbol therefore
+shows G on pin 2 on purpose.**
+
+Using LCSC's unmodified symbol (1=G) with this footprint ties the gate to GND
+and feeds the gate drive into the source. The MOSFET never turns on, so the
+DC relay, the VP relay and the coupler lock all stay dead — and nothing in
+ERC or DRC says a word about it. The board was already built this way once.
+
+If you would rather have the library match the datasheet, the other half of
+the fix has to come with it: renumber the pads in the `.kicad_mod` **and**
+swap the `number` fields on Q1-Q3's pads in `TES_Controller.kicad_pcb` (nets
+stay with their positions, so no copper moves), then record the pad swap in
+`tools/changes_v13.py` so the netlist check still passes.
+
 > ### ⚠ Close KiCad before regenerating anything under `hardware/kicad/`
 >
 > KiCad holds the project in memory and writes it back on close. Twice now it
