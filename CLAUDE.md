@@ -421,40 +421,83 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 
 ### Firmware consequences still outstanding
 
-The divider coefficient goes 30.000 → 38.954 (next section), and that constant
-cannot simply be changed — deployed units run the old divider. It waits on the
-planned `hw_info` EEPROM, per **Deployment constraints**.
+The divider coefficient goes 30.000 → 38.954 and the constant cannot simply be
+edited, because deployed units run the old divider and one binary serves both.
+The `hw_info` EEPROM this used to be pinned on was never built and V1.3 has no
+part that could act as one — the next section records what that leaves open.
 
-### ⚠ The voltage divider changes in hardware V1.3 — the firmware constant must follow
+### ⚠ What V1.3 needs from the firmware — recorded 2026-09-15, not yet done
+
+The board is finished; none of this is. Nothing here is urgent until a V1.3
+board is actually powered up — but today's firmware applies a coefficient of
+30.000 to a divider that is 38.954, so **a V1.3 board would report 92 V for a
+pack sitting at 120 V** (×30.000/38.954 = 77 %). It cannot be skipped either.
 
 | | shipped hardware (V1.1 / V1.2) | V1.3 |
 |---|---|---|
-| ADS1115 supply | 3.3 V (V1.1/V1.2) | **3.3 V** |
+| ADS1115 supply | 3.3 V | 3.3 V (unchanged) |
 | upper arm | 348 kΩ, one 0603 | **115k × 3 = 345 kΩ** |
 | lower arm | 12 kΩ | **9.09 kΩ** |
 | coefficient | 30.000 | **38.954** |
-| reading at 120 V | 4.000 V | 3.081 V |
-| measurement ceiling | 122.9 V (PGA-limited) | 140.2 V (pin-limited) |
+| reading at 120 V | 4.000 V — **over the input limit** | 3.081 V |
+| measurement ceiling | ~108 V, clipped (see 3 below) | 140.2 V |
 
-Two separate defects drove this, both in `hardware/kicad` and both explained
-with their reasoning in `tools/changes_v13.py`:
+**1. The coefficient has to stop being a compile-time constant.**
+`ADC_VOLT_R1_KOHM` (348.0f) and `ADC_VOLT_R2_KOHM` (12.0f) in
+`components/drivers/include/drivers/adc_driver.h` feed
+`adc_driver_read_voltage()` directly. V1.3 needs 345 / 9.09. One binary has to
+serve both, per **Deployment constraints** — so this is a lookup, not an edit.
+
+**2. There is nothing on a V1.3 board to identify it with, and the mechanism
+does not exist.** `hw_info` appears 0 times in the tree, and V1.3's BOM has no
+EEPROM, no DIP switch and no strapping resistor — that idea was never built.
+So the board cannot announce its own revision, and the choice is open:
+
+- an NVS key written at first flash (works today, but an OTA'd unit has no key
+  and must therefore default to 30.000 — which is the correct default anyway);
+- a strapping GPIO or an ID resistor **on the next board revision**, which is
+  the only option that survives a board being reflashed from scratch.
+
+Whatever is chosen, the default for "no information" must stay 30.000, because
+that is what every unit in the field is.
+
+**3. Field units cannot read near 120 V today, and firmware cannot fix it.**
+The ADS1115's analog input is limited to VDD + 0.3 V = 3.6 V. At a coefficient
+of 30.000, 120 V produces 4.000 V at the pin — past the limit, so the reading
+clips. The datasheet limit works out to ~108 V; a V1.2 board measured 114 V.
+The discrepancy has never been explained, and it does not need to be: either
+way, **readings near full charge on shipped hardware are not trustworthy**, and
+raising the coefficient on V1.3 is what fixes it (120 V → 3.081 V, ceiling
+140.2 V). Worth remembering when a field unit reports a voltage that stops
+rising.
+
+**4. CP's ceiling is 14.2 V and V1.3 did not change it.** R9 = 150 Ω / R8 =
+51 Ω and the 3.3 V supply are all untouched, so the limit is 3.6 V × 3.941 =
+14.2 V on both revisions. (An earlier note here said it "drops from 20.9 V" —
+that was comparing against a 5 V draft of V1.3 that was abandoned, not against
+anything that was ever built.) Charging measured 8.99 V, about 1.6× margin;
+confirm against a real vehicle before relying on it.
+
+**5. The PGA does not need touching.** ±4.096 V covers 3.081 V with room to
+spare, and on both revisions the pin limit binds before the PGA does.
+
+#### Why the hardware changed at all
+
+Two defects, both explained with their reasoning in `tools/changes_v13.py`:
 
 1. **A single 0603 cannot hold off 120 V.** Its rated working voltage is
    75 V and the upper arm sees 116 V. Three in series drop 39 V each.
    All three are the same value, which is one fewer part number and one
    fewer per-part setup fee at JLCPCB.
 2. **The ADS1115 could not read the I2C bus.** V_IH is 0.7 × VDD, so a 5 V
-   part needs 3.50 V while the pull-ups only reach 3.3 V. Returning it to
+   part needs 3.50 V while the pull-ups only reach 3.3 V. Keeping it at
    3.3 V is what forces the lower arm to 9.09 kΩ, and *that* is what moves
    the coefficient.
 
-**CP shares this ADC**, and its ceiling drops from 20.9 V to 14.2 V with the
-supply. Charging was measured at 8.99 V; confirm against a real vehicle
-before assuming the margin is adequate.
-
-Do not hard-code 38.954 for every board. Units in the field run the 30.000
-divider, one binary has to serve both, and that is precisely what the
-planned `hw_info` EEPROM is for — see **Deployment constraints**.
+> **Ordering note, not a firmware item:** `hardware/TES_Controller_V1.3/bom.csv`
+> is the EasyEDA export and predates all of this — it still lists R10 as 348 kΩ,
+> R11 as 12 kΩ, and has no R33/R34/D9/D10. The real V1.3 BOM is that file
+> **plus** `tools/changes_v13.py`. Merge them before ordering anything.
 
 ### ⚠ Q1-Q3: the SOT-23 footprint numbers its pads backwards, and the symbol
 ### compensates. Do not "fix" either one alone.
