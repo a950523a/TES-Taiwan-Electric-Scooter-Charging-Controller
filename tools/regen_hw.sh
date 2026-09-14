@@ -25,8 +25,11 @@ echo "3/8 補上沒有 LCSC 料號的符號與封裝、修正腳位電氣型別"
 "$PY" tools/make_footprints.py
 "$PY" tools/fix_pin_types.py | head -1
 
-echo "4/8 由網表生成電路圖並比對"
-"$PY" tools/sch_gen.py --verify
+echo "4/8 照 EasyEDA 原稿的版面重畫電路圖並比對"
+# 不是 sch_gen.py —— 那支是早期「由網表機器排版」的版本，跑下去會把照原稿
+# 重畫的版面蓋掉。它現在的角色是函式庫（載入元件庫、讀網表、驗證），
+# 由 sch_import_easyeda.py 匯入使用。
+"$PY" tools/sch_import_easyeda.py --verify
 
 echo "5/8 ERC"
 "$KICAD" sch erc --output /dev/null --severity-error --severity-warning \
