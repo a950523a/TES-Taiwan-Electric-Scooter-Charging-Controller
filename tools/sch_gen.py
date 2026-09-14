@@ -14,7 +14,7 @@
   python tools/sch_gen.py                # 生成
   python tools/sch_gen.py --verify       # 生成後匯出網表並比對
 """
-import argparse, csv, io, os, re, subprocess, sys, uuid
+import argparse, collections, csv, io, math, os, re, subprocess, sys, uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sexpr                                            # noqa: E402
@@ -200,15 +200,71 @@ def assign(bom, conns, by_lcsc, by_name):
     return out
 
 
-def layout(syms, conns):
-    """把元件排進分區欄位。回傳 位號 → (x, y)，以及圖紙大小。
+def find_chains(syms, conns, members):
+    """在一個分區裡找出串聯鏈：兩端元件之間只有兩個接腳的網路。
 
-    連線靠標籤，所以擺放位置純粹是給人看的，怎麼排都不影響電氣。
+    這些正是看起來最莫名其妙的部分 —— 分壓的三顆電阻、LED 加限流電阻、
+    USB 的 ESD 加串聯電阻，在標籤式畫法裡是一堆各自獨立的零件。
+    連成一條線之後才看得出是一串。
     """
-    per_des = {}
+    inblk = set(members)
+    pins = collections.defaultdict(list)
     for d, p, n in conns:
-        per_des.setdefault(d, set()).add(p)
+        pins[n].append((d, p))
+    # 只取「剛好兩個接腳、而且兩端都在這個分區裡」的網路
+    link = {}
+    for n, v in pins.items():
+        if len(v) == 2 and v[0][0] in inblk and v[1][0] in inblk                 and v[0][0] != v[1][0] and n not in POWER_SYMBOL:
+            link[n] = v
+    adj = collections.defaultdict(list)
+    for n, ((a, ap), (b, bp)) in link.items():
+        adj[a].append((b, n, ap, bp))
+        adj[b].append((a, n, bp, ap))
+    # 只串接兩腳元件，三腳以上（IC、連接器）當成鏈的端點不納入
+    two = {d for d in inblk if len(syms[d]["pins"]) == 2}
+    chains, seen = [], set()
+    for d in sorted(two, key=natural):
+        if d in seen or len([x for x in adj[d] if x[0] in two]) > 1:
+            continue        # 從鏈的一端開始走
+        cur, chain = d, []
+        while cur and cur not in seen:
+            seen.add(cur)
+            chain.append(cur)
+            nxt = [x for x in adj[cur] if x[0] in two and x[0] not in seen]
+            cur = nxt[0][0] if nxt else None
+        if len(chain) > 1:
+            chains.append(chain)
+    return chains, link
 
+
+def pin_side(info, pad):
+    """這支腳在符號的左邊還是右邊（用 lib 的 x 座標判斷）。"""
+    return -1 if info["pins"][pad][0] < 0 else 1
+
+
+def order_chain(syms, chain, link):
+    """把串聯鏈排成「左邊元件的右腳 接 右邊元件的左腳」。
+
+    這樣每一段連線都是一條水平直線，看起來就是一串。
+    順序不對就整條反過來 —— 例如分壓鏈偵測出來是 R10─R33─R34，
+    但連法是 R10.1(左腳)─R33.2(右腳)，所以畫面上要排成 R34 R33 R10。
+    """
+    def link_pins(a, b):
+        for n, ((d1, p1), (d2, p2)) in link.items():
+            if {d1, d2} == {a, b}:
+                return (p1, p2) if d1 == a else (p2, p1)
+        return None
+    lp = link_pins(chain[0], chain[1])
+    if lp and pin_side(syms[chain[0]], lp[0]) < 0:
+        chain = chain[::-1]
+    return chain, link_pins
+
+
+def layout(syms, conns):
+    """把元件排進分區欄位，串聯鏈橫向排開並回傳導線。
+
+    回傳 位號 → (x, y)、分區標題、圖紙大小、導線清單。
+    """
     assigned, blocks = set(), []
     for title, members in BLOCKS:
         got = [d for d in members if d in syms and d not in assigned]
@@ -219,26 +275,89 @@ def layout(syms, conns):
     if rest:
         blocks.append(("未分類", rest))
 
-    margin, gap_y, label_room = 25.4, 7.62, 30.48
-    col_x, cur_y, pos, headers = margin, margin, {}, []
+    margin, gap_y, label_room, chain_gap = 25.4, 7.62, 30.48, 5.08
+    col_x, cur_y, pos, headers, wires = margin, margin, {}, [], []
+    wired_nets = set()
     col_w = 0.0
     max_y, max_x = 0.0, 0.0
     for title, members in blocks:
-        need = sum(syms[d]["h"] + gap_y for d in members) + 12.7
+        chains, link = find_chains(syms, conns, members)
+        inchain = {d for c in chains for d in c}
+        rows = [c for c in chains] + [[d] for d in members if d not in inchain]
+        # 鏈排在分區最前面，一眼看到結構
+        rows.sort(key=lambda r: (len(r) == 1, natural(r[0])))
+
+        need = sum(max(syms[d]["h"] for d in r) + gap_y for r in rows) + 12.7
         if cur_y > margin and cur_y + need > SHEET_H - margin:
             col_x += col_w + label_room
             cur_y, col_w = margin, 0.0
         headers.append((title, snap(col_x), snap(cur_y)))
         cur_y += 12.7
-        for d in members:
-            s = syms[d]
-            cur_y += s["h"] / 2.0
-            pos[d] = (snap(col_x + s["w"] / 2.0), snap(cur_y))
-            col_w = max(col_w, s["w"])
-            cur_y += s["h"] / 2.0 + gap_y
-            max_x = max(max_x, col_x + s["w"] + label_room)
+
+        for row in rows:
+            h = max(syms[d]["h"] for d in row)
+            cur_y += h / 2.0
+            y = snap(cur_y)
+            if len(row) == 1:
+                d = row[0]
+                pos[d] = (snap(col_x + syms[d]["w"] / 2.0), y)
+                col_w = max(col_w, syms[d]["w"])
+                max_x = max(max_x, col_x + syms[d]["w"] + label_room)
+            else:
+                row, link_pins = order_chain(syms, row, link)
+                x = col_x
+                for i, d in enumerate(row):
+                    info = syms[d]
+                    pos[d] = (snap(x + info["w"] / 2.0), y)
+                    x += info["w"] + chain_gap
+                for a, b in zip(row, row[1:]):
+                    lp = link_pins(a, b)
+                    if not lp:
+                        continue
+                    for n, ((d1, p1), (d2, p2)) in link.items():
+                        if {d1, d2} == {a, b}:
+                            wired_nets.add(n)
+                    ax, ay = pin_xy(syms[a], pos[a], lp[0])
+                    bx, by = pin_xy(syms[b], pos[b], lp[1])
+                    wires.append(((ax, ay), (bx, by)) if ay == by
+                                 else ((ax, ay), (bx, ay), (bx, by)))
+                col_w = max(col_w, x - col_x)
+                max_x = max(max_x, x + label_room)
+            cur_y += h / 2.0 + gap_y
         max_y = max(max_y, cur_y)
-    return pos, headers, (max_x + margin, max_y + margin)
+    return pos, headers, (max_x + margin, max_y + margin), wires, wired_nets
+
+
+def pin_xy(info, at, pad):
+    """腳位在圖紙上的座標。lib 的 Y 向上、圖紙的 Y 向下，所以 y 要取負。"""
+    px, py, _ = info["pins"][pad]
+    return (snap(at[0] + px), snap(at[1] - py))
+
+
+# 電源與接地改用符號而不是標籤。這塊板子 238 個標籤裡有 114 個是這幾條網路
+# （光 GND 就 73 個），換成符號等於把一半的字變成一眼可辨的圖形。
+# 符號名 == 網路名，否則 KiCad 會用符號名去改網路名
+POWER_SYMBOL = {n: n for n in ("GND", "GND_BACK", "5V", "VDD33", "12V", "120V")}
+STUB = 2.54     # 腳位到電源符號之間那一小段導線的長度
+
+
+# 樁線要沿著腳位「朝外」拉，不能一律向下 —— 符號的腳距就是 2.54mm，
+# 向下拉 2.54 剛好落在隔壁那支腳上，會把不該連的腳接起來
+# （第一次就把 U1.39、U5.2、U8.8 這三支未接腳接到了 +12V）。
+def stub_dir(pin_angle):
+    a = math.radians(pin_angle)
+    return (-round(math.cos(a)), round(math.sin(a)))
+
+
+# 朝外方向 → 電源符號要轉幾度，才會讓圖形跟著朝外
+PWR_ROT = {(0, 1): 0, (0, -1): 180, (-1, 0): 270, (1, 0): 90}
+
+
+def wire(x1, y1, x2, y2):
+    return [Sym("wire"),
+            [Sym("pts"), [Sym("xy"), x1, y1], [Sym("xy"), x2, y2]],
+            [Sym("stroke"), [Sym("width"), 0], [Sym("type"), Sym("default")]],
+            [Sym("uuid"), uid()]]
 
 
 def font(size=1.27, justify=None, hide=False):
@@ -255,7 +374,8 @@ def prop(name, value, x, y, hide=False):
             font(hide=hide)]
 
 
-def emit(syms, pos, headers, conns, open_pins, size, root, by_name):
+def emit(syms, pos, headers, conns, open_pins, size, root, by_name,
+         wires=(), wired_nets=()):
     """組出 .kicad_sch 的 s-expression。"""
     sch = [Sym("kicad_sch"),
            [Sym("version"), Sym("20251024")],
@@ -264,10 +384,12 @@ def emit(syms, pos, headers, conns, open_pins, size, root, by_name):
            [Sym("uuid"), root],
            [Sym("paper"), "A2"]]
 
+    power_done = set()
     lib_syms = [Sym("lib_symbols")]
     used = {id(s): s for s in syms.values()}
-    if "PWR_FLAG" in by_name:
-        used[id(by_name["PWR_FLAG"])] = by_name["PWR_FLAG"]
+    for extra in ["PWR_FLAG"] + sorted(set(POWER_SYMBOL.values())):
+        if extra in by_name:
+            used[id(by_name[extra])] = by_name[extra]
     for info in used.values():
         node = [c for c in info["node"]]
         node[1] = "TES:" + info["name"]
@@ -312,13 +434,74 @@ def emit(syms, pos, headers, conns, open_pins, size, root, by_name):
             pwr_in.add(net)
         elif et == "power_out":
             pwr_out.add(net)
+    # 電源符號本身是 power_in，所以放了符號的網路也要納入判斷 ——
+    # 否則 GND_BACK 與 120V（元件腳位都是 passive）會被 ERC 判成「電源腳沒有驅動源」
+    for net in POWER_SYMBOL:
+        if any(n == net for _d, _p, n in conns):
+            pwr_in.add(net)
     flags, fx = {}, snap(size[0] - 20.32)
     for i, net in enumerate(sorted(pwr_in - pwr_out)):
         flags[net] = (fx, snap(25.4 + i * 20.32))
 
-    # 網路標籤：一個腳位一個，貼在腳位的連接點上
-    placed = set()
+    # 串聯鏈的導線
+    chain_pins = set()
+    for seg in wires:
+        for a, b in zip(seg, seg[1:]):
+            sch.append(wire(a[0], a[1], b[0], b[1]))
+        chain_pins.add(seg[0])
+        chain_pins.add(seg[-1])
+
+    # 電源與接地：放符號 + 一小段導線，不放標籤
+    pwr_n = 0
     for des, pad, net in conns:
+        sym = POWER_SYMBOL.get(net)
+        if sym is None or sym not in by_name:
+            continue
+        info = syms[des]
+        if pad not in info["pins"]:
+            continue
+        if (des, pad) in power_done:
+            continue
+        power_done.add((des, pad))
+        px, py, _pa = info["pins"][pad]
+        ox, oy = pos[des]
+        x, y = snap(ox + px), snap(oy - py)
+        down = sym in ("GND", "GND_BACK")
+        dx, dy = stub_dir(_pa)
+        sx, sy = snap(x + dx * STUB), snap(y + dy * STUB)
+        rot = PWR_ROT.get((dx, dy), 0)
+        sch.append(wire(x, y, sx, sy))
+        pwr_n += 1
+        ref = "#PWR%03d" % pwr_n
+        node = [Sym("symbol"),
+                [Sym("lib_id"), "TES:" + sym],
+                [Sym("at"), sx, sy, rot],
+                [Sym("unit"), 1],
+                [Sym("exclude_from_sim"), Sym("no")],
+                [Sym("in_bom"), Sym("no")],
+                [Sym("on_board"), Sym("yes")],
+                [Sym("dnp"), Sym("no")],
+                [Sym("uuid"), uid()],
+                prop("Reference", ref, sx, sy, hide=True),
+                prop("Value", sym, snap(sx + dx * 3.81), snap(sy + dy * 3.81))]
+        node.append([Sym("instances"),
+                     [Sym("project"), "TES_Controller",
+                      [Sym("path"), "/" + root,
+                       [Sym("reference"), ref], [Sym("unit"), 1]]]])
+        sch.append(node)
+
+    # 網路標籤：一個腳位一個，貼在腳位的連接點上
+    placed, named = set(power_done), set()
+    for des, pad, net in conns:
+        if net in POWER_SYMBOL and POWER_SYMBOL[net] in by_name:
+            continue
+        if net in wired_nets:
+            # 已經有實體導線，但還是要留**一個**標籤把網路名釘住 ——
+            # 一個都不留的話 KiCad 會自動取名成 Net-(R10-Pad1)，
+            # 板子上的 HV_DIV1 就對不上了。
+            if net in named:
+                continue
+            named.add(net)
         info = syms[des]
         if pad not in info["pins"]:
             raise SystemExit("%s 的符號沒有腳位 %s" % (des, pad))
@@ -436,8 +619,9 @@ def main():
     conns, open_pins = read_netlist()
     _, by_lcsc, by_name = load_lib()
     syms = assign(bom, conns, by_lcsc, by_name)
-    pos, headers, size = layout(syms, conns)
-    sch = emit(syms, pos, headers, conns, open_pins, size, uid(), by_name)
+    pos, headers, size, wires, wired = layout(syms, conns)
+    sch = emit(syms, pos, headers, conns, open_pins, size, uid(), by_name,
+               wires, wired)
     io.open(OUT, "w", encoding="utf-8").write(sexpr.dumps(sch) + "\n")
     print("%s：%d 元件、%d 條接線、%d 個網路"
           % (os.path.relpath(OUT, REPO), len(syms), len(conns),

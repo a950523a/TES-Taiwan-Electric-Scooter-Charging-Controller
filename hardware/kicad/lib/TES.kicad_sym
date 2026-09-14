@@ -5463,4 +5463,402 @@
 			)
 		)
 	)
+	(symbol
+		"GND"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "GND" (at 0 3.81 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"GND_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 -1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.905 -1.27) (xy 1.905 -1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 -1.905) (xy 1.27 -1.905))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -0.635 -2.54) (xy 0.635 -2.54))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+		)
+		(symbol
+			"GND_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 270)
+				(length 2.54)
+				(name "GND" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"GND_BACK"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Value"
+			"GND_BACK"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"GND_BACK_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 -1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.905 -1.27) (xy 1.905 -1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 -1.27) (xy -1.905 -2.54))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy 0 -1.27) (xy -0.635 -2.54))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy 1.27 -1.27) (xy 0.635 -2.54))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+		)
+		(symbol
+			"GND_BACK_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 270)
+				(length 2.54)
+				(name "GND_BACK" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"5V"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "5V" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"5V_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 1.27) (xy 1.27 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -0.762 1.27) (xy 0 2.032) (xy 0.762 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type outline))
+			)
+		)
+		(symbol
+			"5V_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 90)
+				(length 2.54)
+				(name "5V" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"VDD33"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "VDD33" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"VDD33_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 1.27) (xy 1.27 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -0.762 1.27) (xy 0 2.032) (xy 0.762 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type outline))
+			)
+		)
+		(symbol
+			"VDD33_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 90)
+				(length 2.54)
+				(name "VDD33" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"12V"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "12V" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"12V_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 1.27) (xy 1.27 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -0.762 1.27) (xy 0 2.032) (xy 0.762 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type outline))
+			)
+		)
+		(symbol
+			"12V_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 90)
+				(length 2.54)
+				(name "12V" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
+	(symbol
+		"120V"
+		(power)
+		(pin_numbers (hide yes))
+		(pin_names (offset 0) (hide yes))
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(property
+			"Reference"
+			"#PWR"
+			(at 0 -3.81 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Value" "120V" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
+		(property
+			"Footprint"
+			""
+			(at 0 -6.35 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Datasheet"
+			""
+			(at 0 -7.62 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property
+			"Description"
+			"電源符號"
+			(at 0 -8.89 0)
+			(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(symbol
+			"120V_0_1"
+			(polyline
+				(pts (xy 0 0) (xy 0 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -1.27 1.27) (xy 1.27 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type none))
+			)
+			(polyline
+				(pts (xy -0.762 1.27) (xy 0 2.032) (xy 0.762 1.27))
+				(stroke (width 0.2032) (type default))
+				(fill (type outline))
+			)
+		)
+		(symbol
+			"120V_1_1"
+			(pin
+				power_in
+				line
+				(at 0 0 90)
+				(length 2.54)
+				(name "120V" (effects (font (size 1.27 1.27))))
+				(number "1" (effects (font (size 1.27 1.27))))
+			)
+		)
+	)
 )
