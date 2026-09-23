@@ -10,16 +10,7 @@
 
 ---
 
-> ## ⏸ 專案狀態：暫停更新
->
-> **本專案因個人規劃，自 2026-09-15 起暫停更新。**
->
-> - 既有的程式碼、硬體設計與文件**維持公開**，可自由依授權條款使用。
-> - 已發布的 **v3.5.0 韌體**與 GitHub Pages 上的燒錄工具**繼續可用**。
-> - 新功能開發與硬體改版暫停；**Issue 與 PR 可能不會回覆**。
-> - iE125 原廠充電器改裝與 TES 快充控制板的洽詢**照常受理**，請見 **[海龜電能官網](https://a950523a.github.io/)**。
->
-> 恢復更新時會更新本節。
+> 🛒 **現成品與服務**：iE125 原廠充電器改裝、TES 快充控制板 —— 見 **[海龜電能官網](https://a950523a.github.io/)**。
 
 ---
 
@@ -163,11 +154,11 @@ idf.py -p <PORT> flash monitor
 
 - **服務與洽詢**：[海龜電能官網](https://a950523a.github.io/)・[Facebook 粉專](https://www.facebook.com/profile.php?id=61582382523577)（iE125 原廠充電器改裝、TES 快充控制板）
 - **Facebook 社群**：[TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
-- **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)（專案暫停更新期間可能不會回覆，見頁首說明）
+- **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)
 
 ---
 
-## ⚖️ 授權與權利保留
+## ⚖️ 授權
 
 ### 著作權
 
@@ -185,18 +176,8 @@ CC BY-NC-SA 4.0 **只授權著作權，不授權專利權**。這不是本專案
 >
 > （本公眾授權條款不授權專利權與商標權。）
 
-因此，本專案以開源授權公開，**不代表作者放棄或授予任何專利權利**。作者保留
-就本專案所涉技術方案申請專利之權利，以及已取得或未來取得之一切專利權利。
-
-依 CC BY-NC-SA 4.0 使用本專案者，僅取得著作權範圍內之授權。**如需專利授權或
-商業使用授權，請另行聯絡作者。**
-
-> ⚠️ **目前尚未提出任何專利申請。** 本節是權利保留聲明，**不是**「專利申請中
-> （Patent Pending）」的標示 —— 在沒有實際申請案的情況下標示 Patent Pending，
-> 在多個法域屬於不實標示。待有實際申請案再更新本節。
->
-> 本節文字未經法律專業審閱。本專案自 2025-06-19 起即為公開狀態（詳見下方
-> 專案紀錄），此一公開時程對可專利性的影響因法域而異，請務必諮詢專利師。
+因此，依 CC BY-NC-SA 4.0 使用本專案者，僅取得著作權範圍內之授權。**如需商業
+使用授權，請另行聯絡作者。**
 
 Copyright (c) 2025-2026 Chris Huang.
 All rights not expressly granted under the above license are reserved.
