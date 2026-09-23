@@ -17,6 +17,7 @@
 > - 既有的程式碼、硬體設計與文件**維持公開**，可自由依授權條款使用。
 > - 已發布的 **v3.5.0 韌體**與 GitHub Pages 上的燒錄工具**繼續可用**。
 > - 新功能開發與硬體改版暫停；**Issue 與 PR 可能不會回覆**。
+> - iE125 原廠充電器改裝與 TES 快充控制板的洽詢**照常受理**，請至 **[海龜電能](https://www.facebook.com/profile.php?id=61582382523577)**。
 >
 > 恢復更新時會更新本節。
 
@@ -160,6 +161,7 @@ idf.py -p <PORT> flash monitor
 
 ## 🤝 社群與支援
 
+- **服務與洽詢**：[海龜電能 Facebook 粉專](https://www.facebook.com/profile.php?id=61582382523577)（iE125 原廠充電器改裝、TES 快充控制板）
 - **Facebook 社群**：[TES 電動機車充電技術交流](https://www.facebook.com/groups/791962053528872/?ref=share&mibextid=NSMWBT)
 - **問題回報**：[GitHub Issues](https://github.com/a950523a/TES-Taiwan-Electric-Scooter-Charging-Controller/issues)（專案暫停更新期間可能不會回覆，見頁首說明）
 
