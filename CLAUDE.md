@@ -404,12 +404,13 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
 
-### ⏸ Paused 2026-09-15 — three changes half-applied
+### Three changes half-applied (stopped 2026-09-15, resumed 2026-09-23)
 
-**Work on the board is on hold** while the patent question is decided (see
-**Publication status** in Current Status). The state below is deliberate, not
-an accident, and it is self-consistent: the schematic and library carry three
-new changes, the PCB does not.
+Work on the board stopped on 2026-09-15 while the patent question was open and
+**resumed on 2026-09-23** (see **Publication status** in Current Status). The
+state below is exactly where it stopped, and it is self-consistent: the
+schematic and library carry three new changes, the PCB does not. **This is the
+next hardware task** — starting with choosing A, B or C for the EEPROM below.
 
 | | Schematic + library | PCB |
 |---|---|---|
@@ -678,35 +679,20 @@ cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
 already identical on both sides, so it will not conflict.
 
-**⏸ The project is paused as of 2026-09-15.** README.md carries a notice at the
-top: existing code, hardware and documentation stay public and the released
-v3.5.0 firmware and flashing tool keep working, but development is stopped and
-issues may go unanswered. The reason given publicly is "personal plans" — keep
-it that way in anything user-facing.
+**Development resumed on 2026-09-23** — firmware and the V1.3 hardware both.
+It had been paused since 2026-09-15 over a patent question (below). The pause
+notice is gone from README.md; the top of README now points to the ready-made
+products instead.
 
-**Publication status — decided 2026-09-15: the repository stays public.** It was
-briefly paused over whether to go private ahead of a patent filing; the call was
-that what is already out there cannot be retracted, and the history is worth
-keeping as a record of the work. Normal pushing and releasing resumed.
-
-| | |
-|---|---|
-| Repository | public since **2025-06-19** |
-| Releases | **10**, earliest 2025-10-17, latest v3.5.0 on 2026-09-10 |
-| GitHub Pages | live, serving `tes_charger_flash.bin` |
-| Copies in other hands | 1 fork, 23 stars |
-
-**No patent application has been filed.** README.md carries a
-reservation-of-rights section explaining that CC BY-NC-SA 4.0 licenses copyright
-only — its own §2(b)(2) says patent and trademark rights are not licensed — so
-publishing under it grants nobody a patent licence. That section deliberately
-does **not** say "Patent Pending": marking that without a live application is a
-false marking in several jurisdictions. Update it when there is an actual
-application, not before.
-
-Nobody on this project should be reasoning about whether the publication
-timeline affects patentability. The rules differ by jurisdiction and it is a
-question for a patent attorney; the table above is what they will ask for.
+**Publication status — decided 2026-09-23: no patent; the repository stays
+public** (it has been public since 2025-06-19). The TES market is too small for a
+patent to be worth pursuing. README.md's licence section was cut down to the
+licence itself: CC BY-NC-SA 4.0 licenses copyright only — its own §2(b)(2) says
+patent and trademark rights are not licensed — so publishing under it grants
+nobody a patent licence. The "reserving the right to file" wording and the
+not-yet-filed disclaimer were removed along with the plan. Do not reintroduce
+"Patent Pending" or similar wording; if the question ever reopens, it is one
+for a patent attorney, not for this file.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
