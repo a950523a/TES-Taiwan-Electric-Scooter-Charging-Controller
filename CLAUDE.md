@@ -701,6 +701,52 @@ not-yet-filed disclaimer were removed along with the plan. Do not reintroduce
 "Patent Pending" or similar wording; if the question ever reopens, it is one
 for a patent attorney, not for this file.
 
+**PSU link protocol v2 (2026-09-24) — on `dev` only, not hardware-tested.** The
+power-node link was rewritten end to end: codec in the new
+[PSU-Link](https://github.com/a950523a/PSU-Link) repo (70 host tests), `psu_driver` here
+(`073597a`), `SerialCmd` in the LianMing PSU Controller (`9c2e6f8`). Both firmwares
+build under IDF 5.5.5 and CI is green, but **no frame has crossed a real wire yet**.
+Deliberately **not** cherry-picked to `main`: that would republish the public flash
+binary. Pick `073597a` across after this checklist passes on real boards:
+
+1. UART: TES receives `$CAP` → `psu_status_t.caps_known` true, `node_type` 1
+2. `$ST` every 1 s idle / 100 ms outputting; V/I match the PSU's own display
+3. `$SET` from TES → `$ACK,<seq>,0` → the output actually changes
+4. Repeat 1–3 over ESP-NOW (re-pair first — see the PSU repo's partition note)
+5. `rx_crc_errors` stays 0; a rising count means wiring or baud rate
+
+**Next: a measurement-only node for knob power supplies** (the ones with no digital
+interface — the iE125 retrofit and the 15 A charger). Decided 2026-09-24:
+
+- It talks over the **existing UART / ESP-NOW link**, not I2C — the board design is
+  fixed, and ESP-NOW gives galvanic isolation for free. It declares
+  `PSU_CAP_REPORT_V | PSU_CAP_REPORT_I` and no set capability, so `SET` never reaches it.
+- It measures voltage too, with its own divider — which also sidesteps the V1.1/V1.2
+  ADS1115 ceiling (~108–114 V, see **What V1.3 needs from the firmware**).
+
+Why it matters — **today, with no PSU link, the controller does not know the output
+current at all.** `tes_sm.c` fills 0x509 `actual_current`, the live display and the
+energy estimate with the **`max_current` setting** (`tes_sm.c` ADC-only branches, and
+0x508 `available_current` from the same setting). That is why users have to set Max
+Current to match the knob by hand. The SM changes, in priority order (none written yet):
+
+1. **Over-current stop** — actual current above the BMS request by more than a tolerance
+   for a sustained time → stop. A knob PSU cannot be commanded, so when the BMS tapers
+   its request the PSU keeps pushing; today nothing notices. This is the reason to do it.
+2. **0x509 reports the measured current** instead of the setting.
+3. **0x508 available current follows the knob** (BMS asks for more than is measured,
+   sustained → the PSU is current-limited; available = measured). Needs a vehicle test:
+   it is unknown whether the vehicle re-reads 0x508 during CHARGING, or faults when the
+   delivered current stays below its request.
+
+Open, not decided: sensor type (Hall recommended — isolated, retrofit by passing the wire
+through; whatever it is, its output must stay under the ADC pin limit, the same trap as
+V1.2); where the node gets power; whether it reuses the LianMing ESP32 board; and what
+happens if the node drops mid-charge (recommended: stop, matching the
+`psu_session_connected` rule). **Hard constraint:** with no node present, behaviour must
+stay exactly as today — including reporting the setting as current — because that is
+every unit in the field.
+
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
 **✅ Vehicle-verified as of v3.5.0:** manual START → full charge sequence; CP transition
