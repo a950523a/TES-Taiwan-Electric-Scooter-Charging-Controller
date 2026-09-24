@@ -142,12 +142,13 @@ IDF version is invisible to users, so it is not a reason for V4 on its own):
 3. **The next hardware revision** — that already requires full re-validation, so folding
    the migration in costs one validation cycle instead of two
 
-**Git submodules —— 有兩個，不是只有 u8g2:**
+**Git submodules —— 有三個，不是只有 u8g2:**
 
 | Path | Upstream | Notes |
 |------|----------|-------|
 | `firmware/components/u8g2/` | `olikraus/u8g2` | third-party, never edited here |
 | `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_types.h`, `tes_codec.c/.h` live here |
+| `firmware/components/psu_link/` | `a950523a/PSU-Link` | **our own repo** — the controller ↔ power-node link (`psu_link.h/.c`), shared with the LianMing PSU Controller |
 
 On a fresh clone:
 ```bash
@@ -157,7 +158,13 @@ git submodule update --init
 ⚠️ Editing `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
 Those changes must be committed and pushed in `firmware/components/tes_protocol/`
 first, then the updated pointer committed here — otherwise CI checks out the old
-`tes_protocol` and the build breaks on missing symbols.
+`tes_protocol` and the build breaks on missing symbols. The same applies to
+`psu_link/`, which has **two** consumers: bump the pointer here *and* in the LianMing
+PSU Controller.
+
+**Why two protocol repos, not one:** TES-Protocol holds only the TES-0D-02-01
+vehicle ↔ charger CAN protocol. The power-node link never touches the vehicle, so it
+lives in PSU-Link (decided 2026-09-24) — do not move it into TES-Protocol.
 
 ---
 
@@ -759,15 +766,54 @@ Web UI voltage/SOC display mirrors OLED: Volt mode shows `voltage / stop_voltage
 
 ## PSU Protocol
 
-Text protocol shared by both transports:
-- RX: `V=xx.x,I=xx.x\n` -- actual output (PSU actively outputting, ~100ms interval)
-- RX: `HB\n` -- heartbeat (PSU standby, ~1s interval; **ESP-NOW only**)
-- RX: `CMD_ACK:SET_V:xx.x\n` / `CMD_ACK:SET_I:xx.x\n` -- command ack (standby)
-- TX: `SET:V=xx.x\n` / `SET:I=xx.x\n` -- setpoint commands
+**Link protocol v2 (2026-09-24), defined in the `psu_link` submodule**
+([PSU-Link](https://github.com/a950523a/PSU-Link)) — `include/psu_link/psu_link.h` +
+`psu_link.c`, with host tests in `test/`. The LianMing PSU Controller pulls in the
+**same submodule**, so the wire format has exactly one definition: change it in PSU-Link,
+then bump the submodule pointer in **both** repos. Same bytes over UART and ESP-NOW:
 
-`HB\n` is parsed in `parse_frame()`; it updates `s_last_valid_ticks` and sets `connected=true` without changing voltage/current. This is the primary liveness signal for ESP-NOW idle state.
+```
+$<TYPE>,<field>,...*<CRC16>\n     CRC-16/CCITT over the bytes between '$' and '*'
+```
 
-When `psu_voltage == 0` (PSU standby), SM falls back to ADC voltage for OLED display and 0x509 CAN output — prevents vehicle from seeing 0V/0A and aborting.
+| Direction | Message | Notes |
+|---|---|---|
+| TES → node | `$HELO,<ver>` | sent every 1 s while connected but `caps_known == false` |
+| node → TES | `$CAP,<ver>,<type>,<caps>,<vmax>,<imax>,<fw>` | at node boot and on `HELO` |
+| node → TES | `$ST,<seq>,<v>,<i>,<mode>,<flags>` | 100 ms outputting / 1 s idle — **also the heartbeat** (no `HB` any more) |
+| TES → node | `$SET,<seq>,<v>,<i>` | either field may be empty = unchanged; throttled as before |
+| node → TES | `$ACK,<seq>,<result>` | `PSU_ACK_RANGE` / `UNSUPPORTED` are logged |
+
+Integers only, 0.01 V / 0.01 A. Lines not starting with `$` (the node's boot banner,
+replies to human text commands) are ignored; CRC failures and unusable frames are
+counted in `psu_status_t.rx_crc_errors` / `rx_bad_frames` — a rising CRC count is a
+wiring or baud-rate problem.
+
+**Node types.** The protocol describes a *power node* by what it declares in `CAP`, not
+by brand: a controllable rectifier (LianMing: report V/I + set V/I) or a
+**measurement-only node** for power supplies with no digital interface (report V/I, no
+set). `psu_driver_can_set_voltage/current()` stop `SET` going to a node that cannot take
+it; before `CAP` arrives they return true and an unsupported node answers `ACK 2`.
+**The state machine does not use node type or capabilities yet** — that is the next
+step (measured current in 0x509, following a manual current knob, over-current stop).
+
+**`psu_status_t` kept its first five fields** (`voltage`, `current`, `connected`, `rssi`,
+`fail_streak`) with the same meaning, so `task_tes_sm`, `display_svc` and `network_svc`
+did not change. Everything after them (node identity, last `ST`, `SET`/`ACK` sequence,
+link counters) is new. Node identity is cleared on disconnect — the next node may be a
+different one.
+
+**Invalid readings are reported as 0.** `ST` flags voltage/current invalid when the node
+is not outputting (LianMing: below 1 V, the old `V=`/`HB` boundary), and the driver
+turns that into 0. That matters: when `psu_voltage == 0` (PSU standby), SM falls back to
+ADC voltage for OLED display and 0x509 CAN output — prevents vehicle from seeing 0V/0A
+and aborting. A node that reported its idle noise as a valid 0.3 V would silently break
+that fallback.
+
+**Units in the field never see any of this.** They run knob power supplies with nothing
+on the PSU UART, so no frame ever arrives, `connected` stays false and the SM stays on
+the ADC-only path exactly as before. The driver only sends `HELO` once something is
+talking, so an empty UART stays silent.
 
 **ESP-NOW safety constraints (`psu_driver.c`):**
 
