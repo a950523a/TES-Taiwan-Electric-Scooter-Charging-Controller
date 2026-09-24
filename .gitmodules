@@ -4,3 +4,6 @@
 [submodule "firmware/components/tes_protocol"]
 	path = firmware/components/tes_protocol
 	url = https://github.com/a950523a/TES-Protocol
+[submodule "firmware/components/psu_link"]
+	path = firmware/components/psu_link
+	url = https://github.com/a950523a/PSU-Link
