@@ -174,6 +174,26 @@ lives in PSU-Link (decided 2026-09-24) — do not move it into TES-Protocol.
 
 `tes_protocol/` is **zero-dependency C99** -- no ESP-IDF, no FreeRTOS, no OS calls. It can be compiled on any platform (STM32, PC unit tests, etc.) by swapping `charger_hal/` and `platform/`. All time, GPIO, and CAN operations are injected by the caller.
 
+**Data in, data out — on purpose.** The state machine never calls hardware; it gets an
+`inputs` snapshot and returns the `outputs` the hardware should hold. The LianMing PSU
+Controller solves the same portability problem the other way — C++ code calling hardware
+through a virtual `IHardwareHAL` — and both are right for what they do (compared
+2026-09-24):
+
+| | Data in / data out (this SM) | Virtual interface (PSU controller) |
+|---|---|---|
+| Testing | Build `inputs`, check `outputs`; time is injected, so runs are exactly repeatable | Needs a fake HAL recording calls; tests assert call sequences, not state |
+| What will the hardware do? | All of it is in `outputs`, one place | Scattered through the logic |
+| Cost | Boilerplate: a new interaction means new struct fields plus glue in `task_tes_sm` | Call it where you need it |
+| Fits | Decisions — relays, contactor, what to tell the BMS | I/O — streams, polling, display |
+| Latency | One tick (10 ms) between snapshot and action | Immediate |
+
+This code decides whether a relay closes onto a vehicle's HV battery, so testability and
+being able to see every hardware action in one struct outweigh the boilerplate. **Do not
+"simplify" the SM into calling drivers directly.** A third pattern lives in PSU-Link:
+pure encode/decode functions with no I/O and no decisions, which is why the same C file
+serves this C firmware and the C++ PSU controller.
+
 ### Component Layers
 
 ```
