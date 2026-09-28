@@ -1226,6 +1226,38 @@ collapse* should settle it immediately. Do not start tuning without it.
 > wrong "the page is too big" conclusion. Re-measure link quality before trusting any
 > throughput number here.)
 
+### 🟡 To evaluate: the ESP32 module is rated to 65 °C; PSRAM ECC raises it to 85 °C
+
+Recorded 2026-09-28, **nothing changed yet.** U1 is `ESP32-S3-WROOM-1-N16R8`
+(`hardware/TES_Controller_V1.3/bom.csv`). The **R8 variants (octal PSRAM) are rated
+−40 to 65 °C ambient**, not the 85 °C of the plain modules. The
+[datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
+states that enabling PSRAM ECC raises that to **85 °C**, at the cost of 1/16 of the
+PSRAM, i.e. 8 MB → 7.5 MB.
+
+Why it matters: the module, not the enclosure, is the part with the lowest
+temperature rating in the unit. A controller left in a parked vehicle, or mounted on a
+warm PSU, can pass 65 °C inside its enclosure in a Taiwanese summer. This was found
+while choosing an enclosure material (PETG, ~70 °C) — the enclosure outlasts the module
+either way.
+
+The change is one line, `CONFIG_SPIRAM_ECC_ENABLE=y` in `sdkconfig.defaults` (it
+depends on `SPIRAM_MODE_OCT`, which is set). Things to check **before** shipping it:
+
+- **PSRAM is not only data here.** `CONFIG_SPIRAM_FETCH_INSTRUCTIONS` and
+  `CONFIG_SPIRAM_RODATA` are on, so code and rodata are copied into PSRAM at boot,
+  besides the ~656 KB of `trace_svc` buffers. Measured headroom was ~6.4 MB free, so
+  losing 512 KB is affordable — but confirm ECC works together with execute-from-PSRAM
+  on this IDF version, and read `task_monitor`'s `psram` figure afterwards.
+- **Throughput.** ECC adds overhead to every PSRAM access; code runs from PSRAM, so
+  measure the SM tick and the `/control` page load before and after.
+- **OTA path.** PSRAM is initialised by the app, so this should reach deployed units
+  by OTA with no partition-table or bootloader change — verify on a board that was
+  flashed with the current firmware, then updated by OTA, not flashed fresh.
+- The firmware requires 16 MB flash + octal PSRAM (`sdkconfig.defaults`), so every
+  unit running it carries an R8 module — the win would reach units already in the
+  field, not only V1.3.
+
 ### Other
 
 - `check_battery_compatibility`: voltage limit logic needs validation against real vehicle CAN data
