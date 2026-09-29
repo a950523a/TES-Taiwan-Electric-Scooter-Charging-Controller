@@ -510,7 +510,7 @@ and stitching via that sat east of U5.7 were removed — that was the only exit.
 
 ### U5's VDD33 was fed the long way round (fixed 2026-09-29)
 
-When `2fe7ddb` moved the ADS1115 back to 3.3 V, the auto-repair connected U5.8 by a
+When `24991a2` moved the ADS1115 back to 3.3 V, the auto-repair connected U5.8 by a
 **31 mm top-layer trace down the board's left edge** from C1 (ESP32 area), passing
 the HV divider R34 on the way, and reached decoupling cap C20 only through a
 bottom-layer detour and a via in C20's pad. Meanwhile a dangling VDD33 stub from
@@ -755,10 +755,10 @@ stay with their positions, so no copper moves), then record the pad swap in
 
 ## Current Status
 
-**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (b793cf3) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors. **該版由 ESP-IDF v5.5.1 建置**；v5.5.5 是之後才升的，要解 v3.5.0 韌體的 backtrace 需 `git checkout v5.5.1`。
+**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (78f88d1) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors. **該版由 ESP-IDF v5.5.1 建置**；v5.5.5 是之後才升的，要解 v3.5.0 韌體的 backtrace 需 `git checkout v5.5.1`。
 
 **v3.5.0 fixes — the two crashes:**
-1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. b793cf3 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
+1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. 78f88d1 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
 2. **Random reboot ~12 s after boot.** `spawn()` registered the task handle *after* `xTaskCreate`, but tasks outrank `app_main` and are unpinned, so a self-deleting task could vanish before registration and leave a dangling handle for `task_monitor` → `LoadProhibited` (EXCVADDR=0).
 
 **v3.5.0 fixes — web UI was unusable ("offline, no data"):** three compounding causes, all fixed —
@@ -778,11 +778,11 @@ manual mode), so the reason vanished before it could be read. All three now key 
 fresh. Deliberate — reading old 20-byte records as 24-byte ones would misalign every
 field. No migration was written.
 
-**Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
+**Confirmed TES-0D-02-01 protocol timing (commit 5bb8887):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
 **ESP-NOW PSU transport (implemented 2026-05-16, ✅ hardware-tested 2026-09-15):** `psu_driver` supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. The LianMing PSU Controller side has been updated to match, and the pair → publish → command path has been exercised on real hardware.
 
-**PSU disconnect fault fix (commit 89bc1c4, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
+**PSU disconnect fault fix (commit bb1735e, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
 
 **Hardware V1.3 (2026-09-15):** the EasyEDA → KiCad migration is finished and the
 board passes every check it has — netlist zero-difference, ERC clean, DRC 0 errors
@@ -809,10 +809,24 @@ v3.5.0, which does not — only re-flashed units have it.)
 
 **`main` carries firmware only; the V1.3 hardware work stays on `dev`** (decided
 2026-09-15). Do **not** fast-forward `main` to `dev` — pick the firmware commits across
-deliberately, as was done for the eight above and for the CI fix (`939743e`, a
-cherry-pick of `6544254`). That cherry-pick means the branches have diverged, so bringing
+deliberately, as was done for the eight above and for the CI fix (`ff3a831`, a
+cherry-pick of `0794ad3`). That cherry-pick means the branches have diverged, so bringing
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
 already identical on both sides, so it will not conflict.
+
+**Git history was rewritten on 2026-09-29 — every commit hash before that date
+changed.** The twelve prototype photos in `docs/images/` (added 2025-08-04) carried
+the phone's GPS position of the author's home. `git filter-repo` replaced each
+original in history with its resized, EXIF-free version, then `main`, `dev` and all
+32 tags were force-pushed. Trees at the branch tips are byte-identical to before;
+the repo went from 67 MB to 29 MB. The original commits were GPG-signed and
+filter-repo drops signatures, so **all 355 commits got new hashes**, not only those
+after the photos. Hash references in this file and in commit messages were
+translated through filter-repo's commit map; a hash quoted anywhere else points at a
+commit that no longer exists on `main`/`dev`. A clone made before that date must be
+re-cloned, not pulled. One fork (2025-08-14) predates the rewrite and still holds the
+originals — the author has decided not to pursue it. Any new photo goes in with EXIF
+stripped.
 
 **Development resumed on 2026-09-23** — firmware and the V1.3 hardware both.
 It had been paused since 2026-09-15 over a patent question (below). The pause
@@ -832,10 +846,10 @@ for a patent attorney, not for this file.
 **PSU link protocol v2 (2026-09-24) — on `dev` only, not hardware-tested.** The
 power-node link was rewritten end to end: codec in the new
 [PSU-Link](https://github.com/a950523a/PSU-Link) repo (70 host tests), `psu_driver` here
-(`073597a`), `SerialCmd` in the LianMing PSU Controller (`9c2e6f8`). Both firmwares
+(`ed99d3b`), `SerialCmd` in the LianMing PSU Controller (`9c2e6f8`). Both firmwares
 build under IDF 5.5.5 and CI is green, but **no frame has crossed a real wire yet**.
 Deliberately **not** cherry-picked to `main`: that would republish the public flash
-binary. Pick `073597a` across after this checklist passes on real boards:
+binary. Pick `ed99d3b` across after this checklist passes on real boards:
 
 1. UART: TES receives `$CAP` → `psu_status_t.caps_known` true, `node_type` 1
 2. `$ST` every 1 s idle / 100 ms outputting; V/I match the PSU's own display
