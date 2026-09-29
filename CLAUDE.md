@@ -426,7 +426,7 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
 | Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
 | ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 83 footprints, 529 tracks, 134 vias, bottom layer is one 5333 mm² ground pour |
+| PCB | 2-layer, single-sided SMT. 83 footprints, 521 tracks, 132 vias, bottom layer is one 5333 mm² ground pour |
 | DRC | **0 errors, 0 unconnected pads.** 182 warnings remain, all silkscreen overlap / courtyard / library-mismatch (an earlier note said 167; 182 is what the committed board had before the 2026-09-29 change, and that change added none) |
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
@@ -481,6 +481,27 @@ PCB: R37 below C7 at (132.30, 91.80), R36 at (133.70, 94.10) rotated 180°. HW_I
 hand-routed on the top layer at 0.2 mm with no via-in-pad: out of U5.7 eastward,
 between C20 and C7's ground pads, down the east side of the CP trunk. The GND stub
 and stitching via that sat east of U5.7 were removed — that was the only exit.
+
+### U5's VDD33 was fed the long way round (fixed 2026-09-29)
+
+When `2fe7ddb` moved the ADS1115 back to 3.3 V, the auto-repair connected U5.8 by a
+**31 mm top-layer trace down the board's left edge** from C1 (ESP32 area), passing
+the HV divider R34 on the way, and reached decoupling cap C20 only through a
+bottom-layer detour and a via in C20's pad. Meanwhile a dangling VDD33 stub from
+C28 (U12's VIO node, fed from U6) pointed straight at U5 — the remnant of the
+original short path.
+
+Now: U5.8 → C20.1 directly on top (~2 mm, 0.3 mm), and the C28 stub → C20.1 along
+x = 134.05 (~5 mm). The left-edge trace, the bottom detour and two vias are gone;
+VDD33 copper went from 137 mm / 9 vias to 97 mm / 7 vias.
+
+**Why the router did that — and will again.** `_pcb_maze.py` protects the ground
+plane with `BOTTOM_COST = 4`, `VIA_COST = 12`, and routes on a 0.15 mm grid where
+obstacles are inflated by clearance. Around U5/C20/C7 the real gaps are a few tenths
+of a millimetre: passable in true geometry, solid on the grid. So a short path is
+invisible, a layer change is expensive, and a long top-layer detour wins. **After
+any `set_net` + `_pcb_repair.py`, look at what it routed** — "connected" is all it
+guarantees. HW_ID (above) hit the same wall and was hand-routed.
 
 ### Two bugs found on the way, both fixed
 
