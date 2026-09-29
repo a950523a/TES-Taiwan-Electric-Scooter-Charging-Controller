@@ -212,23 +212,31 @@ All rights not expressly granted under the above license are reserved.
 
 ## 影片
 
-https://youtube.com/shorts/SKAtfQcCqX8?si=aqei7ZD7hVCWWM0R
-
-https://youtu.be/vA7gSdK1YZQ?si=lSQAtU0p7vCutx1Y
+- **1.5 kW / 15 A 充電器實測**：https://youtu.be/JB53_vpZVYo
+- **6 kW 研究平台**（控制板＋工業整流模組，轉接汽車 J1772 慢充樁）：https://youtu.be/vA7gSdK1YZQ
+- 短片：https://youtube.com/shorts/SKAtfQcCqX8
 
 ## 照片
 
-> 此為專案 V2 早期時所拍的照片，V2 後期轉為自行畫 PCB 並使用 ESP32-S3 開發。
+### 成品（V1.2 電路板＋3D 列印外殼）
 
-![](docs/images/20250804_205003.jpg)
-![](docs/images/20250804_205006.jpg)
-![](docs/images/20250804_205017.jpg)
-![](docs/images/20250804_205024.jpg)
-![](docs/images/20250804_205031.jpg)
-![](docs/images/20250804_205036.jpg)
-![](docs/images/20250804_205042.jpg)
-![](docs/images/20250804_205055.jpg)
-![](docs/images/20250804_205058.jpg)
-![](docs/images/20250804_205101.jpg)
-![](docs/images/20250804_205114.jpg)
-![](docs/images/20250804_205116.jpg)
+<img src="docs/images/product-boards.jpg" width="480" alt="五台裝進 3D 列印外殼的 TES 快充控制板成品">
+<img src="docs/images/product-board.jpg" width="300" alt="TES 快充控制板，外殼上有 OLED 螢幕、按鍵與狀態燈">
+
+### 手機監控畫面
+
+<img src="docs/images/web-ui-mock.png" width="320" alt="手機瀏覽器上的充電監控畫面">
+
+> 真實的 Web UI，畫面上的數值是模擬資料。
+
+### V1.3 電路板（KiCad 3D 渲染，尚未生產）
+
+<img src="docs/images/pcb-v1.3-top.jpg" width="360" alt="V1.3 電路板正面渲染">
+<img src="docs/images/pcb-v1.3-bottom.jpg" width="360" alt="V1.3 電路板背面渲染">
+
+### 開發歷程：2025 年 8 月的洞洞板原型
+
+當時還是 V2 韌體、ESP32 開發板加現成模組；之後改為自行設計 PCB 並換成 ESP32-S3。
+
+<img src="docs/images/20250804_205003.jpg" width="300" alt="洞洞板原型開機畫面">
+<img src="docs/images/20250804_205101.jpg" width="300" alt="洞洞板原型充電中，約 93 V / 10 A">
