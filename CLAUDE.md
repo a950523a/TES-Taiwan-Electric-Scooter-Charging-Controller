@@ -424,54 +424,63 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 |---|---|
 | Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 28 footprints. 3D models regenerate on demand and are gitignored (39 MB) |
 | Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
-| Netlist | **230 of 230 connections, zero difference** against the EasyEDA export, checked on every regeneration |
+| Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
 | ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 81 footprints, 522 tracks, 134 vias, bottom layer is one 5333 mm² ground pour |
-| DRC | **0 errors, 0 unconnected pads.** 167 warnings remain, all silkscreen overlap / courtyard / library-mismatch |
+| PCB | 2-layer, single-sided SMT. 83 footprints, 529 tracks, 134 vias, bottom layer is one 5333 mm² ground pour |
+| DRC | **0 errors, 0 unconnected pads.** 182 warnings remain, all silkscreen overlap / courtyard / library-mismatch (an earlier note said 167; 182 is what the committed board had before the 2026-09-29 change, and that change added none) |
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
 
-### Three changes half-applied (stopped 2026-09-15, resumed 2026-09-23)
-
-Work on the board stopped on 2026-09-15 while the patent question was open and
-**resumed on 2026-09-23** (see **Publication status** in Current Status). The
-state below is exactly where it stopped, and it is self-consistent: the
-schematic and library carry three new changes, the PCB does not. **This is the
-next hardware task** — starting with choosing A, B or C for the EEPROM below.
+### Pending changes (work stopped 2026-09-15, resumed 2026-09-23)
 
 | | Schematic + library | PCB |
 |---|---|---|
-| **U13** 24C02S EEPROM (LCSC C18723540) + **C30** 100 nF | ✅ placed, verified | ❌ **blocked — see below** |
+| **R36 / R37** hardware-ID divider on ADS1115 AIN3 (replaces the U13 EEPROM) | ✅ | ✅ **done 2026-09-29** — hand-routed, DRC clean |
 | **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ❌ not applied |
-| **R35** 10 kΩ, Q4 gate divider | ✅ | ❌ not applied |
+| **R35** 10 kΩ, Q4 gate divider (with `Q2.3 → VP_PGATE_DRV`) | ✅ | ❌ not applied — `_pcb_verify.py` reports exactly these three pads, nothing else |
 
-Schematic verifies at **239 of 239 connections, zero difference**, ERC 0. The
-PCB is back at its last committed state: 81 footprints, **0 DRC errors, 0
-unconnected**. Nothing half-routed was left on it.
+**D10 and R35 are the next hardware task, then Gerbers.**
 
-**Why the EEPROM is blocked: the board is full where the I2C bus is.** Counting
-existing tracks and vias, not just component courtyards:
+⚠ **Do not run `regen_hw.sh` end to end on the PCB.** Step 6 re-imports the board
+from the EasyEDA zip, and the ground-plane restructure (`_pcb_restructure_run.py`)
+is not part of that script — a full regen throws the restructured board away. Apply
+changes to the committed board instead: `_pcb_apply_nets.py`, then
+`_pcb_apply_changes.py`, then `_pcb_repair.py`, then DRC. The schematic steps
+(1–5) are safe to rerun.
 
-| Free area needed | Distance to the nearest SDA/SCL pad |
-|---|---|
-| 4.0 × 4.0 mm (the footprint and nothing else) | **31.9 mm** |
-| 6.5 × 6.5 mm (footprint plus room for three pins to escape) | **49.3 mm** |
+### Board identification: a divider on AIN3, not an EEPROM (2026-09-29)
 
-A SOT-23-5 cannot be placed near U5/R5/R6 at all. Anchoring the auto-placer at
-U5, R6 or R5 — and forcing an explicit coordinate — all fail on pad clearance.
-Left to itself the placer puts it 25 mm away and sends SDA and SCL down the
-**bottom layer for 28 mm each**, which cuts the ground plane the restructure
-work existed to create.
+V1.3 changes the voltage-divider coefficient (30.000 → 38.954), so one firmware
+binary has to tell the boards apart. The first plan was **U13, a 24C02S I²C
+EEPROM** — it could not be placed: SDA, SCL and VCC all had to reach it, and the
+nearest free spot big enough was 32 mm from the I²C pins, with SDA/SCL running
+28 mm each on the bottom layer through the ground plane. U13 and C30 were removed.
 
-Distance itself is not the problem: 30–50 mm of I2C trace adds 3–5 pF against a
-400 pF budget. The missing thing is a routing channel. Three ways forward, none
-chosen yet:
+What replaced it: **ADS1115 AIN3 (U5 pin 7) was tied to ground and used only as
+the negative side of the CP measurement.** Now it carries `HW_ID`, the midpoint of
+R36 (to VDD33) and R37 (to GND). Only one net has to reach U5; VDD33 and GND are
+everywhere. Full level table and reasoning in `changes_v13.py` (R36).
 
-- **A.** Place it in the open strip along the bottom of the board and force the
-  maze router to stay on the top layer. Touches no existing copper.
-- **B.** Re-route a few tracks near U5 to open ~4 × 4 mm. Best electrically,
-  but it modifies verified copper and needs a full DRC re-run.
-- **C.** Nudge one existing small part. Between the two.
+| AIN3 reading | Meaning | Divider coefficient |
+|---|---|---|
+| < 0.137 V (pin grounded) | V1.1 / V1.2 — **every unit in the field** | 30.000 |
+| level k = round(V / 0.275 V), k = 1…11 | a board revision; **V1.3 = k 6 (R36 = R37 = 10 k)** | per revision |
+| > 3.162 V (AIN3 tied straight to VDD33) | extension code: "this board has an EEPROM at 0x50, read it" | from EEPROM |
+| between levels | unknown revision | 30.000 + warning |
+
+Worst-case error (two 1 % resistors, 3.3 V rail ±2 %) stays inside every level's
+band. Every level uses one 10 k (C25804, already on the board); V1.3 uses two, so
+**no new part number**. Only revisions the firmware must distinguish take a level.
+
+**CP is unaffected.** AIN3's ground was the local ground 1.7 mm from U5, not the
+ground at the CP divider (R8/R9, ~20 mm away), so the old AIN2−AIN3 differential
+never had a Kelvin benefit. Reading AIN2 single-ended gives the same value on every
+board, old ones included.
+
+PCB: R37 below C7 at (132.30, 91.80), R36 at (133.70, 94.10) rotated 180°. HW_ID is
+hand-routed on the top layer at 0.2 mm with no via-in-pad: out of U5.7 eastward,
+between C20 and C7's ground pads, down the east side of the CP trunk. The GND stub
+and stitching via that sat east of U5.7 were removed — that was the only exit.
 
 ### Two bugs found on the way, both fixed
 
@@ -507,8 +516,8 @@ chosen yet:
 
 The divider coefficient goes 30.000 → 38.954 and the constant cannot simply be
 edited, because deployed units run the old divider and one binary serves both.
-The `hw_info` EEPROM this used to be pinned on was never built and V1.3 has no
-part that could act as one — the next section records what that leaves open.
+The board now identifies itself through the AIN3 divider (see **Board
+identification** above); the firmware side is recorded in the next section.
 
 ### ⚠ What V1.3 needs from the firmware — recorded 2026-09-15, not yet done
 
@@ -532,18 +541,27 @@ pack sitting at 120 V** (×30.000/38.954 = 77 %). It cannot be skipped either.
 `adc_driver_read_voltage()` directly. V1.3 needs 345 / 9.09. One binary has to
 serve both, per **Deployment constraints** — so this is a lookup, not an edit.
 
-**2. There is nothing on a V1.3 board to identify it with, and the mechanism
-does not exist.** `hw_info` appears 0 times in the tree, and V1.3's BOM has no
-EEPROM, no DIP switch and no strapping resistor — that idea was never built.
-So the board cannot announce its own revision, and the choice is open:
+**2. Read the board ID at boot (hardware decided 2026-09-29, firmware not written).**
+In `adc_driver.c`:
 
-- an NVS key written at first flash (works today, but an OTA'd unit has no key
-  and must therefore default to 30.000 — which is the correct default anyway);
-- a strapping GPIO or an ID resistor **on the next board revision**, which is
-  the only option that survives a board being reflashed from scratch.
+- CP: `ADS_CFG_MUX_23` (AIN2−AIN3) → **MUX 110, AIN2 single-ended**. Identical
+  reading on old boards, where AIN3 is ground.
+- Once at boot: **MUX 111, AIN3 single-ended**, average several conversions,
+  classify with the table under **Board identification**, pick R1/R2 for
+  `adc_driver_read_voltage()`.
+- Expose the result: `hw_rev` in `/status`, and on the OLED About screen — support
+  needs to know which board a user has.
+- Default for "no information" stays **30.000** (grounded AIN3, a read failure, or
+  an unknown level), because that is what every unit in the field is.
 
-Whatever is chosen, the default for "no information" must stay 30.000, because
-that is what every unit in the field is.
+⚠ **Release order matters.** v3.5.0 and older never read AIN3, so a V1.3 board
+running them applies 30.000 and **reports 77 % of the real voltage** — and in
+Stop Mode = Volt it keeps charging past the target, leaving only the vehicle's BMS
+to stop it. The ID-aware firmware must be the **latest GitHub Release before the
+first V1.3 ships**, so OTA and the first-flash tool can only give a V1.3 board
+firmware that knows it. Only a deliberate manual upload of an old `.bin` can still
+downgrade one; ESP-IDF anti-rollback would prevent even that, but it burns eFuses
+irreversibly and is not worth it here.
 
 **3. Field units cannot read near 120 V today, and firmware cannot fix it.**
 The ADS1115's analog input is limited to VDD + 0.3 V = 3.6 V. At a coefficient

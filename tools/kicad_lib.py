@@ -30,8 +30,9 @@ VENV_PY = os.path.expanduser(r"~\.venvs\eda\Scripts\python.exe")
 # 不該去改它（它是驗證的基準），所以新料號列在這裡。
 # 對應的接線在 tools/changes_v13.py。
 EXTRA_LCSC = [
-    "C18723540",   # XBLW 24C02S，SOT-23-5 I2C EEPROM。存硬體版本，
-                   # 讓一份韌體能同時服務 V1.3 與現場的舊分壓板
+    "C18723540",   # XBLW 24C02S，SOT-23-5 I2C EEPROM。V1.3 目前沒用到 ——
+                   # 版本識別改成 R36／R37 的分壓 ID（見 changes_v13.py）。
+                   # 留在庫裡給之後用「擴充碼」加 EEPROM 的版本
 ]
 
 
