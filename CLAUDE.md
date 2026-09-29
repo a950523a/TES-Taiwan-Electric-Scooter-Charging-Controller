@@ -559,19 +559,18 @@ guarantees. HW_ID (above) hit the same wall and was hand-routed.
 - **`ADS1115IDGSR` is in `TES.kicad_sym` twice**, identical apart from a `-0.00`
   on one pin. Harmless, but it is duplication nobody put there on purpose.
 
-### Firmware consequences still outstanding
+### Firmware side of V1.3
 
 The divider coefficient goes 30.000 → 38.954 and the constant cannot simply be
 edited, because deployed units run the old divider and one binary serves both.
-The board now identifies itself through the AIN3 divider (see **Board
-identification** above); the firmware side is recorded in the next section.
+The board identifies itself through the AIN3 divider (see **Board
+identification** above) and the firmware now reads it — see the next section.
 
-### ⚠ What V1.3 needs from the firmware — recorded 2026-09-15, not yet done
+### What V1.3 needs from the firmware — board ID written 2026-09-29, not yet tested on a board
 
-The board is finished; none of this is. Nothing here is urgent until a V1.3
-board is actually powered up — but today's firmware applies a coefficient of
-30.000 to a divider that is 38.954, so **a V1.3 board would report 92 V for a
-pack sitting at 120 V** (×30.000/38.954 = 77 %). It cannot be skipped either.
+Firmware older than the board-ID change applies a coefficient of 30.000 to a
+divider that is 38.954, so **a V1.3 board would report 92 V for a pack sitting at
+120 V** (×30.000/38.954 = 77 %).
 
 | | shipped hardware (V1.1 / V1.2) | V1.3 |
 |---|---|---|
@@ -582,24 +581,31 @@ pack sitting at 120 V** (×30.000/38.954 = 77 %). It cannot be skipped either.
 | reading at 120 V | 4.000 V — **over the input limit** | 3.081 V |
 | measurement ceiling | ~108 V, clipped (see 3 below) | 140.2 V |
 
-**1. The coefficient has to stop being a compile-time constant.**
-`ADC_VOLT_R1_KOHM` (348.0f) and `ADC_VOLT_R2_KOHM` (12.0f) in
-`components/drivers/include/drivers/adc_driver.h` feed
-`adc_driver_read_voltage()` directly. V1.3 needs 345 / 9.09. One binary has to
-serve both, per **Deployment constraints** — so this is a lookup, not an edit.
+**1–2. Coefficient lookup and board ID — done in firmware (2026-09-29).**
+`ADC_VOLT_R1_KOHM` / `ADC_VOLT_R2_KOHM` are gone. `adc_driver.c` now:
 
-**2. Read the board ID at boot (hardware decided 2026-09-29, firmware not written).**
-In `adc_driver.c`:
+- reads CP as **AIN2 single-ended** (`ADS_CFG_MUX_2G`, MUX 110) instead of
+  AIN2−AIN3 — identical on old boards, where AIN3 is ground;
+- in `adc_driver_init()`, reads **AIN3 single-ended** (`ADS_CFG_MUX_3G`, MUX 111)
+  8 times, averages, classifies with `classify_hw_id()`, and looks the level up in
+  `BOARD_REVS[]` (level 0 = V1.1/V1.2 348k/12k, level 6 = V1.3 345k/9.09k).
+  **A new board revision = one new row in `BOARD_REVS[]`**, at the level chosen in
+  `changes_v13.py`;
+- falls back to **30.000** and marks the board unknown for a read failure, a level
+  between bands, a level not in the table, or the EEPROM extension code (not
+  supported yet). Missing ADS1115 keeps the default too.
 
-- CP: `ADS_CFG_MUX_23` (AIN2−AIN3) → **MUX 110, AIN2 single-ended**. Identical
-  reading on old boards, where AIN3 is ground.
-- Once at boot: **MUX 111, AIN3 single-ended**, average several conversions,
-  classify with the table under **Board identification**, pick R1/R2 for
-  `adc_driver_read_voltage()`.
-- Expose the result: `hw_rev` in `/status`, and on the OLED About screen — support
-  needs to know which board a user has.
-- Default for "no information" stays **30.000** (grounded AIN3, a read failure, or
-  an unknown level), because that is what every unit in the field is.
+Exposed as `adc_driver_board()`: `/status` carries `hw_rev`, `hw_known`,
+`hw_id_level`, `hw_id_v`; the web UI prints the board next to the firmware
+version (and says the voltage cannot be trusted when `hw_known` is false); the
+OLED settings menu has a read-only `Board: V1.3` row under `tes-<id>` (unknown
+shows `Board: ? 1.23V`). The classifier was host-tested with every level's
+worst-case voltages (two 1 % resistors, 3.3 V ±2 %) — all 13 codes classify
+correctly, and a voltage between bands is rejected.
+
+**Not tested on hardware yet.** On a V1.1/V1.2 board: the boot log must say
+`level 0 = V1.1/V1.2`, and CP must read exactly as before. On the first V1.3:
+`level 6 = V1.3`, `AIN3 ≈ 1.65 V`, and the output voltage must match a meter.
 
 ⚠ **Release order matters.** v3.5.0 and older never read AIN3, so a V1.3 board
 running them applies 30.000 and **reports 77 % of the real voltage** — and in
@@ -883,6 +889,7 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | [Beta] Auto | ON / OFF | toggle | toggle |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
 | About | 韌體版本 + 作者（唯讀） | — | — |
+| Board（位於 `tes-<id>` 下一行） | 硬體版本（唯讀，開機時由 AIN3 辨識；不認得顯示 `? 1.23V`） | — | — |
 | Save & Exit | writes to NVS | — | — |
 | Cancel | discard changes | — | — |
 
@@ -1523,7 +1530,7 @@ shows 離線 without affecting the others.
 | GET | `/` | Device list page (mDNS discovery) |
 | GET | `/control` | Embedded control web UI |
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
-| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid |
+| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
 | POST | `/config` | Partial update (any subset); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |

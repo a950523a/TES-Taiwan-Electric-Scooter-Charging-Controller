@@ -20,6 +20,7 @@
 #include "services/network_svc.h"
 #include "services/config_svc.h"
 #include "drivers/psu_driver.h"
+#include "drivers/adc_driver.h"
 #include "services/event_bus.h"
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
@@ -335,6 +336,16 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     // 韌體版本
     const esp_app_desc_t *app = esp_app_get_description();
     cJSON_AddStringToObject(root, "firmware_version", app->version);
+
+    // 硬體版本（開機時由 AIN3 的分壓 ID 辨識）。hw_known=false 表示這份韌體
+    // 不認得這塊板、已退回舊板的分壓係數 —— 電壓讀值不可信，要更新韌體。
+    {
+        const adc_board_t *hw = adc_driver_board();
+        cJSON_AddStringToObject(root, "hw_rev",      hw->name);
+        cJSON_AddBoolToObject  (root, "hw_known",    hw->known);
+        cJSON_AddNumberToObject(root, "hw_id_level", hw->level);
+        cJSON_AddNumberToObject(root, "hw_id_v",     (double)((int)(hw->id_volts * 1000.0f + 0.5f)) / 1000.0);
+    }
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);

@@ -794,7 +794,10 @@ async function poll(){
 
     // 韌體版本
     if(d.firmware_version)
-      document.getElementById('fw-ver').textContent='目前版本：'+d.firmware_version;
+      document.getElementById('fw-ver').textContent='目前版本：'+d.firmware_version
+        +(d.hw_rev===undefined?'':'　硬體：'+(d.hw_known===false
+          ?'無法辨識（ID '+d.hw_id_v+' V，已用舊板分壓係數，電壓讀值不可信，請更新韌體）'
+          :d.hw_rev));
 
     // OTA 狀態
     const btn=document.getElementById('ota-btn');

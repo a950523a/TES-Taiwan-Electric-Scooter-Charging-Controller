@@ -9,6 +9,7 @@
 #include "drivers/display_driver.h"
 #include "drivers/led_driver.h"
 #include "drivers/psu_driver.h"
+#include "drivers/adc_driver.h"
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
 #include "esp_app_desc.h"
@@ -43,6 +44,7 @@ typedef enum {
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
+    MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
     MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
@@ -190,6 +192,14 @@ static void item_label(int item, char *buf, size_t bufsz)
         char host[24];
         network_svc_get_hostname(host, sizeof(host));
         snprintf(buf, bufsz, "%s", host[0] ? host : "tes-?");
+        break;
+    }
+    case MENU_ITEM_BOARD: {
+        const adc_board_t *hw = adc_driver_board();
+        if (hw->known)
+            snprintf(buf, bufsz, "Board: %s", hw->name);
+        else
+            snprintf(buf, bufsz, "Board: ? %.2fV", (double)hw->id_volts);
         break;
     }
     case MENU_ITEM_PSU_STATUS: {
