@@ -422,11 +422,11 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 
 | | State |
 |---|---|
-| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 28 footprints. 3D models regenerate on demand and are gitignored (39 MB) |
+| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 31 footprints (two of them are the silkscreen logos). 3D models regenerate on demand and are gitignored (39 MB) |
 | Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
 | Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
 | ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 84 footprints, 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
+| PCB | 2-layer, single-sided SMT. 86 footprints (84 parts + 2 logos), 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
 | DRC | **0 errors, 0 unconnected pads.** 181 warnings remain, all silkscreen overlap / courtyard / library-mismatch. Two of them are R35's outline touching the existing `D+` silk label — cosmetic, left as is |
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
@@ -438,6 +438,17 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | **R36 / R37** hardware-ID divider on ADS1115 AIN3 (replaces the U13 EEPROM) | ✅ | ✅ **done 2026-09-29** — hand-routed, DRC clean |
 | **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ✅ **done 2026-09-29** — see below |
 | **R35** 10 kΩ, Q4 gate divider (with `Q2.3 → VP_PGATE_DRV`) | ✅ | ✅ **done 2026-09-29** — see below |
+
+**Silkscreen logo (2026-09-29).** The Turtle Power (海龜電能) logo is on both sides:
+9 mm on top (LOGO1, 177.6, 91.9 — the largest free spot on the top side, north of the
+buck module) and 20 mm on the bottom (LOGO2, 164.5, 113.0). `tools/make_logo.py`
+(KiCad python) turns `hardware/kicad/lib/logo/turtle_power.png` into
+`TES.pretty/LOGO_TurtlePower_<n>mm`: board-only, no pads, excluded from BOM and
+placement files, so the netlist check does not see them. **The source is a thin line
+drawing** — at 9 mm its lines are 0.066 mm, below JLCPCB's ~0.15 mm silkscreen
+minimum — so the script measures the median stroke and dilates it to ≥ 0.2 mm
+(≈ 0.23 mm at both sizes). To change the art or size, edit the PNG or `SIZES_MM` and
+rerun; the placed copies do not update themselves (re-place from the library).
 
 **All V1.3 changes are on the board. Next: Gerbers** (and merge `bom.csv` with
 `changes_v13.py` before ordering — see the ordering note further down).

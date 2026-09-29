@@ -9,7 +9,7 @@ V1.3 起的硬體設計在 KiCad 進行。EasyEDA Pro 的 V1.3 仍保留在
 | 路徑 | 內容 | 進版控 |
 |---|---|---|
 | `lib/TES.kicad_sym` | 45 個符號：34 個由 BOM 的 LCSC 料號產生、4 個沒有料號的自行產生、6 個電源符號加 PWR_FLAG | ✅ |
-| `lib/TES.pretty/` | 28 個封裝 | ✅ |
+| `lib/TES.pretty/` | 31 個封裝（含兩個絲印 logo，由 `tools/make_logo.py` 產生） | ✅ |
 | `lib/TES.3dshapes/` | 42 個 3D 模型（.step + .wrl） | ❌ **39 MB，已 gitignore** |
 | `sym-lib-table` / `fp-lib-table` | 專案層級元件庫設定，開啟專案即生效 | ✅ |
 
