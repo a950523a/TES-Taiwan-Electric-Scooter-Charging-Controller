@@ -9,7 +9,7 @@ V1.3 起的硬體設計在 KiCad 進行。EasyEDA Pro 的 V1.3 仍保留在
 | 路徑 | 內容 | 進版控 |
 |---|---|---|
 | `lib/TES.kicad_sym` | 45 個符號：34 個由 BOM 的 LCSC 料號產生、4 個沒有料號的自行產生、6 個電源符號加 PWR_FLAG | ✅ |
-| `lib/TES.pretty/` | 31 個封裝（含兩個絲印 logo，由 `tools/make_logo.py` 產生） | ✅ |
+| `lib/TES.pretty/` | 32 個封裝（含兩個絲印 logo 與安裝孔，由 `tools/make_logo.py`、`tools/make_mounting_hole.py` 產生） | ✅ |
 | `lib/TES.3dshapes/` | 42 個 3D 模型（.step + .wrl） | ❌ **39 MB，已 gitignore** |
 | `sym-lib-table` / `fp-lib-table` | 專案層級元件庫設定，開啟專案即生效 | ✅ |
 
@@ -50,7 +50,7 @@ easyeda2kicad 產生的是**絕對路徑**，直接提交會在別台機器上�
 - [x] PCB layout —— 雙層、單面貼片；底層整片接地銅箔，機構座標未動
 - [x] DRC：0 錯誤、0 未連接（尚有 167 條絲印／外框重疊類警告）
 - [x] 電氣修正 —— R10 耐壓、ADS1115 I²C 準位、120V 間距、降壓板進出各一顆 TVS
-- [ ] Gerber 出圖 —— 還沒做，也還沒下過單
+- [x] Gerber 出圖（2026-09-29）—— `sh tools/make_fab.sh`，輸出在 `hardware/fab/V1.3/`，含嘉立創 SMT 的 BOM／座標檔。還沒下過單
 
 > START 的去彈跳接點不必改：TS-1187A 的 1、2 腳在封裝內部就是短路的，
 > 網表裡 START1.3 和 START1.4 也都接 GND，原本以為的問題不存在。

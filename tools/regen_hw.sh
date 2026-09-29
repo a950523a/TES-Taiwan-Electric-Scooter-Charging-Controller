@@ -49,4 +49,6 @@ echo "7/8 PCB DRC"
 echo "8/8 機構鎖定座標"
 "$PY" tools/pcb_geometry.py --locked --json hardware/kicad/mechanical_lock.json \
     > hardware/kicad/mechanical_lock.txt
+# 上面讀的是 EasyEDA 原稿；這一步拿 KiCad 的板子比對 —— 安裝孔在轉檔時掉過一次
+"$KPY" tools/check_mech_kicad.py 2>&1 | grep -v 'memory leak\|image handler' || true
 echo "完成"

@@ -422,13 +422,13 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 
 | | State |
 |---|---|
-| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 31 footprints (two of them are the silkscreen logos). 3D models regenerate on demand and are gitignored (39 MB) |
+| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 32 footprints (two silkscreen logos and the mounting hole among them). 3D models regenerate on demand and are gitignored (39 MB) |
 | Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
 | Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
 | ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 86 footprints (84 parts + 2 logos), 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
+| PCB | 2-layer, single-sided SMT. 90 footprints (84 parts, 2 logos, 4 mounting holes), 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
 | DRC | **0 errors, 0 unconnected pads.** 181 warnings remain, all silkscreen overlap / courtyard / library-mismatch. Two of them are R35's outline touching the existing `D+` silk label — cosmetic, left as is |
-| Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
+| Mechanical | 20 enclosure-critical positions and the 4 mounting holes locked (`hardware/kicad/mechanical_lock.json`), checked **against the KiCad board** by `tools/check_mech_kicad.py` — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
 
 ### Pending changes (work stopped 2026-09-15, resumed 2026-09-23)
@@ -529,6 +529,41 @@ invisible, a layer change is expensive, and a long top-layer detour wins. **Afte
 any `set_net` + `_pcb_repair.py`, look at what it routed** — "connected" is all it
 guarantees. HW_ID (above) hit the same wall and was hand-routed.
 
+### Fabrication (2026-09-29)
+
+`sh tools/make_fab.sh` regenerates everything into `hardware/fab/V1.3/`: DRC with
+zones refilled, the KiCad-side mechanical check, Gerbers + Excellon drills, the
+JLCPCB BOM/CPL, and `TES_Controller_V1.3_gerber.zip` for upload. Settings follow
+JLCPCB's KiCad guide (Protel extensions, no X2, silkscreen minus mask openings,
+metric decimal Excellon, PTH/NPTH separate). Checked by parsing the output: outline
+64.135 × 89.318 mm; 168 plated holes = 133 vias + 35 THT pads (4 of them Type-C
+slots); 4 NPTH Ø3.2; 236 paste openings = 236 top SMD pads.
+
+**The four mounting holes were missing from the KiCad board until this step.**
+EasyEDA draws them as filled circles on its Multi-Layer; the import dropped them,
+and the mechanical lock stayed green because `pcb_geometry.py` reads the EasyEDA
+export, not the KiCad board. They are the buck module's standoffs **and** the
+enclosure's fixing points. Now MH1–MH4, footprint `MountingHole_3.2mm_NPTH_Keepout4.6mm`
+(`tools/make_mounting_hole.py`): NPTH Ø3.2 plus a Ø4.6 copper keepout on both sides.
+The keepout is small on purpose — **nylon standoffs and plastic screws**, so nothing
+metal touches the board. If that ever changes to brass standoffs, grow it to Ø6.0 and
+first move GND_BACK and CP_SENSE off MH1 (their edges are 2.37 / 2.58 mm from its
+centre). `tools/check_mech_kicad.py` now guards the holes and positions against the
+KiCad board and is step 8 of `regen_hw.sh`. (The lock file stores angles after
+flipping EasyEDA's Y axis, so 90° and 270° swap; the check flips them back.)
+
+**SMT (JLCPCB), `tools/make_jlc_assembly.py`:** 69 parts / 31 line items; 15 are
+hand-soldered (`hand_solder.txt`: connectors, LEDs, headers, U10, W1–W4). Part
+numbers come from `bom.csv` plus `changes_v13.py` through `MPN_LCSC`. Rotations are
+KiCad's — compared part by part, all 77 original parts match EasyEDA's angles, which
+is the convention JLCPCB uses; still check each part in JLCPCB's placement preview.
+Stock as of 2026-09-29:
+- **R10/R33/R34 115 k 0.1 %:** the specified RT0603BRD07115KL (C861084) had 2 in
+  stock and the board needs 3, so the BOM orders **RT0603BRE07115KL (C861635)** —
+  same Yageo RT thin film, ±0.1 %, TCR code E instead of D. Confirm before ordering.
+- R11 9.09 k 0.1 % RT0603BRD079K09L C861611; D9 SMBJ130A-13-F C135040; D10 = D3's
+  SMBJ12A C908793; R35–R37 = C25804.
+
 ### Two bugs found on the way, both fixed
 
 1. **`easyeda2kicad --overwrite` appends, it does not replace.** Every library
@@ -546,8 +581,8 @@ guarantees. HW_ID (above) hit the same wall and was hand-routed.
 
 ### What is deliberately not done
 
-- **No Gerbers yet.** Fabrication output is the next step, and nothing has been
-  ordered from this design.
+- **Nothing has been ordered yet.** Fabrication files exist (see **Fabrication**
+  below); the order itself is the user's.
 - **DRC and ERC stay out of CI.** Design checks belong to the moment of
   designing, not to every push.
 - **The V1.3-only parts borrow a library symbol.** R33/R34 (115 k), R10's new

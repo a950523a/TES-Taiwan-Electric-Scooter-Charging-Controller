@@ -1,0 +1,17 @@
+不交給嘉立創 SMT 的零件（手焊或另外下插件加工）
+
+CN1         B2PS-VH(LF)(SN)            CONN-TH_B2PS-VH-LF-SN                    插件（C158007）
+CN2         S4B-XH-A(LF)(SN)           CONN-TH_S4B-XH-A-LF-SN                   插件（C157925）
+CN3         DG381-3.5-02P-14-00A(H)    CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A    插件（C5272864）
+CN5         DG381-3.5-02P-14-00A(H)    CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A    插件（C5272864）
+CN6         DG381-3.5-02P-14-00A(H)    CONN-TH_2P-P3.50_DG381-3.5-02P-14-00A    插件（C5272864）
+D6                                     LED-TH_BD5.8-P2.54-FD                    沒有 LCSC 料號
+D7                                     LED-TH_BD5.8-P2.54-FD                    沒有 LCSC 料號
+D8                                     LED-TH_BD5.8-P2.54-FD                    沒有 LCSC 料號
+H1                                     HDR-TH_4P-P2.54-V-F                      沒有 LCSC 料號
+H2                                     HDR-TH_3P-P2.54-V-F                      沒有 LCSC 料號
+U10         DG301-5.0-02P-14-00A(H)    CONN-TH_DEGSON_DG301-5.0-02P             插件（C5128812）
+W1          SOLDERPAD-1P               SOLDERPAD-TH_3.0X1.5                     沒有 LCSC 料號
+W2          SOLDERPAD-1P               SOLDERPAD-TH_3.0X1.5                     沒有 LCSC 料號
+W3          SOLDERPAD-1P               SOLDERPAD-TH_3.0X1.5                     沒有 LCSC 料號
+W4          SOLDERPAD-1P               SOLDERPAD-TH_3.0X1.5                     沒有 LCSC 料號

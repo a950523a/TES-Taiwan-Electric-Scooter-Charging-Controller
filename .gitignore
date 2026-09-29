@@ -66,3 +66,6 @@ hardware/kicad/~*
 
 # KiCad 的本機歷史（KiCad 自己維護的，不進版控）
 hardware/kicad/.history/
+
+# 生產檔的上傳 zip 是 hardware/fab/*/gerber 的打包，由 tools/make_fab.sh 產生
+hardware/fab/*/*.zip
