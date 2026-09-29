@@ -389,10 +389,10 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 ## Current Status
 
-**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (b793cf3) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors. **該版由 ESP-IDF v5.5.1 建置**；v5.5.5 是之後才升的，要解 v3.5.0 韌體的 backtrace 需 `git checkout v5.5.1`。
+**v3.5.0 released 2026-09-10.** Fixes the START-crash regression introduced on `dev` (78f88d1) and a batch of diagnostic/UX problems found alongside it. **Vehicle-tested: charging works end to end** (`IDLE → PARAM_EXCHANGE → PRE_CHARGE → CHARGING`). `idf.py build` zero errors. **該版由 ESP-IDF v5.5.1 建置**；v5.5.5 是之後才升的，要解 v3.5.0 韌體的 backtrace 需 `git checkout v5.5.1`。
 
 **v3.5.0 fixes — the two crashes:**
-1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. b793cf3 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
+1. **START → instant reboot.** `task_can_rx` stack overflow, *not* `task_tes_sm`. 78f88d1 added `can_driver_service()` to that task's loop; pressing START starts 0x508/0x509 TX, no ACK on the bus → TWAI error-passive → `ESP_LOGW` inside a 2 KB task → overflow. Stack raised to 4 KB (headroom 52 → 2100 bytes idle, 1860 charging).
 2. **Random reboot ~12 s after boot.** `spawn()` registered the task handle *after* `xTaskCreate`, but tasks outrank `app_main` and are unpinned, so a self-deleting task could vanish before registration and leave a dangling handle for `task_monitor` → `LoadProhibited` (EXCVADDR=0).
 
 **v3.5.0 fixes — web UI was unusable ("offline, no data"):** three compounding causes, all fixed —
@@ -412,11 +412,11 @@ manual mode), so the reason vanished before it could be read. All three now key 
 fresh. Deliberate — reading old 20-byte records as 24-byte ones would misalign every
 field. No migration was written.
 
-**Confirmed TES-0D-02-01 protocol timing (commit c7fa3f8):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
+**Confirmed TES-0D-02-01 protocol timing (commit 5bb8887):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
 **ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
 
-**PSU disconnect fault fix (commit 89bc1c4, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
+**PSU disconnect fault fix (commit bb1735e, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
