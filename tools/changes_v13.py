@@ -203,7 +203,7 @@ CHANGES = [
 
     # ---------------------------------------------------------- R10 分壓
     dict(
-        op="set_value", ref="R10", value="RT0603BRD07115KL",
+        op="set_value", ref="R10", value="RT0603BRE07115KL",
         why="""120V 分壓上臂拆成三顆串聯，這是第一顆。
 
         原本是單顆 348k 的 0603，在 120V 輸入下要承受 116V ——
@@ -216,6 +216,9 @@ CHANGES = [
         不是一般的 1% 厚膜 —— 分壓比的精度直接就是電壓讀值的精度，
         上臂換成三顆 1% 會讓誤差從 0.1% 掉到約 0.58%（三顆的均方根）。
         ⚠ 料號要自己去 LCSC 確認有貨，RT 系列不是每個 E96 值都常備。
+        （2026-09-29 就遇到了：原本指定的 RT0603BRD07115KL，C861084，只剩 2 顆、
+        每片要 3 顆。改用同系列的 RT0603BRE07115KL，C861635 —— 一樣是 Yageo RT
+        薄膜、±0.1%，只差溫度係數代碼 E 與 D。使用者確認採用。）
 
         三顆都用 115k，合計 345k。上臂總值不必湊成原本的 348k ——
         R11 改成 9.09k 之後韌體係數本來就要重算，沒有「維持原值」這回事。
@@ -228,13 +231,13 @@ CHANGES = [
         功耗 13 mW 對 0603 的 100 mW 也很寬鬆。""",
     ),
     dict(
-        op="add_part", ref="R33", value="RT0603BRD07115KL",
+        op="add_part", ref="R33", value="RT0603BRE07115KL",
         symbol=R_SYMBOL, footprint=R_FOOTPRINT,
         pins={"1": "HV_DIV2", "2": "HV_DIV1"},
         why="R10 分壓上臂的第二顆（見 R10 的說明）。",
     ),
     dict(
-        op="add_part", ref="R34", value="RT0603BRD07115KL",
+        op="add_part", ref="R34", value="RT0603BRE07115KL",
         symbol=R_SYMBOL, footprint=R_FOOTPRINT,
         pins={"1": "VOUT_SENSE", "2": "HV_DIV2"},
         why="R10 分壓上臂的第三顆，接到分壓中點 VOUT_SENSE（見 R10 的說明）。",

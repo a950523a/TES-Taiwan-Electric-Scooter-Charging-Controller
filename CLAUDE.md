@@ -557,10 +557,12 @@ hand-soldered (`hand_solder.txt`: connectors, LEDs, headers, U10, W1–W4). Part
 numbers come from `bom.csv` plus `changes_v13.py` through `MPN_LCSC`. Rotations are
 KiCad's — compared part by part, all 77 original parts match EasyEDA's angles, which
 is the convention JLCPCB uses; still check each part in JLCPCB's placement preview.
-Stock as of 2026-09-29:
-- **R10/R33/R34 115 k 0.1 %:** the specified RT0603BRD07115KL (C861084) had 2 in
-  stock and the board needs 3, so the BOM orders **RT0603BRE07115KL (C861635)** —
-  same Yageo RT thin film, ±0.1 %, TCR code E instead of D. Confirm before ordering.
+**JLCPCB's order number:** no `JLCJLCJLCJLC` marker on the silkscreen — the user
+leaves its placement to JLCPCB's engineers (decided 2026-09-29). Stock as of 2026-09-29:
+- **R10/R33/R34 115 k 0.1 %:** the originally specified RT0603BRD07115KL (C861084)
+  had 2 in stock and the board needs 3, so the design now uses **RT0603BRE07115KL
+  (C861635)** — same Yageo RT thin film, ±0.1 %, TCR code E instead of D. Accepted by
+  the user; schematic, board and BOM all carry the new part number.
 - R11 9.09 k 0.1 % RT0603BRD079K09L C861611; D9 SMBJ130A-13-F C135040; D10 = D3's
   SMBJ12A C908793; R35–R37 = C25804.
 
