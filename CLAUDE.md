@@ -426,8 +426,8 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
 | Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
 | ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 83 footprints, 521 tracks, 132 vias, bottom layer is one 5333 mm² ground pour |
-| DRC | **0 errors, 0 unconnected pads.** 182 warnings remain, all silkscreen overlap / courtyard / library-mismatch (an earlier note said 167; 182 is what the committed board had before the 2026-09-29 change, and that change added none) |
+| PCB | 2-layer, single-sided SMT. 84 footprints, 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
+| DRC | **0 errors, 0 unconnected pads.** 181 warnings remain, all silkscreen overlap / courtyard / library-mismatch. Two of them are R35's outline touching the existing `D+` silk label — cosmetic, left as is |
 | Mechanical | 16 enclosure-critical positions locked and verified on every run (`hardware/kicad/mechanical_lock.json`) — the Inventor enclosure does not have to change |
 | Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
 
@@ -436,10 +436,25 @@ LCSC (slow, needs network — the library is committed, so normally skip it).
 | | Schematic + library | PCB |
 |---|---|---|
 | **R36 / R37** hardware-ID divider on ADS1115 AIN3 (replaces the U13 EEPROM) | ✅ | ✅ **done 2026-09-29** — hand-routed, DRC clean |
-| **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ❌ not applied |
-| **R35** 10 kΩ, Q4 gate divider (with `Q2.3 → VP_PGATE_DRV`) | ✅ | ❌ not applied — `_pcb_verify.py` reports exactly these three pads, nothing else |
+| **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ✅ **done 2026-09-29** — see below |
+| **R35** 10 kΩ, Q4 gate divider (with `Q2.3 → VP_PGATE_DRV`) | ✅ | ✅ **done 2026-09-29** — see below |
 
-**D10 and R35 are the next hardware task, then Gerbers.**
+**All V1.3 changes are on the board. Next: Gerbers** (and merge `bom.csv` with
+`changes_v13.py` before ordering — see the ordering note further down).
+
+Both were placed and routed by hand; the auto-placer's first attempt put D10
+16.6 mm from W2 and R35 3.6 mm from Q4 with a bottom-layer hop. Positions and
+reasoning are in `changes_v13.py` (`at=`).
+
+- **D10** sits in the strip east of the buck module, directly north of W2
+  (181.50, 108.50): its 12V pad is *on* the 12V trunk, ~2.4 mm from W2. The trunk
+  (1.27 mm) now jogs west around D10's ground pad — under the module, which is a
+  component keepout, not a routing one — and D10's ground pad drops to two vias
+  into the bottom plane. **Found on the way:** the 12V branch into the board
+  reached W2 only by touching D10's old pad, a leftover of the ground-plane
+  restructure; it now goes straight to W2.
+- **R35** is in the gap east of R26 under Q2 (138.05, 133.30): Q2.3 → R35.2,
+  R35.1 → R26.1 → Q4 gate, top layer only, no vias.
 
 ⚠ **Do not run `regen_hw.sh` end to end on the PCB.** Step 6 re-imports the board
 from the EasyEDA zip, and the ground-plane restructure (`_pcb_restructure_run.py`)
