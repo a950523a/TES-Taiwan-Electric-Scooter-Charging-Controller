@@ -123,8 +123,7 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 tes_charger_flash.bin
 
 ## 🛠️ 硬體設計
 
-- **原理圖 / PCB**：`docs/PCB/` 目錄
-- **BOM**：`docs/BOM_V2/` 目錄
+- **原理圖 / PCB / BOM**：`docs/PCB/` 目錄（EasyEDA Pro 專案）
 - **主要元件**：ESP32-S3 N16R8、ADS1115、SSD1306 OLED、CAN Transceiver、繼電器模組
 
 硬體設計以通用性為核心，亦適合使用萬用板手工搭建。
@@ -133,13 +132,19 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 tes_charger_flash.bin
 
 ## 💻 開發環境（ESP-IDF）
 
+ESP-IDF 版本固定為 **v5.5.5**，與 CI 相同。版本不一致時，本機解出的當機位址會對不上實際執行的韌體。
+
 ```powershell
+# 第一次 clone 後先取得子模組（u8g2、tes_protocol、psu_link）
+git submodule update --init
+
 # 設定環境（Windows）
-$env:IDF_PATH = "C:\Users\<user>\esp\v5.5.1\esp-idf"
+$env:IDF_PATH = "C:\Users\<user>\esp\v5.5.5\esp-idf"
 # 詳見 CLAUDE.md 完整 PATH 設定
 
 # 編譯
-cd v3
+cd firmware
+idf.py set-target esp32s3
 idf.py build
 
 # 燒錄
