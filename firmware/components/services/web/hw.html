@@ -38,6 +38,9 @@ h1{font-size:1.1em;margin:0;font-weight:600;flex:1}
 .dot.pr{background:#5aa0ff;box-shadow:0 0 6px #5aa0ff}
 .tk{display:grid;grid-template-columns:1fr auto;gap:0 10px;font-size:.74em;font-family:ui-monospace,Consolas,monospace}
 .tk span:nth-child(even){text-align:right}
+.tt{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:1px 10px;font-size:.72em;
+  font-family:ui-monospace,Consolas,monospace;margin-top:6px;overflow-x:auto}
+.tt span{white-space:nowrap}.tt .hd{color:#667}.tt span.n{text-align:right}
 button{font-family:inherit;font-size:.8em;border-radius:6px;padding:6px 11px;cursor:pointer;
   background:#1e1e1e;color:#cdd;border:1px solid #333}
 button:hover{background:#262626}button:disabled{opacity:.45;cursor:default}
@@ -119,6 +122,10 @@ button.act{background:#1d3a26;border-color:#4dd97a;color:#bfe}
     <div class="card"><h2>CAN 控制器</h2><div id="c-can"></div></div>
     <div class="card"><h2>系統</h2><div id="c-sys"></div></div>
     <div class="card"><h2>任務堆疊餘裕（歷史最低）</h2><div class="tk" id="c-tk"></div></div>
+    <div class="card wide"><h2>TCP 連線（lwIP）</h2><div id="c-tcp"></div>
+      <div class="tt" id="c-tcpl"></div>
+      <div class="hint" style="margin:6px 0 0">查「/control 載入一兩次後變慢」用：崩的時候看大傳輸那條的重傳次數與逾時是否一直漲（送不出去），
+        還是 TIME_WAIT 堆滿、新連線開不起來（TCP 資源）。</div></div>
   </div>
 </div>
 
@@ -263,6 +270,7 @@ addEventListener('pagehide',()=>{if(testMine())post('/hw/test',{cmd:'stop',owner
 // ── 輪詢 ──
 const CP=['未知','OFF（無車）','ON（車端就緒）','異常電壓'],CANST=['停止','運作中','BUS-OFF','復原中'];
 const NODE=['未知','可控整流器','量測節點'];
+const TCPST=['CLOSED','LISTEN','SYN_SENT','SYN_RCVD','ESTAB','FIN_WAIT1','FIN_WAIT2','CLOSE_WAIT','CLOSING','LAST_ACK','TIME_WAIT'];
 let seenBtn=0,seenAt=0,lastOk=0,busy=false,prevFails=null,failGrow=0;
 function render(d){
   const o=d.out,a=d.adc,p=d.psu,c=d.can,s=d.sys;
@@ -321,6 +329,21 @@ function render(d){
     +row('內部 RAM 可用',kb(s.heap))+row('內部 RAM 歷史最低',kb(s.heap_min),s.heap_min<20480?'y':'')
     +row('最大連續區塊',kb(s.heap_blk))+row('PSRAM 可用',kb(s.psram))
     +row('WiFi 訊號',s.rssi===null?'未連線（AP 模式？）':s.rssi+' dBm',s.rssi<-75?'y':'');
+  if(d.tcp){
+    const t=d.tcp,used=t.active+t.tw;
+    $('c-tcp').innerHTML=row('使用中 / TIME_WAIT / 上限',t.active+' / '+t.tw+' / '+t.max,used>=t.max?'e':used>=t.max-3?'y':'')
+      +row('監聽中',t.listen)+row('網頁伺服器 socket',(t.httpd??'?')+' / '+t.httpd_max,t.httpd>=t.httpd_max?'e':'');
+    const H=['狀態','對方','佇列','可寫','cwnd','重傳','RTO / 閒置'];
+    $('c-tcpl').innerHTML=H.map(h=>'<span class="hd">'+h+'</span>').join('')
+      +t.conns.map(([st,ip,rp,lp,q,sb,cw,nr,rto,idle])=>{
+        const tw=st===10;
+        return '<span class="'+(st===4?'g':tw?'m':'y')+'">'+(TCPST[st]||st)+'</span>'
+          +'<span>'+esc(ip)+':'+rp+(lp!==80?' →'+lp:'')+'</span>'
+          +'<span class="n'+(q>8?' y':'')+'">'+(tw?'':q)+'</span><span class="n">'+(tw?'':sb)+'</span>'
+          +'<span class="n">'+(tw?'':cw)+'</span><span class="n'+(nr>3?' e':nr?' y':'')+'">'+(tw?'':nr)+'</span>'
+          +'<span class="n">'+(tw?'— / ':(rto/1000).toFixed(1)+'s / ')+(idle/1000).toFixed(1)+'s</span>';
+      }).join('');
+  }
   $('c-tk').innerHTML=s.tasks.map(([n,f])=>'<span>'+esc(n)+'</span><span class="'+(f<0?'m':f<512?'e':f<1024?'y':'')+'">'
     +(f<0?'已結束':f+' B')+'</span>').join('');
 }

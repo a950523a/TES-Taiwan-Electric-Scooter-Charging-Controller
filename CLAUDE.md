@@ -1342,6 +1342,17 @@ Neither is a leak — it recovers on its own.
 plus every task's stack watermark every 10 s. Reading that over USB *while provoking the
 collapse* should settle it immediately. Do not start tuning without it.
 
+**The `/hw` page now carries that data without USB (2026-09-30).** Its 系統 card shows
+internal RAM free / minimum / largest block, and the TCP card lists every lwIP PCB —
+state, peer, send-queue length, writable buffer, cwnd, retransmit count, RTO and idle
+time — plus TIME_WAIT count against `MEMP_NUM_TCP_PCB` and httpd's open sockets against
+`max_open_sockets`. `/hw.json` is small, so it should keep updating through a collapse.
+Procedure: open `/hw` in one tab, reload `/control` in another until it collapses, and
+watch. Hypothesis 1 shows as the bulk connection's retransmits and RTO climbing while
+internal RAM dips; hypothesis 2 as TIME_WAIT filling the pool. The PCB lists are read in
+the tcpip thread via `tcpip_api_call()` — `LWIP_TCPIP_CORE_LOCKING` is off, so walking
+them from httpd directly would race lwIP.
+
 > ⚠️ **Do not "fix" this with gzip.** Compressing the 94 KB page to ~20 KB would raise the
 > number of loads before collapse from ~2 to ~8 and look like a fix while the underlying
 > resource problem remains. (This was nearly done — the first measurements were taken

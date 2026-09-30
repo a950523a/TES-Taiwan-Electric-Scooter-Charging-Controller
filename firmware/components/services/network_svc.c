@@ -43,6 +43,9 @@
 #include "nvs_flash.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/sockets.h"
+#include "lwip/tcpip.h"
+#include "lwip/priv/tcpip_priv.h"   // tcpip_api_call
+#include "lwip/priv/tcp_priv.h"     // tcp_active_pcbs / tcp_tw_pcbs / tcp_ticks
 #include "mdns.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -60,6 +63,7 @@ extern SemaphoreHandle_t g_snapshot_mutex;
 extern QueueHandle_t     g_btn_event_queue;
 
 static httpd_handle_t s_server    = NULL;
+static int            s_httpd_max_sockets;   // /hw.json 回報用
 static bool           s_connected = false;
 static bool           s_ap_mode   = false;
 static bool           s_mdns_ok   = false;
@@ -1420,6 +1424,100 @@ static const char *reset_reason_name(esp_reset_reason_t r)
 
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
+// ── lwIP TCP 連線快照 ─────────────────────────────────────────────────────────
+// 為了查 CLAUDE.md「/control 載入一兩次後吞吐量崩掉」：兩個假設，一個是內部 RAM
+// 不足拖住 WiFi 傳送緩衝，一個是 TCP PCB 卡在 TIME_WAIT（TCP_MSL=60s 與「約 60 秒
+// 恢復」吻合）。這裡把每條連線的狀態、佇列、壅塞視窗、重傳次數攤開：
+//   - 崩的時候大傳輸那條 nrtx 一直漲、rto 拉長、cwnd 縮小 → 封包送不出去（假設 1）
+//   - TIME_WAIT 堆滿、新連線開不起來 → TCP 資源（假設 2）
+//
+// 本專案沒開 LWIP_TCPIP_CORE_LOCKING，PCB 串列只能在 tcpip 執行緒裡走訪，
+// 所以用 tcpip_api_call() 把 tcp_snap_fn 丟過去同步執行。只複製數字，
+// 字串格式化回到 httpd 執行緒再做。
+#define TCP_SNAP_MAX 20
+
+typedef struct {
+    uint8_t   state;       // enum tcp_state
+    uint8_t   nrtx;        // 目前這個分段的重傳次數
+    uint16_t  lport, rport;
+    ip_addr_t rip;
+    uint16_t  queuelen;    // 送出佇列的 pbuf 數（上限 TCP_SND_QUEUELEN）
+    uint16_t  snd_buf;     // 還能寫進去的位元組
+    uint32_t  cwnd;        // 壅塞視窗
+    uint32_t  rto_ms;      // 重傳逾時
+    uint32_t  idle_ms;     // 距離上次活動（TIME_WAIT 則為進入後經過多久）
+} tcp_conn_t;
+
+typedef struct {
+    struct tcpip_api_call_data call;   // 必須是第一個成員
+    int        n_active, n_tw, n_listen, n;
+    tcp_conn_t c[TCP_SNAP_MAX];
+} tcp_snap_t;
+
+static void tcp_snap_add(tcp_snap_t *s, const struct tcp_pcb *p)
+{
+    if (s->n >= TCP_SNAP_MAX) return;
+    tcp_conn_t *c = &s->c[s->n++];
+    c->state    = (uint8_t)p->state;
+    c->nrtx     = p->nrtx;
+    c->lport    = p->local_port;
+    c->rport    = p->remote_port;
+    ip_addr_copy(c->rip, p->remote_ip);
+    c->queuelen = p->snd_queuelen;
+    c->snd_buf  = p->snd_buf;
+    c->cwnd     = p->cwnd;
+    c->rto_ms   = (uint32_t)(p->rto > 0 ? p->rto : 0) * TCP_SLOW_INTERVAL;
+    c->idle_ms  = (tcp_ticks - p->tmr) * TCP_SLOW_INTERVAL;
+}
+
+static err_t tcp_snap_fn(struct tcpip_api_call_data *d)
+{
+    tcp_snap_t *s = (tcp_snap_t *)d;
+    for (struct tcp_pcb *p = tcp_active_pcbs; p; p = p->next) { s->n_active++; tcp_snap_add(s, p); }
+    for (struct tcp_pcb *p = tcp_tw_pcbs;     p; p = p->next) { s->n_tw++;     tcp_snap_add(s, p); }
+    for (struct tcp_pcb_listen *l = tcp_listen_pcbs.listen_pcbs; l; l = l->next) s->n_listen++;
+    return ERR_OK;
+}
+
+static void tcp_json(cJSON *root)
+{
+    // 約 800 bytes —— 放 static 免得吃 httpd 的堆疊；只有 httpd 單一 worker 會進來
+    static tcp_snap_t s;
+    memset(&s, 0, sizeof(s));
+    if (tcpip_api_call(tcp_snap_fn, &s.call) != ERR_OK) return;
+
+    cJSON *o = cJSON_AddObjectToObject(root, "tcp");
+    cJSON_AddNumberToObject(o, "active", s.n_active);
+    cJSON_AddNumberToObject(o, "tw",     s.n_tw);
+    cJSON_AddNumberToObject(o, "listen", s.n_listen);
+    cJSON_AddNumberToObject(o, "max",    MEMP_NUM_TCP_PCB);     // CONFIG_LWIP_MAX_ACTIVE_TCP
+    {
+        size_t n = CONFIG_LWIP_MAX_SOCKETS;
+        int    fds[CONFIG_LWIP_MAX_SOCKETS];
+        if (s_server && httpd_get_client_list(s_server, &n, fds) == ESP_OK)
+            cJSON_AddNumberToObject(o, "httpd", (double)n);
+        cJSON_AddNumberToObject(o, "httpd_max", s_httpd_max_sockets);
+    }
+    cJSON *arr = cJSON_AddArrayToObject(o, "conns");
+    for (int i = 0; i < s.n; i++) {
+        const tcp_conn_t *c = &s.c[i];
+        char ip[IPADDR_STRLEN_MAX];
+        ipaddr_ntoa_r(&c->rip, ip, sizeof(ip));
+        cJSON *r = cJSON_CreateArray();
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->state));
+        cJSON_AddItemToArray(r, cJSON_CreateString(ip));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->rport));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->lport));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->queuelen));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->snd_buf));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->cwnd));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->nrtx));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->rto_ms));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->idle_ms));
+        cJSON_AddItemToArray(arr, r);
+    }
+}
+
 static cJSON *hwtest_json(cJSON *parent, const char *key)
 {
     hwtest_status_t t = hwtest_svc_status(now_ms());
@@ -1564,6 +1662,7 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
         }
     }
 
+    tcp_json(root);
     hwtest_json(root, "test");
     return send_json(req, root, NULL);
 }
@@ -1730,6 +1829,7 @@ static void start_http_server(void)
     cfg.max_uri_handlers  = 28;   // 目前註冊 23 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
+    s_httpd_max_sockets   = cfg.max_open_sockets;
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "HTTP server start failed");
