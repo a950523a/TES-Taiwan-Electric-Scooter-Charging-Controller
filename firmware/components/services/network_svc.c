@@ -28,6 +28,7 @@
 #include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
 #include "services/hwtest_svc.h"
+#include "drivers/display_driver.h"
 #include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
 #include "driver/temperature_sensor.h"
@@ -1482,6 +1483,7 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "btn",     g_btn_stable);
     cJSON_AddNumberToObject(root, "btn_seen", atomic_exchange(&g_btn_latch, 0));
     cJSON_AddBoolToObject  (root, "estop",   atomic_load(&g_emergency_stop));
+    cJSON_AddBoolToObject  (root, "oled",    display_driver_is_ok());   // 開機時 I²C 0x3C 有沒有回應
 
     // 類比：ADS1115 原始換算值（與 PSU 回報分開看）
     cJSON *a = cJSON_AddObjectToObject(root, "adc");

@@ -44,6 +44,7 @@ typedef struct {
     hwtest_block_t block;         // 現在能不能進入（HWTEST_OK = 可以）
     hwtest_block_t last_end;      // 上一次接管為什麼結束；從未接管為 HWTEST_OK
     uint32_t       owner;         // 目前接管者的代號（頁面產生的亂數）
+    uint32_t       ended_ago_ms;  // 距離上一次結束多久；從未結束為 UINT32_MAX（OLED 顯示結束原因用）
 } hwtest_status_t;
 
 // ── HTTP 端（network_svc）────────────────────────────────────────────────────

@@ -12,6 +12,9 @@
 #include "drivers/adc_driver.h"
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
+#include "services/hwtest_svc.h"
+#include "hal/hal_gpio.h"
+#include "platform/platform.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -578,6 +581,75 @@ static void render_status(const tes_snapshot_t *snap)
     display_driver_flush();
 }
 
+// ── 工作台測試模式畫面 ─────────────────────────────────────────────────────────
+//
+// 測試中，繼電器與 LED 由網頁 /hw 手動控制 —— 站在機器前的人必須看得出來，
+// 否則會以為「待機中怎麼繼電器在響」。所以測試中整個狀態畫面換掉；結束後
+// 再留 BENCH_END_SHOW_MS 顯示原因，讓人知道控制權回來了、為什麼回來。
+// 選單不受影響：測試中照樣能長按 SETTING 打開。
+#define BENCH_END_SHOW_MS 3000u
+
+static const char *bench_end_text(hwtest_block_t b)
+{
+    switch (b) {
+    case HWTEST_BLOCK_NOT_IDLE:    return "Charger left standby";
+    case HWTEST_BLOCK_EMERGENCY:   return "Emergency stop";
+    case HWTEST_BLOCK_CP_PRESENT:  return "Vehicle found (CP)";
+    case HWTEST_BLOCK_VEHICLE_CAN: return "Vehicle found (CAN)";
+    case HWTEST_END_LEASE:         return "Web page closed/lost";
+    case HWTEST_END_USER:          return "Stopped from web page";
+    default:                       return "";
+    }
+}
+
+// 有畫東西就回傳 true（呼叫端就不畫一般狀態畫面）
+static bool render_bench(void)
+{
+    hwtest_status_t t = hwtest_svc_status(platform_tick_ms());
+    bool ended = !t.active && t.ended_ago_ms < BENCH_END_SHOW_MS;
+    if (!t.active && !ended) return false;
+
+    // 字寬：small 5 px（一行 25 字）、medium 6 px（21 字）、bold 7 px
+    char buf[28];
+    display_driver_clear();
+    display_driver_set_color(1);
+    display_driver_font_bold();
+
+    if (t.active) {
+        // 反白標題：一眼就看得出不是平常的畫面
+        display_driver_draw_box(0, 0, 128, 15);
+        display_driver_set_color(0);
+        display_driver_draw_str(4, 12, "BENCH TEST");
+        display_driver_set_color(1);
+
+        // 顯示腳位實際電位，不是網頁要求的值
+        uint8_t o = hal_gpio_outputs_get();
+        display_driver_font_small();
+        display_driver_draw_str(0, 25, "Outputs set from web /hw");
+        snprintf(buf, sizeof(buf), "RELAY:%s LOCK:%s VP:%s",
+                 (o & HAL_OUT_RELAY) ? "ON" : "--",
+                 (o & HAL_OUT_LOCK)  ? "ON" : "--",
+                 (o & HAL_OUT_VP)    ? "ON" : "--");
+        display_driver_draw_str(0, 37, buf);
+        snprintf(buf, sizeof(buf), "LED  Y:%s  G:%s  R:%s",
+                 (o & HAL_OUT_LED_STANDBY)  ? "ON" : "--",
+                 (o & HAL_OUT_LED_CHARGING) ? "ON" : "--",
+                 (o & HAL_OUT_LED_ERROR)    ? "ON" : "--");
+        display_driver_draw_str(0, 47, buf);
+        display_driver_draw_hline(0, 51, 128);
+        display_driver_draw_str(0, 61, "START/plug/E-STOP = exit");
+    } else {
+        display_driver_draw_str(0, 12, "TEST ENDED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, bench_end_text(t.last_end));
+        display_driver_font_small();
+        display_driver_draw_str(0, 46, "Outputs back to normal");
+    }
+    display_driver_flush();
+    return true;
+}
+
 // ── Menu screen render ────────────────────────────────────────────────────────
 
 static void render_menu(void)
@@ -739,7 +811,7 @@ void display_svc_tick(void)
 
     switch (s_screen) {
     case DISP_SCREEN_STATUS:
-        render_status(&snap);
+        if (!render_bench()) render_status(&snap);
         break;
     case DISP_SCREEN_MENU:
         render_menu();

@@ -1577,6 +1577,16 @@ between `<!--BOARD-->` and `<!--/BOARD-->` in `web/hw.html`; each footprint is a
 `<g id="fp-<ref>">` and the page's JS only depends on those ids. Rerun it after a board
 change. The key parts — buttons, LEDs, connectors — sit at mechanically locked positions,
 so the V1.3 drawing is also right for V1.1/V1.2.
+Back-side footprints are drawn too, with only their
+through-hole pads and a dashed outline — H2, the PSU UART header, is mounted on the back
+and was missing until that was added.
+
+**The OLED is not in the KiCad file** — it is a 0.96″ SSD1306 module on the H1 header,
+stacked over the ESP32-S3 module. Its glass is drawn from the enclosure lid's display
+window (`docs/PCB/TES_Controller_V1_Case_Top.stp`, a 26.50 × 19.59 mm cut-out). Lid
+coordinates map onto the board as **`x_pcb = x_lid + 152.07`, `y_pcb = 104.66 − y_lid`**:
+fitted on the four mounting holes, then checked against every button, LED and the
+BOOT/EN pin-holes in the lid — all within 0.1 mm. Worth reusing for enclosure work.
 
 `/hw.json` is separate from `/status` on purpose: small, and independent of `/control`'s
 unresolved throughput collapse. It reports what was **actually written to the pins**
@@ -1608,6 +1618,12 @@ which is the way to check a board's divider coefficient against a meter.
 This is **not** authentication: like every other POST it only has the CSRF header, so
 anyone on the LAN could drive the outputs while no vehicle is connected. That is the
 same exposure as `/start` and `/ota/upload` (see Security → Known gaps), not a new one.
+
+**The OLED says so.** While a bench test runs, `display_svc` replaces the status screen
+with an inverted `BENCH TEST` screen showing the pins as actually driven (RELAY / LOCK /
+VP, LED Y/G/R) and how to exit; after it ends, `TEST ENDED` plus the reason stays for 3 s
+(`hwtest_status_t.ended_ago_ms`). Someone standing at the unit would otherwise hear a
+relay click in standby with nothing to explain it. The settings menu still opens as usual.
 
 **To verify on hardware:** every button lights up on the drawing; each output toggles
 and clicks; plugging in a vehicle (or a CP test plug) ends the test within one tick; the

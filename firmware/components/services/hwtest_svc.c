@@ -7,6 +7,7 @@
 #include "services/hwtest_svc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include <stdint.h>
 
 static const char *TAG = "hwtest";
 
@@ -20,6 +21,8 @@ static struct {
     hwtest_block_t block;      // task_tes_sm 最近一次算出的阻擋條件
     hwtest_block_t last_end;
     hwtest_block_t pending_end; // HTTP 端結束的原因，留給 tick 記 log（HTTP 端不記）
+    bool           has_ended;
+    uint32_t       ended_at_ms;
 } s = {
     // SM 還沒跑第一個 tick 之前不知道能不能接管，先當作不行
     .block = HWTEST_BLOCK_NOT_IDLE,
@@ -92,6 +95,7 @@ hwtest_status_t hwtest_svc_status(uint32_t now_ms)
     st.block         = s.block;
     st.last_end      = s.last_end;
     st.owner         = s.active ? s.owner : 0;
+    st.ended_ago_ms  = s.has_ended ? now_ms - s.ended_at_ms : UINT32_MAX;
     taskEXIT_CRITICAL(&s_lock);
     return st;
 }
@@ -115,6 +119,11 @@ bool hwtest_svc_tick(hwtest_block_t block, uint32_t now_ms, uint8_t *mask)
     }
     if (ended == HWTEST_OK && s.pending_end != HWTEST_OK) ended = s.pending_end;
     s.pending_end = HWTEST_OK;
+    // 「被取代」不算結束 —— 測試還在進行，只是換了頁面
+    if (ended != HWTEST_OK && ended != HWTEST_END_REPLACED) {
+        s.has_ended   = true;
+        s.ended_at_ms = now_ms;
+    }
     active = s.active;
     m      = s.mask;
     taskEXIT_CRITICAL(&s_lock);
