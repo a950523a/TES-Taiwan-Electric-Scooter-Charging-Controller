@@ -1404,8 +1404,8 @@ is deliberately not, and why.
 
 ### Implemented
 
-**CSRF protection.** The seven state-changing endpoints (`POST /config`, `/start`,
-`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`) require an
+**CSRF protection.** The eight state-changing endpoints (`POST /config`, `/start`,
+`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`, `/hw/test`) require an
 `X-TES-Request` header; `csrf_ok()` in `network_svc.c` rejects the rest with 403.
 
 Why a header works: a custom header forces the browser to send a CORS preflight, and
@@ -1562,6 +1562,58 @@ buttons on error (the user sees the failure but has no way to retry), and leavin
 `cfgBarLock` set after a failure (the bar then freezes on the old message and the pending
 count stops updating — `cfgSaving` distinguishes "mid-save" from "showing a result").
 
+### Hardware status page (`/hw`) and bench test mode — written 2026-09-30, not yet run on a board
+
+`/control` links to it under the firmware version. The page is a top view of the board
+drawn from the KiCad file, with each part at its real position; state is shown by
+colouring the parts themselves (outputs glow, pressed buttons turn blue, faults get a red
+outline) plus a few value tags (CP, output voltage at the 120 V sense pads, board ID on
+U5, chip temperature on U1, PSU link on H2, CAN on U12). Cards beside it carry the full
+numbers, including every task's stack high-water mark — the `task_monitor` line, without
+needing USB.
+
+**The drawing is generated.** `tools/make_hw_board_svg.py` (KiCad python) writes the SVG
+between `<!--BOARD-->` and `<!--/BOARD-->` in `web/hw.html`; each footprint is a
+`<g id="fp-<ref>">` and the page's JS only depends on those ids. Rerun it after a board
+change. The key parts — buttons, LEDs, connectors — sit at mechanically locked positions,
+so the V1.3 drawing is also right for V1.1/V1.2.
+
+`/hw.json` is separate from `/status` on purpose: small, and independent of `/control`'s
+unresolved throughput collapse. It reports what was **actually written to the pins**
+(`hal_gpio_outputs_get()`), not what the SM wants — the two differ while LEDs blink and
+during a bench test. Buttons come as held (`g_btn_stable`) plus pressed-since-last-read
+(`g_btn_latch`, cleared by `atomic_exchange`), because a short press falls between two
+500 ms polls. Chip temperature is the ESP32-S3 die sensor (20–100 °C range), typically
+10–20 °C above ambient — see the 65 °C module rating item under Known Technical Debt.
+
+**Bench test mode** lets the page switch the DC relay, coupler lock, VP and the three
+LEDs by hand, to check a board. The rules, and where they live:
+
+| | |
+|---|---|
+| Allowed only when | SM in IDLE, no emergency latch, CP < 1.9 V, no 0x500 for 3 s — i.e. no vehicle |
+| Checked | every 10 ms tick in `task_tes_sm.c` `bench_test_override()`, between `tes_sm_tick()` and `execute_outputs()` |
+| Ends | the same tick any condition fails (START, vehicle plugged in, emergency), or after a 10 s lease without keepalive (page sends one every 2 s; closing it sends `stop`) |
+| After it ends | outputs are the SM's own again; it does **not** re-enter by itself — otherwise vehicle → end → VP off → CP drops → re-enter would oscillate |
+| Starts from | everything off; one owner at a time (a random id per page — a second page takes over, the first one's keepalives are refused) |
+| Not touched | PSU setpoints and CAN transmission — only GPIO outputs are overridden |
+
+`hwtest_svc` holds the request and lease only; the conditions sit next to the SM because
+they read the SM's own inputs. The SM itself is untouched and keeps ticking — the
+override is applied to its outputs struct, so the "data in, data out" rule still holds.
+Closing the DC relay puts PSU voltage on the gun's DC pins; the page asks for
+confirmation and points out that the 120 V sense reading then shows the PSU voltage,
+which is the way to check a board's divider coefficient against a meter.
+
+This is **not** authentication: like every other POST it only has the CSRF header, so
+anyone on the LAN could drive the outputs while no vehicle is connected. That is the
+same exposure as `/start` and `/ota/upload` (see Security → Known gaps), not a new one.
+
+**To verify on hardware:** every button lights up on the drawing; each output toggles
+and clicks; plugging in a vehicle (or a CP test plug) ends the test within one tick; the
+lease ends it ~10 s after pulling WiFi; `task_tes_sm` and `network` stack headroom after
+a few minutes on the page.
+
 ### Device list page
 
 `/` serves **`web/devices.html`** — a list of every TES controller on the LAN; the control
@@ -1598,11 +1650,14 @@ shows 離線 without affecting the others.
 | POST | `/notify/test` | Send test push notification |
 | POST | `/psu/pair` | Start 10 s ESP-NOW pairing window (requires psu_transport=1) |
 | GET | `/mqtt/link` | Cloud PWA URL with broker/topic fragment |
+| GET | `/hw` | Hardware status page (board drawing + live pin/ADC/PSU/CAN/system state) |
+| GET | `/hw.json` | Data for `/hw`, polled every 500 ms |
+| POST | `/hw/test` | Bench test mode: `{"cmd":"start"/"set"/"keepalive"/"stop","owner":n,"mask":n}` |
 
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 24`; currently 20 handlers registered
+- `max_uri_handlers = 28`; currently 23 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
@@ -1646,6 +1701,8 @@ firmware/
 |   |   +-- web/manifest.json   PWA manifest
 |   |   +-- web/sw.js           service worker
 |   |   +-- web/icon.svg        app icon
+|   |   +-- web/hw.html         hardware status page, served at /hw (board SVG from tools/make_hw_board_svg.py)
+|   |   +-- hwtest_svc.c/.h     bench test mode: request + lease (conditions live in task_tes_sm.c)
 |   |   +-- notify_svc.c/.h     push notification service (v3.1.0)
 |   |   +-- log_svc.c/.h        charge session history (v3.1.0)
 |   |   +-- mqtt_svc.c/.h       MQTT remote monitoring (v3.2.0)

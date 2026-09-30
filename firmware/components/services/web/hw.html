@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111">
+<title>硬體狀態 — TES</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}
+body{margin:0 auto;background:#111;color:#ddd;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+  padding:14px 14px 40px;max-width:1080px;-webkit-font-smoothing:antialiased}
+a{color:#8ab}
+h1{font-size:1.1em;margin:0;font-weight:600;flex:1}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.sub{color:#667;font-size:.74em;margin-bottom:12px;font-variant-numeric:tabular-nums}
+.live{font-size:.72em;color:#6a6}.live.dead{color:#f66}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+@media(min-width:800px){.wrap{grid-template-columns:minmax(0,430px) minmax(0,1fr)}
+  .bd{position:sticky;top:10px;align-self:start}}
+.bd{background:#0b0d0c;border:1px solid #222;border-radius:10px;padding:8px}
+#board{display:block;width:100%;height:auto;max-height:86vh;touch-action:manipulation}
+.hint{color:#555;font-size:.7em;margin:6px 4px 0;line-height:1.5}
+#info{min-height:1.4em;color:#9bb;font-size:.78em;margin:6px 4px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-content:start}
+.card{background:#181818;border:1px solid #242424;border-radius:10px;padding:11px 13px}
+.card h2{font-size:.8em;color:#8a9;margin:0 0 8px;font-weight:600;letter-spacing:.03em}
+.card.wide{grid-column:1/-1}
+.r{display:flex;justify-content:space-between;gap:8px;font-size:.8em;padding:2px 0;
+  border-bottom:1px solid #1f1f1f;font-variant-numeric:tabular-nums}
+.r:last-child{border-bottom:0}
+.r span:first-child{color:#888}
+.r b{font-weight:600;color:#ddd;text-align:right}
+.g{color:#4dd97a!important}.y{color:#e8b040!important}.e{color:#f66!important}.m{color:#666!important}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#333;margin-right:5px;vertical-align:0}
+.dot.on{background:#4dd97a;box-shadow:0 0 6px #4dd97a}.dot.oy{background:#ffb020;box-shadow:0 0 6px #ffb020}
+.dot.og{background:#4dd97a;box-shadow:0 0 6px #4dd97a}.dot.or{background:#ff4646;box-shadow:0 0 6px #ff4646}
+.dot.pr{background:#5aa0ff;box-shadow:0 0 6px #5aa0ff}
+.tk{display:grid;grid-template-columns:1fr auto;gap:0 10px;font-size:.74em;font-family:ui-monospace,Consolas,monospace}
+.tk span:nth-child(even){text-align:right}
+button{font-family:inherit;font-size:.8em;border-radius:6px;padding:6px 11px;cursor:pointer;
+  background:#1e1e1e;color:#cdd;border:1px solid #333}
+button:hover{background:#262626}button:disabled{opacity:.45;cursor:default}
+button.warn{border-color:#6a4a20;color:#e8b040}
+button.act{background:#1d3a26;border-color:#4dd97a;color:#bfe}
+.tb{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+#test-msg{font-size:.76em;line-height:1.55;color:#aaa;margin:4px 0 6px}
+#test.on{border-color:#6a4a20;background:#1c1810}
+/* 電路板 */
+#board .pcb{fill:#0e2619;stroke:#2c5a3c;stroke-width:.35}
+#board .silk text{fill:#d7e0d8;opacity:.5;font-family:system-ui,sans-serif}
+#board .silk text:not([text-anchor]){text-anchor:middle}
+#board .silk .so,#board .silk line{fill:none;stroke:#d7e0d8;stroke-width:.15;opacity:.35}
+#board .fp rect,#board .fp circle{fill:#b3903f;opacity:.85}
+#board .fp .cy{fill:rgba(0,0,0,.28);stroke:#35584a;stroke-width:.12;opacity:1}
+#board .fp .h{fill:#050706;opacity:1}
+#board .fp g.k{cursor:pointer}
+#board .fp g.k .cy{stroke:#5f8a73;stroke-width:.2}
+#board .fp g.sel .cy{stroke:#fff;stroke-width:.45}
+#board .fp g.on .cy{fill:rgba(77,217,122,.5);stroke:#4dd97a;stroke-width:.4}
+#board .fp g.ly .cy{fill:rgba(255,176,32,.9);stroke:#ffd070;stroke-width:.4}
+#board .fp g.lg .cy{fill:rgba(77,217,122,.9);stroke:#b0ffc8;stroke-width:.4}
+#board .fp g.lr .cy{fill:rgba(255,70,70,.9);stroke:#ffb0b0;stroke-width:.4}
+#board .fp g.pr .cy{fill:rgba(90,160,255,.75);stroke:#aaccff;stroke-width:.4}
+#board .fp g.ok .cy{stroke:#4dd97a;stroke-width:.35}
+#board .fp g.bad .cy{fill:rgba(255,80,80,.3);stroke:#ff5a5a;stroke-width:.45}
+#board .fp g.ctl .cy{stroke-dasharray:.8 .5;stroke:#e8b040;stroke-width:.35}
+#board #tags rect{fill:rgba(8,12,10,.88);stroke:#4a6a55;stroke-width:.14}
+#board #tags text{fill:#eef5f0;font-size:2.05px;font-family:ui-monospace,Consolas,monospace;
+  font-weight:600;text-anchor:middle;pointer-events:none}
+#board #tags .lb text{fill:#bcd;font-size:1.45px;font-weight:500}
+#board #tags .lb rect{fill:rgba(8,12,10,.6);stroke:none}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🔧 硬體狀態 <span id="nm" style="color:#8a9;font-weight:400"></span></h1>
+  <span class="live" id="live">連線中…</span>
+</div>
+<div class="sub"><span id="ver"></span> · <a href="/control">← 控制介面</a></div>
+
+<div class="wrap">
+  <div class="bd">
+<!--BOARD--><svg id="board" viewBox="118.37 58.37 67.39 92.57" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TES 控制板俯視圖"><rect x="120" y="60" width="64.13" height="89.31" rx="1.2" class="pcb"/><g class="silk"><rect x="125.46" y="97.21" width="53.5" height="30" class="so"/><text x="183.5" y="148.91" font-size="1.02" text-anchor="start" transform="rotate(-90 183.5 148.6)">TES SECC V1.3 | Chris Huang &amp; Claude | 2026</text><text x="124.57" y="147.24" font-size="1.23" text-anchor="start">GD</text><text x="128.64" y="147.24" font-size="1.23" text-anchor="start">VP</text><text x="158.74" y="132.38" font-size="1.23" text-anchor="start">Coupler</text><text x="159.62" y="134.03" font-size="1.23" text-anchor="start">+ -</text><text x="165.72" y="132.51" font-size="1.23" text-anchor="start">DC Relay</text><text x="167.62" y="134.54" font-size="1.23" text-anchor="start">+ -</text><text x="173.21" y="132.64" font-size="1.23" text-anchor="start">DC Relay</text><text x="175.12" y="134.67" font-size="1.23" text-anchor="start">+ -</text><text x="126.35" y="138.35" font-size="1.23" text-anchor="start" transform="rotate(-90 126.35 137.98)">GD</text><text x="130.54" y="138.26" font-size="1.23" text-anchor="start" transform="rotate(-90 130.54 137.88)">VP</text><text x="136.15" y="136.93" font-size="1.23" text-anchor="start" transform="rotate(-90 136.15 136.56)">D-</text><text x="138.03" y="136.83" font-size="1.23" text-anchor="start" transform="rotate(-90 138.03 136.45)">D+</text><text x="140.83" y="137.08" font-size="1.23" text-anchor="start" transform="rotate(-90 140.83 136.71)">GND</text><text x="143.37" y="137.08" font-size="1.23" text-anchor="start" transform="rotate(-90 143.37 136.71)">CP</text><text x="149.72" y="141.4" font-size="1.23" text-anchor="start" transform="rotate(-90 149.72 141.03)">120V</text><text x="154.67" y="141.53" font-size="1.23" text-anchor="start" transform="rotate(-90 154.67 141.15)">GND</text><text x="136.76" y="114.09" font-size="2.45" text-anchor="start">DC120V-DC12V Buck</text></g><g class="fp"><g id="fp-BOOT1"><rect x="177.51" y="79.63" width="6.19" height="3.6" rx="0.3" class="cy"/><rect x="177.81" y="80.76" width="1.23" height="1.36"/><rect x="182.18" y="80.76" width="1.23" height="1.36"/></g><g id="fp-C1"><rect x="128.67" y="60.62" width="5.26" height="2.32" rx="0.3" class="cy"/><rect x="128.97" y="60.91" width="1.49" height="1.73"/><rect x="132.15" y="60.91" width="1.49" height="1.73"/></g><g id="fp-C10"><rect x="151.99" y="90.56" width="2.32" height="5.26" rx="0.3" class="cy"/><rect x="152.29" y="90.85" width="1.73" height="1.48"/><rect x="152.29" y="94.04" width="1.73" height="1.48"/></g><g id="fp-C11"><rect x="179.22" y="83.28" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="180.91" y="83.58" width="0.8" height="0.9"/><rect x="179.51" y="83.58" width="0.8" height="0.9"/></g><g id="fp-C12"><rect x="163.16" y="78.21" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="163.45" y="78.5" width="0.8" height="0.9"/><rect x="164.85" y="78.5" width="0.8" height="0.9"/></g><g id="fp-C13"><rect x="163.18" y="60.5" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="163.47" y="60.79" width="0.8" height="0.9"/><rect x="164.87" y="60.79" width="0.8" height="0.9"/></g><g id="fp-C14"><rect x="172.23" y="78.21" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="172.52" y="78.5" width="0.8" height="0.9"/><rect x="173.92" y="78.5" width="0.8" height="0.9"/></g><g id="fp-C15"><rect x="163.21" y="69.38" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="163.51" y="69.68" width="0.8" height="0.9"/><rect x="164.91" y="69.68" width="0.8" height="0.9"/></g><g id="fp-C16"><rect x="162.78" y="89.12" width="2.32" height="5.26" rx="0.3" class="cy"/><rect x="163.08" y="92.6" width="1.73" height="1.48"/><rect x="163.08" y="89.42" width="1.73" height="1.48"/></g><g id="fp-C17"><rect x="170.53" y="89.12" width="2.32" height="5.26" rx="0.3" class="cy"/><rect x="170.82" y="92.6" width="1.73" height="1.48"/><rect x="170.82" y="89.42" width="1.73" height="1.48"/></g><g id="fp-C2"><rect x="133.72" y="64.97" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="134.01" y="65.27" width="0.8" height="0.9"/><rect x="135.41" y="65.27" width="0.8" height="0.9"/></g><g id="fp-C20"><rect x="132.24" y="85.74" width="1.5" height="2.79" rx="0.3" class="cy"/><rect x="132.54" y="86.03" width="0.9" height="0.8"/><rect x="132.54" y="87.43" width="0.9" height="0.8"/></g><g id="fp-C28"><rect x="134.4" y="88.81" width="1.5" height="2.79" rx="0.3" class="cy"/><rect x="134.7" y="89.11" width="0.9" height="0.8"/><rect x="134.7" y="90.5" width="0.9" height="0.8"/></g><g id="fp-C29"><rect x="137.17" y="83.1" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="137.46" y="83.4" width="0.8" height="0.9"/><rect x="138.86" y="83.4" width="0.8" height="0.9"/></g><g id="fp-C3"><rect x="135.12" y="60.26" width="1.5" height="2.79" rx="0.3" class="cy"/><rect x="135.43" y="60.55" width="0.9" height="0.8"/><rect x="135.43" y="61.95" width="0.9" height="0.8"/></g><g id="fp-C4"><rect x="179.31" y="74.75" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="179.61" y="75.04" width="0.8" height="0.9"/><rect x="181.01" y="75.04" width="0.8" height="0.9"/></g><g id="fp-C7"><rect x="130.2" y="88.67" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="130.5" y="88.97" width="0.8" height="0.9"/><rect x="131.9" y="88.97" width="0.8" height="0.9"/></g><g id="fp-C8"><rect x="124.57" y="90.24" width="2.79" height="1.5" rx="0.3" class="cy"/><rect x="126.27" y="90.54" width="0.8" height="0.9"/><rect x="124.87" y="90.54" width="0.8" height="0.9"/></g><g id="fp-C9"><rect x="152" y="85.02" width="2.32" height="5.26" rx="0.3" class="cy"/><rect x="152.29" y="88.5" width="1.73" height="1.48"/><rect x="152.29" y="85.32" width="1.73" height="1.48"/></g><g id="fp-CN1"><rect x="123.34" y="132.88" width="8.53" height="16.8" rx="0.3" class="cy"/><rect x="124.39" y="133.17" width="2.5" height="2.5"/><circle class="h" cx="125.64" cy="134.42" r="0.9"/><circle cx="129.6" cy="134.42" r="1.25"/><circle class="h" cx="129.6" cy="134.42" r="0.9"/></g><g id="fp-CN2"><rect x="132.07" y="137.39" width="13.42" height="12.43" rx="0.3" class="cy"/><rect x="134.25" y="139.34" width="1.6" height="1.6"/><circle class="h" cx="135.05" cy="140.14" r="0.5"/><circle cx="137.55" cy="140.14" r="0.8"/><circle class="h" cx="137.55" cy="140.14" r="0.5"/><circle cx="140.05" cy="140.14" r="0.8"/><circle class="h" cx="140.05" cy="140.14" r="0.5"/><circle cx="142.55" cy="140.14" r="0.8"/><circle class="h" cx="142.55" cy="140.14" r="0.5"/></g><g id="fp-CN3"><rect x="172.92" y="141.63" width="7.67" height="8.07" rx="0.3" class="cy"/><circle cx="175.02" cy="145.85" r="0.95"/><circle class="h" cx="175.02" cy="145.85" r="0.65"/><circle cx="178.52" cy="145.85" r="0.95"/><circle class="h" cx="178.52" cy="145.85" r="0.65"/></g><g id="fp-CN5"><rect x="165.17" y="141.63" width="7.67" height="8.07" rx="0.3" class="cy"/><circle cx="167.27" cy="145.85" r="0.95"/><circle class="h" cx="167.27" cy="145.85" r="0.65"/><circle cx="170.77" cy="145.85" r="0.95"/><circle class="h" cx="170.77" cy="145.85" r="0.65"/></g><g id="fp-CN6"><rect x="157.17" y="141.63" width="7.67" height="8.07" rx="0.3" class="cy"/><circle cx="159.27" cy="145.85" r="0.95"/><circle class="h" cx="159.27" cy="145.85" r="0.65"/><circle cx="162.77" cy="145.85" r="0.95"/><circle class="h" cx="162.77" cy="145.85" r="0.65"/></g><g id="fp-D1"><rect x="173.74" y="138.77" width="6.04" height="3.27" rx="0.3" class="cy"/><rect x="174.04" y="139.55" width="1.52" height="1.68"/><rect x="177.97" y="139.55" width="1.52" height="1.68"/></g><g id="fp-D10"><rect x="179.66" y="106.16" width="3.69" height="4.69" rx="0.3" class="cy"/><rect x="180.4" y="109.84" width="2.19" height="2.05"/><rect x="180.4" y="105.12" width="2.19" height="2.05"/></g><g id="fp-D3"><rect x="123.96" y="128.59" width="7.36" height="4.27" rx="0.3" class="cy"/><rect x="128.98" y="129.64" width="2.05" height="2.19"/><rect x="124.26" y="129.64" width="2.05" height="2.19"/></g><g id="fp-D4"><rect x="158.13" y="138.26" width="6.04" height="3.27" rx="0.3" class="cy"/><rect x="158.42" y="139.04" width="1.52" height="1.68"/><rect x="162.35" y="139.04" width="1.52" height="1.68"/></g><g id="fp-D5"><rect x="168.69" y="67.49" width="3.96" height="3.6" rx="0.3" class="cy"/><rect x="171.29" y="69.95" width="1.07" height="0.53"/><rect x="171.29" y="69" width="1.07" height="0.53"/><rect x="171.29" y="68.06" width="1.07" height="0.53"/><rect x="168.99" y="68.06" width="1.07" height="0.53"/><rect x="168.99" y="69" width="1.07" height="0.53"/><rect x="168.99" y="69.95" width="1.07" height="0.53"/></g><g id="fp-D6"><rect x="125.38" y="63.02" width="6.11" height="6.56" rx="0.3" class="cy"/><rect x="128.69" y="65.52" width="1.6" height="1.6"/><circle class="h" cx="129.49" cy="66.31" r="0.5"/><circle cx="126.95" cy="66.31" r="0.8"/><circle class="h" cx="126.95" cy="66.31" r="0.5"/></g><g id="fp-D7"><rect x="125.4" y="70" width="6.11" height="6.56" rx="0.3" class="cy"/><rect x="128.72" y="72.5" width="1.6" height="1.6"/><circle class="h" cx="129.52" cy="73.3" r="0.5"/><circle cx="126.98" cy="73.3" r="0.8"/><circle class="h" cx="126.98" cy="73.3" r="0.5"/></g><g id="fp-D8"><rect x="125.53" y="76.86" width="6.11" height="6.56" rx="0.3" class="cy"/><rect x="128.84" y="79.36" width="1.6" height="1.6"/><circle class="h" cx="129.64" cy="80.16" r="0.5"/><circle cx="127.1" cy="80.16" r="0.8"/><circle class="h" cx="127.1" cy="80.16" r="0.5"/></g><g id="fp-D9"><rect x="146.78" y="136.77" width="4.69" height="3.69" rx="0.3" class="cy"/><rect x="145.74" y="137.52" width="2.05" height="2.19"/><rect x="150.46" y="137.52" width="2.05" height="2.19"/></g><g id="fp-EMERGENCY1"><rect x="170.75" y="79.48" width="5.77" height="7.59" rx="0.3" class="cy"/><rect x="171.4" y="85.77" width="0.75" height="1"/><rect x="171.4" y="79.77" width="0.75" height="1"/><rect x="175.15" y="85.77" width="0.75" height="1"/><rect x="175.15" y="79.77" width="0.75" height="1"/></g><g id="fp-EN1"><rect x="177.61" y="76.25" width="6.19" height="3.6" rx="0.3" class="cy"/><rect x="182.28" y="77.35" width="1.23" height="1.36"/><rect x="177.91" y="77.35" width="1.23" height="1.36"/></g><g id="fp-H1"><rect x="140.97" y="80.75" width="11.17" height="3.17" rx="0.3" class="cy"/><rect x="149.5" y="81.5" width="1.7" height="1.7"/><circle class="h" cx="150.35" cy="82.35" r="0.55"/><circle cx="147.81" cy="82.35" r="0.85"/><circle class="h" cx="147.81" cy="82.35" r="0.55"/><circle cx="145.27" cy="82.35" r="0.85"/><circle class="h" cx="145.27" cy="82.35" r="0.55"/><circle cx="142.73" cy="82.35" r="0.85"/><circle class="h" cx="142.73" cy="82.35" r="0.55"/></g><g id="fp-MH1"><rect x="125.37" y="97.62" width="5.19" height="5.2" rx="0.3" class="cy"/><circle cx="127.96" cy="100.22" r="1.6"/><circle class="h" cx="127.96" cy="100.22" r="1.6"/></g><g id="fp-MH2"><rect x="173.87" y="97.62" width="5.19" height="5.2" rx="0.3" class="cy"/><circle cx="176.46" cy="100.22" r="1.6"/><circle class="h" cx="176.46" cy="100.22" r="1.6"/></g><g id="fp-MH3"><rect x="125.37" y="121.62" width="5.19" height="5.2" rx="0.3" class="cy"/><circle cx="127.96" cy="124.22" r="1.6"/><circle class="h" cx="127.96" cy="124.22" r="1.6"/></g><g id="fp-MH4"><rect x="173.87" y="121.62" width="5.19" height="5.2" rx="0.3" class="cy"/><circle cx="176.46" cy="124.22" r="1.6"/><circle class="h" cx="176.46" cy="124.22" r="1.6"/></g><g id="fp-Q1"><rect x="176.75" y="135.42" width="3.84" height="3.57" rx="0.3" class="cy"/><rect x="177.05" y="137.82" width="1.25" height="0.7"/><rect x="177.05" y="135.92" width="1.25" height="0.7"/><rect x="179.05" y="136.87" width="1.25" height="0.7"/></g><g id="fp-Q2"><rect x="135.63" y="127.8" width="3.57" height="3.84" rx="0.3" class="cy"/><rect x="136.1" y="128.1" width="0.7" height="1.25"/><rect x="138" y="128.1" width="0.7" height="1.25"/><rect x="137.05" y="130.1" width="0.7" height="1.25"/></g><g id="fp-Q3"><rect x="161.13" y="134.91" width="3.84" height="3.57" rx="0.3" class="cy"/><rect x="161.43" y="137.31" width="1.25" height="0.7"/><rect x="161.43" y="135.41" width="1.25" height="0.7"/><rect x="163.43" y="136.36" width="1.25" height="0.7"/></g><g id="fp-Q4"><rect x="131.53" y="129.68" width="3.57" height="3.89" rx="0.3" class="cy"/><rect x="131.99" y="132.28" width="0.8" height="1"/><rect x="133.88" y="132.28" width="0.8" height="1"/><rect x="132.94" y="129.98" width="0.8" height="1"/></g><g id="fp-R1"><rect x="133.57" y="63.32" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="133.96" y="63.63" width="0.81" height="0.86"/><rect x="135.46" y="63.63" width="0.81" height="0.86"/></g><g id="fp-R10"><rect x="122.42" y="88.56" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="122.74" y="88.94" width="0.86" height="0.81"/><rect x="122.74" y="90.45" width="0.86" height="0.81"/></g><g id="fp-R11"><rect x="124.43" y="88.46" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="126.32" y="88.78" width="0.81" height="0.86"/><rect x="124.81" y="88.78" width="0.81" height="0.86"/></g><g id="fp-R12"><rect x="121.64" y="79.38" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="122.02" y="79.69" width="0.81" height="0.86"/><rect x="123.53" y="79.69" width="0.81" height="0.86"/></g><g id="fp-R13"><rect x="121.49" y="65.6" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="121.88" y="65.92" width="0.81" height="0.86"/><rect x="123.38" y="65.92" width="0.81" height="0.86"/></g><g id="fp-R14"><rect x="121.49" y="72.52" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="121.88" y="72.83" width="0.81" height="0.86"/><rect x="123.38" y="72.83" width="0.81" height="0.86"/></g><g id="fp-R16"><rect x="139.03" y="127.96" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="140.92" y="128.28" width="0.81" height="0.86"/><rect x="139.42" y="128.28" width="0.81" height="0.86"/></g><g id="fp-R17"><rect x="138.92" y="129.32" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="139.24" y="131.21" width="0.86" height="0.81"/><rect x="139.24" y="129.7" width="0.86" height="0.81"/></g><g id="fp-R19"><rect x="172.4" y="135.58" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="172.78" y="135.89" width="0.81" height="0.86"/><rect x="174.29" y="135.89" width="0.81" height="0.86"/></g><g id="fp-R2"><rect x="174.3" y="70.43" width="1.17" height="2.02" rx="0.3" class="cy"/><rect x="174.6" y="71.59" width="0.54" height="0.57"/><rect x="174.6" y="70.72" width="0.54" height="0.57"/></g><g id="fp-R20"><rect x="175.52" y="135.57" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="175.83" y="137.46" width="0.86" height="0.81"/><rect x="175.83" y="135.95" width="0.86" height="0.81"/></g><g id="fp-R21"><rect x="135.48" y="135.83" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="137.37" y="136.15" width="0.81" height="0.86"/><rect x="135.86" y="136.15" width="0.81" height="0.86"/></g><g id="fp-R26"><rect x="135.66" y="131.49" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="135.98" y="131.87" width="0.86" height="0.81"/><rect x="135.98" y="133.38" width="0.86" height="0.81"/></g><g id="fp-R28"><rect x="159.77" y="135.17" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="160.08" y="137.06" width="0.86" height="0.81"/><rect x="160.08" y="135.55" width="0.86" height="0.81"/></g><g id="fp-R29"><rect x="156.75" y="135.12" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="157.13" y="135.44" width="0.81" height="0.86"/><rect x="158.64" y="135.44" width="0.81" height="0.86"/></g><g id="fp-R3"><rect x="174.27" y="66.37" width="1.17" height="2.02" rx="0.3" class="cy"/><rect x="174.6" y="66.66" width="0.54" height="0.57"/><rect x="174.6" y="67.53" width="0.54" height="0.57"/></g><g id="fp-R30"><rect x="133.76" y="75.77" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="134.15" y="76.08" width="0.81" height="0.86"/><rect x="135.65" y="76.08" width="0.81" height="0.86"/></g><g id="fp-R31"><rect x="133.76" y="77.35" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="134.15" y="77.66" width="0.81" height="0.86"/><rect x="135.65" y="77.66" width="0.81" height="0.86"/></g><g id="fp-R32"><rect x="157.35" y="79.92" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="157.67" y="81.81" width="0.86" height="0.81"/><rect x="157.67" y="80.31" width="0.86" height="0.81"/></g><g id="fp-R33"><rect x="121" y="86.7" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="121.35" y="87.04" width="0.86" height="0.81"/><rect x="122.86" y="87.04" width="0.86" height="0.81"/></g><g id="fp-R34"><rect x="120.88" y="84.79" width="3.08" height="1.5" rx="0.3" class="cy"/><rect x="121.24" y="85.13" width="0.86" height="0.81"/><rect x="122.74" y="85.13" width="0.86" height="0.81"/></g><g id="fp-R35"><rect x="137.6" y="132.46" width="0.89" height="1.69" rx="0.3" class="cy"/><rect x="137.62" y="133.65" width="0.86" height="0.81"/><rect x="137.62" y="132.15" width="0.86" height="0.81"/></g><g id="fp-R36"><rect x="132.85" y="93.66" width="1.69" height="0.89" rx="0.3" class="cy"/><rect x="134.05" y="93.67" width="0.81" height="0.86"/><rect x="132.55" y="93.67" width="0.81" height="0.86"/></g><g id="fp-R37"><rect x="131.85" y="90.95" width="0.89" height="1.69" rx="0.3" class="cy"/><rect x="131.87" y="92.15" width="0.86" height="0.81"/><rect x="131.87" y="90.65" width="0.86" height="0.81"/></g><g id="fp-R5"><rect x="144.4" y="83.61" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="144.71" y="83.99" width="0.86" height="0.81"/><rect x="144.71" y="85.5" width="0.86" height="0.81"/></g><g id="fp-R6"><rect x="141.99" y="83.61" width="1.5" height="3.08" rx="0.3" class="cy"/><rect x="142.31" y="84" width="0.86" height="0.81"/><rect x="142.31" y="85.5" width="0.86" height="0.81"/></g><g id="fp-R8"><rect x="144.87" y="134.41" width="4.76" height="2.29" rx="0.3" class="cy"/><rect x="145.16" y="134.71" width="1.21" height="1.7"/><rect x="148.12" y="134.71" width="1.21" height="1.7"/></g><g id="fp-R9"><rect x="141.75" y="131.07" width="4.75" height="3.4" rx="0.3" class="cy"/><rect x="142.05" y="131.37" width="1.28" height="2.81"/><rect x="144.93" y="131.37" width="1.28" height="2.81"/></g><g id="fp-SB1"><rect x="168.41" y="74.11" width="3.02" height="1.5" rx="0.3" class="cy"/><rect x="168.7" y="74.4" width="1.16" height="0.91"/><rect x="170.03" y="74.4" width="1.1" height="0.91"/></g><g id="fp-SETTING1"><rect x="161.77" y="70.65" width="5.77" height="7.59" rx="0.3" class="cy"/><rect x="162.42" y="76.94" width="0.75" height="1"/><rect x="162.42" y="70.94" width="0.75" height="1"/><rect x="166.17" y="76.94" width="0.75" height="1"/><rect x="166.17" y="70.94" width="0.75" height="1"/></g><g id="fp-START1"><rect x="161.77" y="61.75" width="5.77" height="7.59" rx="0.3" class="cy"/><rect x="162.42" y="68.05" width="0.75" height="1"/><rect x="162.42" y="62.05" width="0.75" height="1"/><rect x="166.17" y="68.05" width="0.75" height="1"/><rect x="166.17" y="62.05" width="0.75" height="1"/></g><g id="fp-STOP1"><rect x="161.77" y="79.48" width="5.77" height="7.59" rx="0.3" class="cy"/><rect x="162.42" y="85.77" width="0.75" height="1"/><rect x="162.42" y="79.77" width="0.75" height="1"/><rect x="166.17" y="85.77" width="0.75" height="1"/><rect x="166.17" y="79.77" width="0.75" height="1"/></g><g id="fp-U1"><rect x="136.75" y="53.54" width="19.59" height="26.69" rx="0.3" class="cy"/><rect x="137.04" y="60.94" width="1.5" height="0.9"/><rect x="137.04" y="62.21" width="1.5" height="0.9"/><rect x="137.04" y="63.48" width="1.5" height="0.9"/><rect x="137.04" y="64.75" width="1.5" height="0.9"/><rect x="137.04" y="66.02" width="1.5" height="0.9"/><rect x="137.04" y="67.29" width="1.5" height="0.9"/><rect x="137.04" y="68.56" width="1.5" height="0.9"/><rect x="137.04" y="69.83" width="1.5" height="0.9"/><rect x="137.04" y="71.1" width="1.5" height="0.9"/><rect x="137.04" y="72.37" width="1.5" height="0.9"/><rect x="137.04" y="73.64" width="1.5" height="0.9"/><rect x="137.04" y="74.91" width="1.5" height="0.9"/><rect x="137.04" y="76.18" width="1.5" height="0.9"/><rect x="137.04" y="77.45" width="1.5" height="0.9"/><rect x="139.11" y="78.43" width="0.9" height="1.5"/><rect x="140.38" y="78.43" width="0.9" height="1.5"/><rect x="141.65" y="78.43" width="0.9" height="1.5"/><rect x="142.92" y="78.43" width="0.9" height="1.5"/><rect x="144.19" y="78.43" width="0.9" height="1.5"/><rect x="145.46" y="78.43" width="0.9" height="1.5"/><rect x="146.73" y="78.43" width="0.9" height="1.5"/><rect x="148" y="78.43" width="0.9" height="1.5"/><rect x="149.27" y="78.43" width="0.9" height="1.5"/><rect x="150.54" y="78.43" width="0.9" height="1.5"/><rect x="151.81" y="78.43" width="0.9" height="1.5"/><rect x="153.08" y="78.4" width="0.9" height="1.5"/><rect x="154.54" y="77.45" width="1.5" height="0.9"/><rect x="154.54" y="76.18" width="1.5" height="0.9"/><rect x="154.54" y="74.91" width="1.5" height="0.9"/><rect x="154.54" y="73.64" width="1.5" height="0.9"/><rect x="154.54" y="72.37" width="1.5" height="0.9"/><rect x="154.54" y="71.1" width="1.5" height="0.9"/><rect x="154.54" y="69.83" width="1.5" height="0.9"/><rect x="154.54" y="68.56" width="1.5" height="0.9"/><rect x="154.54" y="67.29" width="1.5" height="0.9"/><rect x="154.54" y="66.02" width="1.5" height="0.9"/><rect x="154.54" y="64.75" width="1.5" height="0.9"/><rect x="154.54" y="63.48" width="1.5" height="0.9"/><rect x="154.54" y="62.21" width="1.5" height="0.9"/><rect x="154.54" y="60.94" width="1.5" height="0.9"/><rect x="143.19" y="67.26" width="0.9" height="0.9"/><rect x="143.19" y="68.66" width="0.9" height="0.9"/><rect x="143.19" y="70.06" width="0.9" height="0.9"/><rect x="144.59" y="67.26" width="0.9" height="0.9"/><rect x="144.59" y="68.66" width="0.9" height="0.9"/><rect x="144.59" y="70.06" width="0.9" height="0.9"/><rect x="145.99" y="67.26" width="0.9" height="0.9"/><rect x="145.99" y="68.66" width="0.9" height="0.9"/><rect x="145.99" y="70.06" width="0.9" height="0.9"/></g><g id="fp-U10"><rect x="145.67" y="141.41" width="11.27" height="8.27" rx="0.3" class="cy"/><circle cx="149.12" cy="146.23" r="1"/><circle class="h" cx="149.12" cy="146.23" r="0.6"/><circle cx="154.12" cy="146.23" r="1"/><circle class="h" cx="154.12" cy="146.23" r="0.6"/></g><g id="fp-U12"><rect x="135.8" y="84.46" width="5.57" height="8.18" rx="0.3" class="cy"/><rect x="140.18" y="84.75" width="0.59" height="2.05" rx="0.29"/><rect x="138.91" y="84.75" width="0.59" height="2.05" rx="0.29"/><rect x="137.64" y="84.75" width="0.59" height="2.05" rx="0.29"/><rect x="136.37" y="84.75" width="0.59" height="2.05" rx="0.29"/><rect x="136.37" y="90.3" width="0.59" height="2.05" rx="0.29"/><rect x="137.64" y="90.3" width="0.59" height="2.05" rx="0.29"/><rect x="138.91" y="90.3" width="0.59" height="2.05" rx="0.29"/><rect x="140.18" y="90.3" width="0.59" height="2.05" rx="0.29"/></g><g id="fp-U5"><rect x="125.77" y="85.15" width="6.43" height="3.67" rx="0.3" class="cy"/><rect x="126.07" y="85.86" width="1.62" height="0.28" rx="0.14"/><rect x="126.07" y="86.36" width="1.62" height="0.28" rx="0.14"/><rect x="126.07" y="86.86" width="1.62" height="0.28" rx="0.14"/><rect x="126.07" y="87.36" width="1.62" height="0.28" rx="0.14"/><rect x="126.07" y="87.86" width="1.62" height="0.28" rx="0.14"/><rect x="130.29" y="87.86" width="1.62" height="0.28" rx="0.14"/><rect x="130.29" y="87.36" width="1.62" height="0.28" rx="0.14"/><rect x="130.29" y="86.86" width="1.62" height="0.28" rx="0.14"/><rect x="130.29" y="86.36" width="1.62" height="0.28" rx="0.14"/><rect x="130.29" y="85.86" width="1.62" height="0.28" rx="0.14"/></g><g id="fp-U6"><rect x="142.59" y="87.95" width="8.95" height="7.17" rx="0.3" class="cy"/><rect x="148.75" y="93.27" width="2.5" height="1.1"/><rect x="148.75" y="90.97" width="2.5" height="1.1"/><rect x="148.75" y="88.67" width="2.5" height="1.1"/><rect x="142.89" y="89.72" width="2.34" height="3.6"/></g><g id="fp-U8"><rect x="165.41" y="89.92" width="4.47" height="3.67" rx="0.3" class="cy"/><rect x="168.78" y="92.74" width="0.75" height="0.4"/><rect x="168.78" y="92.14" width="0.75" height="0.4"/><rect x="168.78" y="91.54" width="0.75" height="0.4"/><rect x="168.78" y="90.94" width="0.75" height="0.4"/><rect x="168.78" y="90.34" width="0.75" height="0.4"/><rect x="165.73" y="90.34" width="0.75" height="0.4"/><rect x="165.73" y="90.94" width="0.75" height="0.4"/><rect x="165.73" y="91.54" width="0.75" height="0.4"/><rect x="165.73" y="92.14" width="0.75" height="0.4"/><rect x="165.73" y="92.74" width="0.75" height="0.4"/><rect x="167.41" y="90.24" width="0.8" height="3"/></g><g id="fp-USB1"><rect x="175.58" y="64.55" width="8.56" height="10.23" rx="0.3" class="cy"/><rect x="175.97" y="73.48" width="2.1" height="1" rx="0.5"/><circle class="h" cx="177.02" cy="73.98" r="0.3"/><rect x="175.97" y="64.84" width="2.1" height="1" rx="0.5"/><circle class="h" cx="177.02" cy="65.34" r="0.3"/><rect x="180.27" y="73.48" width="1.8" height="1" rx="0.5"/><circle class="h" cx="181.17" cy="73.98" r="0.3"/><rect x="180.27" y="64.84" width="1.8" height="1" rx="0.5"/><circle class="h" cx="181.17" cy="65.34" r="0.3"/><rect x="175.87" y="72.56" width="1.15" height="0.6"/><rect x="175.87" y="71.76" width="1.15" height="0.6"/><rect x="175.87" y="70.76" width="1.15" height="0.3"/><rect x="175.87" y="69.76" width="1.15" height="0.3"/><rect x="175.87" y="69.26" width="1.15" height="0.3"/><rect x="175.87" y="68.26" width="1.15" height="0.3"/><rect x="175.87" y="66.16" width="1.15" height="0.6"/><rect x="175.87" y="66.96" width="1.15" height="0.6"/><rect x="175.87" y="67.76" width="1.15" height="0.3"/><rect x="175.87" y="68.76" width="1.15" height="0.3"/><rect x="175.87" y="70.26" width="1.15" height="0.3"/><rect x="175.87" y="71.26" width="1.15" height="0.3"/></g><g id="fp-W1"><rect x="120.84" y="112.15" width="3.64" height="2.11" rx="0.3" class="cy"/><rect x="121.14" y="112.45" width="3.05" height="1.52"/><circle class="h" cx="122.66" cy="113.21" r="0.46"/></g><g id="fp-W2"><rect x="179.78" y="112.15" width="3.64" height="2.11" rx="0.3" class="cy"/><rect x="180.07" y="112.45" width="3.05" height="1.52"/><circle class="h" cx="181.59" cy="113.21" r="0.46"/></g><g id="fp-W3"><rect x="120.84" y="116.15" width="3.64" height="2.11" rx="0.3" class="cy"/><rect x="121.14" y="116.45" width="3.05" height="1.52"/><circle class="h" cx="122.66" cy="117.21" r="0.46"/></g><g id="fp-W4"><rect x="179.78" y="116.15" width="3.64" height="2.11" rx="0.3" class="cy"/><rect x="180.07" y="116.45" width="3.05" height="1.52"/><circle class="h" cx="181.59" cy="117.21" r="0.46"/></g></g><g id="tags"></g></svg><!--/BOARD-->
+    <div id="info">點電路板上的零件看說明。</div>
+    <div class="hint">依 V1.3 KiCad 板子的實際位置繪製；按鈕、LED、接頭的位置在 V1.1／V1.2 相同。
+      亮綠＝輸出導通，藍＝按鈕按下，紅框＝異常。</div>
+  </div>
+
+  <div class="cards">
+    <div class="card wide" id="test">
+      <h2>工作台測試模式</h2>
+      <div id="test-msg"></div>
+      <div id="test-ctl" style="display:none">
+        <div class="tb">
+          <button data-b="1" class="warn">DC 繼電器</button>
+          <button data-b="2">電子鎖</button>
+          <button data-b="4">VP 12V</button>
+          <button data-b="8">橘燈</button>
+          <button data-b="16">綠燈</button>
+          <button data-b="32">紅燈</button>
+        </div>
+      </div>
+      <button id="test-btn">進入測試模式</button>
+    </div>
+
+    <div class="card"><h2>輸出（腳位實際電位）</h2><div id="c-out"></div></div>
+    <div class="card"><h2>按鈕</h2><div id="c-btn"></div></div>
+    <div class="card"><h2>類比量測（ADS1115）</h2><div id="c-adc"></div></div>
+    <div class="card"><h2>PSU 連線</h2><div id="c-psu"></div></div>
+    <div class="card"><h2>CAN 控制器</h2><div id="c-can"></div></div>
+    <div class="card"><h2>系統</h2><div id="c-sys"></div></div>
+    <div class="card"><h2>任務堆疊餘裕（歷史最低）</h2><div class="tk" id="c-tk"></div></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'X-TES-Request':'1','Content-Type':'application/json'},
+  body:JSON.stringify(b),keepalive:true});
+const OWNER=1+Math.floor(Math.random()*2147483646);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const row=(k,v,c)=>'<div class="r"><span>'+k+'</span><b'+(c?' class="'+c+'"':'')+'>'+v+'</b></div>';
+const dot=(on,c)=>'<span class="dot'+(on?' '+(c||'on'):'')+'"></span>';
+const age=ms=>ms>=4294967295?'從未':ms<1000?ms+' ms 前':(ms/1000).toFixed(1)+' s 前';
+const kb=b=>(b/1024).toFixed(1)+' KB';
+const dur=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+'天 ':'')+(d||h?h+'時 ':'')+m+'分 '+(s%60)+'秒'};
+
+// 板上零件：說明、腳位、測試模式可控制的輸出位元
+const OUT={RELAY:1,LOCK:2,VP:4,LS:8,LC:16,LE:32};
+const PARTS={
+  START1:['START 按鈕','IO42'],STOP1:['STOP 按鈕','IO39'],SETTING1:['SETTING 按鈕','IO41'],
+  EMERGENCY1:['緊急停止按鈕','IO40 — 按下即鎖存，需在選單 Reset Fault'],
+  BOOT1:['BOOT 按鈕','IO0 — 按住上電進入燒錄模式'],EN1:['EN 重置按鈕','按下 ESP32 重開機'],
+  D6:['橘燈（待機）','IO5',OUT.LS],D7:['綠燈（充電）','IO6',OUT.LC],D8:['紅燈（故障）','IO7',OUT.LE],
+  Q1:['DC 主繼電器驅動 MOSFET','IO11 → RELAY_GATE',OUT.RELAY],
+  CN3:['DC 主繼電器線圈接頭','12V / DC_RELAY',OUT.RELAY],CN5:['DC 主繼電器線圈接頭','12V / DC_RELAY',OUT.RELAY],
+  D1:['DC 繼電器飛輪二極體','',OUT.RELAY],
+  Q3:['電子鎖驅動 MOSFET','IO10 → COUPLER_GATE',OUT.LOCK],CN6:['電子鎖接頭','12V / COUPLER',OUT.LOCK],
+  D4:['電子鎖飛輪二極體','',OUT.LOCK],
+  Q2:['VP 驅動（N-MOS）','IO9 → VP_NGATE',OUT.VP],Q4:['VP 開關（P-MOS）','12V → VP',OUT.VP],
+  CN1:['VP 輸出接頭','送到車端的 12V',OUT.VP],
+  CN2:['CAN / CP 接頭','CANH、CANL、CP'],R21:['CAN 終端電阻',''],U12:['CAN 收發器','IO17/IO18'],
+  R9:['CP 分壓上臂','150 Ω'],R8:['CP 分壓下臂','51 Ω'],
+  U5:['ADS1115 ADC','AIN0-1 輸出電壓、AIN2 CP、AIN3 硬體 ID'],
+  R36:['硬體 ID 分壓（上）','V1.3 起'],R37:['硬體 ID 分壓（下）','V1.3 起'],
+  R10:['輸出電壓分壓上臂','115 kΩ ×3（V1.3）'],R33:['輸出電壓分壓上臂',''],R34:['輸出電壓分壓上臂',''],
+  R11:['輸出電壓分壓下臂','9.09 kΩ（V1.3）'],W1:['120V 量測端','接充電輸出 +'],W3:['GND_BACK','接充電輸出 −'],
+  U1:['ESP32-S3 模組','N16R8'],H2:['PSU UART 排針','TXD0 / RXD0'],H1:['I²C 擴充排針','SDA / SCL / 3.3V'],
+  USB1:['USB-C','燒錄與序列埠'],U6:['3.3V 穩壓',''],U8:['5V 穩壓',''],
+};
+// 狀態 → 板上零件
+const G_RELAY=['Q1','CN3','CN5','D1'],G_LOCK=['Q3','CN6','D4'],G_VP=['Q2','Q4','CN1'];
+const BTN=['START1','STOP1','EMERGENCY1','SETTING1'];   // 韌體位元順序
+const fp=r=>document.getElementById('fp-'+r);
+const cls=(refs,c,on)=>refs.forEach(r=>{const e=fp(r);if(e)e.classList.toggle(c,!!on)});
+
+// ── 板上標籤 ──
+const NS='http://www.w3.org/2000/svg',TAG={};
+function tag(id,x,y,lb){
+  const g=document.createElementNS(NS,'g'),r=document.createElementNS(NS,'rect'),t=document.createElementNS(NS,'text');
+  if(lb)g.setAttribute('class','lb');
+  g.append(r,t);$('tags').append(g);TAG[id]={g,r,t,x,y,lb};return TAG[id];
+}
+function setTag(id,s){
+  const T=TAG[id];if(!T)return;
+  T.g.style.display=s?'':'none';if(!s||T.t.textContent===s)return;
+  T.t.textContent=s;
+  const h=T.lb?1.9:2.8,w=[...s].reduce((a,c)=>a+(c.charCodeAt(0)>255?1:.62),0)*(T.lb?1.45:2.05)+1.2;
+  T.t.setAttribute('x',T.x);T.t.setAttribute('y',T.y+h*.28);
+  T.r.setAttribute('x',T.x-w/2);T.r.setAttribute('y',T.y-h/2);
+  T.r.setAttribute('width',w);T.r.setAttribute('height',h);T.r.setAttribute('rx',.5);
+}
+function initBoard(){
+  Object.keys(PARTS).forEach(r=>{const e=fp(r);if(e)e.classList.add('k')});
+  [['START1','START'],['STOP1','STOP'],['SETTING1','SET'],['EMERGENCY1','E-STOP'],
+   ['BOOT1','BOOT'],['EN1','EN']].forEach(([r,s])=>{
+    const e=fp(r);if(!e)return;const b=e.getBBox();
+    tag('l'+r,b.x+b.width/2,b.y+b.height+1.1,true);setTag('l'+r,s);});
+  tag('cp',138.8,133.4);tag('can',138.6,92.6);tag('vout',124.2,115.2);
+  tag('id',129,83.8);tag('temp',146.5,74);tag('psu',172.6,66.2);
+  document.querySelectorAll('#board .fp g.k').forEach(g=>g.addEventListener('click',()=>pick(g.id.slice(3))));
+}
+let selRef=null;
+function pick(ref){
+  document.querySelectorAll('#board g.sel').forEach(g=>g.classList.remove('sel'));
+  const p=PARTS[ref];if(!p)return;
+  fp(ref).classList.add('sel');selRef=ref;
+  let s='<b>'+ref+'</b>　'+esc(p[0])+(p[1]?'　<span style="color:#678">'+esc(p[1])+'</span>':'');
+  if(p[2]&&!testMine())s+='　<span style="color:#567">進入測試模式後點這裡可以切換</span>';
+  $('info').innerHTML=s;
+  if(p[2]&&testMine())toggleOut(p[2]);
+}
+
+// ── 測試模式 ──
+let T={active:false,mask:0,owner:0,block:'not_idle',last_end:'ok'},want=0;
+const WHY={ok:'',not_idle:'狀態機不在待機（充電流程進行中、故障或緊急停止）',
+  emergency:'緊急停止鎖存中 —— 先在設定選單 Reset Fault',
+  cp_present:'CP 有電壓 —— 有車接著',vehicle_can:'3 秒內收到車端 CAN —— 有車接著',
+  lease:'這個頁面超過 10 秒沒有回應（關閉、鎖屏或斷線）',user:'手動結束',
+  replaced:'另一個頁面進入了測試模式',not_active:'測試模式已經結束'};
+const testMine=()=>T.active&&T.owner===OWNER;
+function renderTest(){
+  const mine=testMine(),other=T.active&&!mine;
+  $('test').classList.toggle('on',mine);
+  $('test-ctl').style.display=mine?'':'none';
+  let m;
+  if(mine)m='<span class="y">● 手動控制中</span> —— 狀態機的輸出暫停。按 START、接上車、按緊急停止或關掉這頁，輸出都會立刻交回狀態機。';
+  else if(other)m='<span class="y">另一個頁面正在測試模式中。</span>';
+  else if(T.block!=='ok')m='<span class="m">現在不能進入：'+WHY[T.block]+'</span>';
+  else m='只在沒接車、待機時可用。進入後可手動切換下面的輸出，用來驗板子。';
+  if(!T.active&&T.last_end!=='ok'&&T.last_end!=='user')m+='<br><span class="m">上次結束原因：'+(WHY[T.last_end]||T.last_end)+'</span>';
+  $('test-msg').innerHTML=m;
+  const b=$('test-btn');
+  b.textContent=mine?'結束測試模式':other?'改由這個頁面接管':'進入測試模式';
+  b.disabled=!mine&&T.block!=='ok';
+  document.querySelectorAll('#test-ctl button').forEach(x=>x.classList.toggle('act',!!(T.mask&+x.dataset.b)));
+  const ctl=mine?[...G_RELAY,...G_LOCK,...G_VP,'D6','D7','D8']:[];   // 虛線框＝可以點來切換
+  document.querySelectorAll('#board g.ctl').forEach(g=>g.classList.remove('ctl'));
+  cls(ctl,'ctl',true);
+}
+async function testCmd(cmd,mask){
+  try{
+    const r=await post('/hw/test',{cmd,owner:OWNER,mask});
+    const j=await r.json();if(j.test)T=j.test;
+    if(!j.ok&&j.error)$('info').innerHTML='<span class="e">'+(WHY[j.error]||j.error)+'</span>';
+  }catch(e){$('info').innerHTML='<span class="e">送出失敗：'+esc(e.message)+'</span>'}
+  renderTest();
+}
+function toggleOut(bit){
+  want=T.mask^bit;
+  if(bit===OUT.RELAY&&(want&bit)&&!confirm('DC 主繼電器閉合後，充電槍的 DC+／DC− 端子會直接帶 PSU 的輸出電壓。\n\n'+
+    '確認 PSU 已關閉，或槍頭沒有外露、沒有人碰得到，再繼續。\n\n'+
+    '（閉合時「120V 量測端」讀到的就是 PSU 電壓，可以拿三用電表對照分壓係數。）'))return;
+  testCmd('set',want);
+}
+$('test-btn').onclick=()=>{
+  if(testMine())return testCmd('stop',0);
+  if(!confirm('測試模式會暫時由這個頁面控制繼電器、電子鎖、VP 與三顆 LED，全部從「關」開始。\n\n'+
+    '以下任一情況會立即結束，輸出交還給狀態機：\n・按下 START（或遠端啟動）\n・接上車輛（CP 有電壓或收到 CAN）\n'+
+    '・按下緊急停止\n・這個頁面 10 秒沒有回應\n\n要進入嗎？'))return;
+  testCmd('start',0);
+};
+document.querySelectorAll('#test-ctl button').forEach(b=>b.onclick=()=>toggleOut(+b.dataset.b));
+setInterval(()=>{if(testMine())post('/hw/test',{cmd:'keepalive',owner:OWNER}).catch(()=>{})},2000);
+addEventListener('pagehide',()=>{if(testMine())post('/hw/test',{cmd:'stop',owner:OWNER}).catch(()=>{})});
+
+// ── 輪詢 ──
+const CP=['未知','OFF（無車）','ON（車端就緒）','異常電壓'],CANST=['停止','運作中','BUS-OFF','復原中'];
+const NODE=['未知','可控整流器','量測節點'];
+let seenBtn=0,seenAt=0,lastOk=0,busy=false,prevFails=null,failGrow=0;
+function render(d){
+  const o=d.out,a=d.adc,p=d.psu,c=d.can,s=d.sys;
+  T=d.test;renderTest();
+  // 輸出
+  cls(G_RELAY,'on',o&1);cls(G_LOCK,'on',o&2);cls(G_VP,'on',o&4);
+  cls(['D6'],'ly',o&8);cls(['D7'],'lg',o&16);cls(['D8'],'lr',o&32);
+  $('c-out').innerHTML=row(dot(o&1)+'DC 主繼電器',o&1?'閉合':'斷開',o&1?'g':'')+row(dot(o&2)+'電子鎖',o&2?'鎖上':'解除',o&2?'g':'')
+    +row(dot(o&4)+'VP 12V',o&4?'輸出':'關',o&4?'g':'')+row(dot(o&8,'oy')+'橘燈（待機）',o&8?'亮':'滅')
+    +row(dot(o&16,'og')+'綠燈（充電）',o&16?'亮':'滅')+row(dot(o&32,'or')+'紅燈（故障）',o&32?'亮':'滅');
+  // 按鈕：按著的 + 輪詢之間按過的（保留 0.6 秒讓短按看得到）
+  if(d.btn_seen){seenBtn=d.btn_seen;seenAt=Date.now()}
+  const held=d.btn|(Date.now()-seenAt<600?seenBtn:0);
+  BTN.forEach((r,i)=>cls([r],'pr',held&(1<<i)));
+  cls(['EMERGENCY1'],'bad',d.estop);
+  $('c-btn').innerHTML=['START','STOP','EMERGENCY','SETTING'].map((n,i)=>row(dot(held&(1<<i),'pr')+n,held&(1<<i)?'按下':'—',held&(1<<i)?'g':'m')).join('')
+    +row('緊急停止鎖存',d.estop?'鎖存中':'無',d.estop?'e':'');
+  // 類比
+  if(prevFails!==null&&a.fails>prevFails)failGrow=Date.now();prevFails=a.fails;
+  const adcBad=Date.now()-failGrow<5000;
+  cls(['U5'],'bad',adcBad);cls(['U5'],'ok',!adcBad);
+  cls(['R36','R37'],'bad',!a.hw_known);
+  setTag('cp','CP '+a.cp_v.toFixed(2)+'V');
+  setTag('vout',a.vout_v.toFixed(1)+' V');
+  setTag('id',a.hw_known?a.hw_rev:'? '+a.hw_id_v.toFixed(2)+'V');
+  $('c-adc').innerHTML=row('CP 電壓',a.cp_v.toFixed(2)+' V')+row('CP 判定',CP[a.cp_state]||a.cp_state,a.cp_state===2?'g':a.cp_state===3?'e':'')
+    +row('輸出電壓（ADC）',a.vout_v.toFixed(2)+' V')+row('輸出電壓（PSU 回報）',p.connected?p.v.toFixed(2)+' V':'—',p.connected?'':'m')
+    +row('硬體版本',a.hw_known?a.hw_rev:'不認得',a.hw_known?'':'e')+row('AIN3 硬體 ID',a.hw_id_v.toFixed(3)+' V（級 '+a.hw_level+'）')
+    +row('分壓係數','×'+a.ratio.toFixed(3))+row('I²C 讀取失敗',a.fails+(adcBad?'（增加中）':''),adcBad?'e':a.fails?'y':'');
+  // PSU
+  const uart=p.transport===0;
+  cls(['H2'],'ok',uart&&p.connected);
+  setTag('psu',p.connected?(uart?'PSU UART ●':'PSU ESP-NOW ●'):'');
+  $('c-psu').innerHTML=row('傳輸',uart?'UART（H2 排針）':'ESP-NOW')+row('連線',p.connected?'已連線':'未連線',p.connected?'g':'m')
+    +(p.connected?row('節點',p.caps_known?(NODE[p.node_type]||p.node_type)+' fw '+p.fw:'尚未收到 CAP')
+      +row('電壓 / 電流',p.v.toFixed(2)+' V / '+p.i.toFixed(2)+' A')+row('最後 ST',age(p.st_age_ms)):'')
+    +row('收到訊框',p.rx)+row('CRC 錯誤',p.crc_err,p.crc_err?'e':'')+row('無法辨識',p.bad,p.bad?'y':'')
+    +(uart?'':row('RSSI',p.rssi+' dBm',p.rssi<-80?'y':''));
+  // CAN
+  const run=c.state===1,rxRecent=c.rx500_age<1000;
+  cls(['U12','CN2'],'ok',run&&rxRecent);cls(['U12'],'bad',c.state===2||c.tec>=128||c.rec>=128);
+  setTag('can',run?(rxRecent?'CAN ● 收到車端':'CAN 無車端訊號'):'CAN '+CANST[c.state]);
+  $('c-can').innerHTML=row('控制器',CANST[c.state]||c.state,run?'g':c.state===2?'e':'y')
+    +row('TX / RX 錯誤計數',c.tec+' / '+c.rec,(c.tec>=128||c.rec>=128)?'e':'')
+    +row('匯流排錯誤',c.bus_err,c.bus_err?'y':'')+row('最後 0x500',age(c.rx500_age),rxRecent?'g':'m')
+    +row('收 / 送',c.rx+' / '+c.tx)+row('送出失敗',c.tx_fail,c.tx_fail?'y':'');
+  // 系統
+  const tc=s.temp_c;
+  cls(['U1'],'bad',tc!==null&&tc>=75);
+  setTag('temp',tc===null?'':tc.toFixed(1)+'°C');
+  $('c-sys').innerHTML=row('狀態機',d.state)+row('開機時間',dur(d.up_s))
+    +row('上次重開原因',d.reset,/panic|wdt|brownout/.test(d.reset)?'e':'')
+    +row('晶片溫度',tc===null?'—':tc.toFixed(1)+' °C',tc>=75?'e':tc>=65?'y':'')
+    +row('內部 RAM 可用',kb(s.heap))+row('內部 RAM 歷史最低',kb(s.heap_min),s.heap_min<20480?'y':'')
+    +row('最大連續區塊',kb(s.heap_blk))+row('PSRAM 可用',kb(s.psram))
+    +row('WiFi 訊號',s.rssi===null?'未連線（AP 模式？）':s.rssi+' dBm',s.rssi<-75?'y':'');
+  $('c-tk').innerHTML=s.tasks.map(([n,f])=>'<span>'+esc(n)+'</span><span class="'+(f<0?'m':f<512?'e':f<1024?'y':'')+'">'
+    +(f<0?'已結束':f+' B')+'</span>').join('');
+}
+async function poll(){
+  if(busy)return;busy=true;
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),3000);
+  try{
+    const d=await (await fetch('/hw.json',{signal:ac.signal,cache:'no-store'})).json();
+    render(d);lastOk=Date.now();
+  }catch(e){}
+  clearTimeout(to);busy=false;
+  const dead=Date.now()-lastOk>2500;
+  $('live').textContent=dead?'● 連線中斷':'● 即時';$('live').classList.toggle('dead',dead);
+}
+fetch('/status').then(r=>r.json()).then(d=>{
+  $('nm').textContent=d.display_name||'';document.title='硬體狀態 — '+(d.display_name||'TES');
+  $('ver').textContent='韌體 '+d.firmware_version+'　'+(d.hostname?d.hostname+'.local':'');
+}).catch(()=>{});
+initBoard();renderTest();poll();setInterval(poll,500);
+</script>
+</body>
+</html>

@@ -39,6 +39,11 @@ static struct {
 
     bool         psu_warn;       // ESP-NOW 配對但失連：觸發 STANDBY 下短閃紅燈
     uint32_t     psu_warn_ticks; // 計時器，100 ticks = 5s 週期
+
+    // 工作台測試模式接管（task_tes_sm 每 tick 設定，這裡每 50ms 讀）。
+    // 各自一個 volatile 欄位，寫入端只有 task_tes_sm。
+    volatile bool    test_active;
+    volatile uint8_t test_mask;  // LED_TEST_*
 } s;
 
 // Load digits from SOC without touching phase/timing (called mid-run to refresh SOC).
@@ -113,8 +118,22 @@ void led_driver_set_psu_warn(bool warn)
     if (!warn) s.psu_warn_ticks = 0;
 }
 
+void led_driver_set_test(bool active, uint8_t mask)
+{
+    s.test_mask   = mask;
+    s.test_active = active;
+}
+
 void led_driver_tick(void)
 {
+    if (s.test_active) {
+        uint8_t m = s.test_mask;
+        hal_gpio_led_standby_set ((m & LED_TEST_STANDBY)  != 0);
+        hal_gpio_led_charging_set((m & LED_TEST_CHARGING) != 0);
+        hal_gpio_led_error_set   ((m & LED_TEST_ERROR)    != 0);
+        return;   // 狀態機的樣式暫停；結束測試後下一個 tick 自然接回
+    }
+
     hal_gpio_led_standby_set(true);  // orange always on
 
     switch (s.state) {

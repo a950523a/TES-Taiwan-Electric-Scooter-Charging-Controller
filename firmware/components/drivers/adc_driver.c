@@ -168,6 +168,8 @@ static float s_last_voltage    = 0.0f;
 static float s_last_cp_voltage = 0.0f;
 static uint32_t s_fail_count   = 0;
 
+uint32_t adc_driver_fail_count(void) { return s_fail_count; }
+
 float adc_driver_read_voltage(void)
 {
     // AIN0-AIN1 differential → apply the board's resistor divider

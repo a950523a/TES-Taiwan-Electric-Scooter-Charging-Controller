@@ -49,3 +49,11 @@ extern volatile float    g_adc_output_voltage;
 // 每取得一次新的 CP 取樣 +1。TES SM 靠它分辨「新資料」與「同一筆重複讀到」，
 // 否則 10ms 的 tick 會把 100ms 才更新一次的取樣重複計入 CP 去抖計數器。
 extern volatile uint32_t g_adc_cp_seq;
+
+// 按鈕狀態給硬體狀態頁（/hw.json）：bit0 START、bit1 STOP、bit2 EMERGENCY、bit3 SETTING。
+// g_btn_stable = 去彈跳後目前是否按著；g_btn_latch = 上次被讀走之後按過哪些，
+// 讀取端用 atomic_exchange 取走並清零 —— 頁面每 0.5 秒才問一次，短按會落在兩次之間。
+extern volatile uint8_t g_btn_stable;
+extern atomic_uint      g_btn_latch;
+
+bool g_task_stack_info(int i, const char **name, int *free_bytes);

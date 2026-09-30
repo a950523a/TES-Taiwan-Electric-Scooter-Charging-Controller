@@ -1,6 +1,7 @@
 #pragma once
 #include "tes_protocol/tes_types.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 // LED 驅動（整合 V2 LuxBeacon 狀態機）
 // 橘燈（STANDBY）永遠常亮
@@ -13,3 +14,10 @@ void led_driver_set_beacon_enable(bool enabled);     // beacon_unlocked 旗標
 void led_driver_set_beacon_soc   (int soc);          // 更新 LuxBeacon 數值
 void led_driver_set_psu_warn     (bool warn);        // ESP-NOW 配對但失連時：STANDBY 下每 5s 短閃紅燈一次
 void led_driver_tick             (void);             // 每 50ms 由 task_display 呼叫
+
+// 工作台測試模式：active=true 時三顆 LED 直接照 mask 亮滅，暫停上面的樣式。
+// 由 task_tes_sm 依 hwtest_svc 的結果每 tick 設定。
+#define LED_TEST_STANDBY   0x01
+#define LED_TEST_CHARGING  0x02
+#define LED_TEST_ERROR     0x04
+void led_driver_set_test(bool active, uint8_t mask);

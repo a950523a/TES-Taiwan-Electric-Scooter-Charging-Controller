@@ -10,6 +10,7 @@ idf_component_register(
         "trace_svc.c"
         "mqtt_svc.c"
         "scheduler_svc.c"
+        "hwtest_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
@@ -18,6 +19,7 @@ idf_component_register(
         "web/manifest.json"
         "web/sw.js"
         "web/icon.svg"
+        "web/hw.html"
     REQUIRES
         tes_protocol
         tes_sm
@@ -35,4 +37,6 @@ idf_component_register(
         mqtt
         esp_netif
         freertos
+        esp_timer
+        esp_driver_tsens
 )

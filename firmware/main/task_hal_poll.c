@@ -11,6 +11,8 @@
 volatile float    g_adc_cp_voltage     = 0.f;
 volatile float    g_adc_output_voltage = 0.f;
 volatile uint32_t g_adc_cp_seq         = 0;   // 每取得一次新的 CP 取樣就 +1
+volatile uint8_t  g_btn_stable         = 0;
+atomic_uint       g_btn_latch          = 0;
 
 // Timing constants (tick = 10 ms)
 #define DEBOUNCE_TICKS    3    // 30 ms
@@ -91,6 +93,11 @@ void task_hal_poll(void *arg)
         btn_evt_t ev_stop  = btn_update(&s_btn[1], raw_stop);
         btn_evt_t ev_emerg = btn_update(&s_btn[2], raw_emergency);
         btn_evt_t ev_set   = btn_update(&s_btn[3], raw_setting);
+
+        uint8_t held = 0;
+        for (int i = 0; i < 4; i++) if (s_btn[i].stable) held |= (uint8_t)(1u << i);
+        g_btn_stable = held;
+        if (held) atomic_fetch_or(&g_btn_latch, held);
 
         // EMERGENCY: short press → atomic set (long press also counts)
         if (ev_emerg == BTN_SHORT || ev_emerg == BTN_LONG)

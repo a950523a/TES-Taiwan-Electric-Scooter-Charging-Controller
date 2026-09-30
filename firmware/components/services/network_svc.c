@@ -27,7 +27,13 @@
 #include "services/log_svc.h"
 #include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
+#include "services/hwtest_svc.h"
+#include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
+#include "driver/temperature_sensor.h"
+#include "esp_heap_caps.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
@@ -41,6 +47,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
+#include <stdatomic.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -171,6 +178,8 @@ extern const uint8_t s_sw_js_start[]        asm("_binary_sw_js_start");
 extern const uint8_t s_sw_js_end[]          asm("_binary_sw_js_end");
 extern const uint8_t s_icon_svg_start[]     asm("_binary_icon_svg_start");
 extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
+extern const uint8_t s_hw_html_start[]      asm("_binary_hw_html_start");
+extern const uint8_t s_hw_html_end[]        asm("_binary_hw_html_end");
 
 // "/"        → 裝置列表（先看到有哪幾台，再點進去）
 // "/control" → 原本的控制介面
@@ -1353,6 +1362,270 @@ static const httpd_uri_t s_uri_get_mqtt_link = {
     .uri = "/mqtt/link", .method = HTTP_GET, .handler = handle_get_mqtt_link
 };
 
+// ── 硬體狀態頁：GET /hw、GET /hw.json、POST /hw/test ───────────────────────────
+//
+// /hw.json 是給 /hw 每 0.5 秒輪詢的，刻意跟 /status 分開：/status 已經 1.5 KB 以上，
+// 這裡只放「腳位與硬體」—— 輸出腳實際電位、按鈕、ADC 原始讀值、PSU 連線、CAN
+// 控制器、系統資源。/control 有「載入一兩次後吞吐量崩掉」的未解問題（CLAUDE.md
+// Known Technical Debt），所以這頁要小、要能獨立運作。
+
+// main 擁有這些（同 display_svc 的 extern 慣例）
+extern volatile float    g_adc_cp_voltage;
+extern volatile float    g_adc_output_voltage;
+extern volatile uint8_t  g_btn_stable;
+extern atomic_uint       g_btn_latch;
+extern atomic_bool       g_emergency_stop;
+extern bool g_task_stack_info(int i, const char **name, int *free_bytes);
+
+// ESP32-S3 內建溫度感測器量的是**晶片溫度**，不是外殼內的氣溫 —— 開著 WiFi 時
+// 通常比環境高 10–20 °C。用來看趨勢，也用來追 CLAUDE.md 記的「R8 模組只耐
+// 65 °C 環境溫度」問題。量測範圍選 20–100 °C（誤差 < 2 °C）：關心的是高溫端，
+// −10–80 °C 那一檔在晶片最熱時會飽和。
+static temperature_sensor_handle_t s_tsens;
+static bool s_tsens_ok;
+
+static void tsens_init_once(void)
+{
+    static bool tried;          // 只有 httpd 的單一 worker 會呼叫，不需要鎖
+    if (tried) return;
+    tried = true;
+    temperature_sensor_config_t c = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+    if (temperature_sensor_install(&c, &s_tsens) == ESP_OK &&
+        temperature_sensor_enable(s_tsens) == ESP_OK) {
+        s_tsens_ok = true;
+    } else {
+        ESP_LOGW(TAG, "temperature sensor unavailable");
+    }
+}
+
+static const char *reset_reason_name(esp_reset_reason_t r)
+{
+    switch (r) {
+    case ESP_RST_POWERON:   return "poweron";
+    case ESP_RST_EXT:       return "ext";
+    case ESP_RST_SW:        return "sw";        // esp_restart()：OTA、設定後重開
+    case ESP_RST_PANIC:     return "panic";     // 當機
+    case ESP_RST_INT_WDT:   return "int_wdt";
+    case ESP_RST_TASK_WDT:  return "task_wdt";
+    case ESP_RST_WDT:       return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_BROWNOUT:  return "brownout";  // 電源掉壓
+    case ESP_RST_SDIO:      return "sdio";
+    case ESP_RST_USB:       return "usb";
+    case ESP_RST_JTAG:      return "jtag";
+    default:                return "unknown";
+    }
+}
+
+static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
+
+static cJSON *hwtest_json(cJSON *parent, const char *key)
+{
+    hwtest_status_t t = hwtest_svc_status(now_ms());
+    cJSON *o = cJSON_AddObjectToObject(parent, key);
+    cJSON_AddBoolToObject  (o, "active",   t.active);
+    cJSON_AddNumberToObject(o, "mask",     t.mask);
+    cJSON_AddNumberToObject(o, "lease_ms", t.lease_left_ms);
+    cJSON_AddNumberToObject(o, "owner",    t.owner);
+    cJSON_AddStringToObject(o, "block",    hwtest_block_name(t.block));
+    cJSON_AddStringToObject(o, "last_end", hwtest_block_name(t.last_end));
+    return o;
+}
+
+static esp_err_t send_json(httpd_req_t *req, cJSON *root, const char *status)
+{
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (status) httpd_resp_set_status(req, status);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    set_cors(req);
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json alloc");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static esp_err_t handle_get_hw_page(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
+    httpd_resp_send(req, (const char *)s_hw_html_start, s_hw_html_end - s_hw_html_start);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_hw_page = {
+    .uri = "/hw", .method = HTTP_GET, .handler = handle_get_hw_page
+};
+
+static esp_err_t handle_get_hw_json(httpd_req_t *req)
+{
+    tes_snapshot_t snap;
+    if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "snapshot busy");
+        return ESP_FAIL;
+    }
+    snap = g_snapshot;
+    xSemaphoreGive(g_snapshot_mutex);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "state",   state_name(snap.state));
+    cJSON_AddNumberToObject(root, "up_s",    (double)(esp_timer_get_time() / 1000000));
+    cJSON_AddStringToObject(root, "reset",   reset_reason_name(esp_reset_reason()));
+
+    // 輸出：實際寫到腳位的電位（HAL_OUT_* 位元），不是狀態機的期望
+    cJSON_AddNumberToObject(root, "out",     hal_gpio_outputs_get());
+    // 按鈕：目前按著的 + 上次讀取後按過的（讀走即清）
+    cJSON_AddNumberToObject(root, "btn",     g_btn_stable);
+    cJSON_AddNumberToObject(root, "btn_seen", atomic_exchange(&g_btn_latch, 0));
+    cJSON_AddBoolToObject  (root, "estop",   atomic_load(&g_emergency_stop));
+
+    // 類比：ADS1115 原始換算值（與 PSU 回報分開看）
+    cJSON *a = cJSON_AddObjectToObject(root, "adc");
+    cJSON_AddNumberToObject(a, "cp_v",     (double)g_adc_cp_voltage);
+    cJSON_AddNumberToObject(a, "cp_state", snap.cp_state);        // cp_state_t
+    cJSON_AddNumberToObject(a, "vout_v",   (double)g_adc_output_voltage);
+    cJSON_AddNumberToObject(a, "fails",    adc_driver_fail_count());
+    {
+        const adc_board_t *hw = adc_driver_board();
+        cJSON_AddStringToObject(a, "hw_rev",   hw->name);
+        cJSON_AddBoolToObject  (a, "hw_known", hw->known);
+        cJSON_AddNumberToObject(a, "hw_level", hw->level);
+        cJSON_AddNumberToObject(a, "hw_id_v",  (double)hw->id_volts);
+        cJSON_AddNumberToObject(a, "ratio",    (double)hw->volt_ratio);
+    }
+
+    // PSU 連線
+    {
+        psu_status_t p = psu_driver_get_status();
+        const charger_config_t *cfg = config_svc_get();
+        cJSON *o = cJSON_AddObjectToObject(root, "psu");
+        cJSON_AddNumberToObject(o, "transport", (int)cfg->psu_transport);
+        cJSON_AddBoolToObject  (o, "connected", p.connected);
+        cJSON_AddNumberToObject(o, "v",         (double)p.voltage);
+        cJSON_AddNumberToObject(o, "i",         (double)p.current);
+        cJSON_AddBoolToObject  (o, "caps_known", p.caps_known);
+        cJSON_AddNumberToObject(o, "node_type", p.node_type);
+        cJSON_AddNumberToObject(o, "caps",      p.caps);
+        cJSON_AddNumberToObject(o, "fw",        p.fw_ver);
+        cJSON_AddNumberToObject(o, "st_age_ms", p.status_age_ms);
+        cJSON_AddNumberToObject(o, "rx",        p.rx_frames);
+        cJSON_AddNumberToObject(o, "crc_err",   p.rx_crc_errors);
+        cJSON_AddNumberToObject(o, "bad",       p.rx_bad_frames);
+        cJSON_AddNumberToObject(o, "rssi",      p.rssi);
+    }
+
+    // CAN 控制器與收發活性（細節在 /control 的 CAN 診斷面板）
+    {
+        cJSON *o = cJSON_AddObjectToObject(root, "can");
+        cJSON_AddNumberToObject(o, "state",    snap.can.bus_state);
+        cJSON_AddNumberToObject(o, "tec",      snap.can.bus_tx_err);
+        cJSON_AddNumberToObject(o, "rec",      snap.can.bus_rx_err);
+        cJSON_AddNumberToObject(o, "bus_err",  snap.can.bus_err_count);
+        cJSON_AddNumberToObject(o, "rx500_age", snap.can.rx_500_age_ms);
+        cJSON_AddNumberToObject(o, "rx",       snap.can.rx_500_count + snap.can.rx_501_count
+                                               + snap.can.rx_5f0_count);
+        cJSON_AddNumberToObject(o, "tx",       snap.can.tx_508_count + snap.can.tx_509_count
+                                               + snap.can.tx_5f8_count);
+        cJSON_AddNumberToObject(o, "tx_fail",  snap.can.tx_fail_count);
+    }
+
+    // 系統
+    {
+        tsens_init_once();
+        cJSON *o = cJSON_AddObjectToObject(root, "sys");
+        cJSON_AddNumberToObject(o, "heap",     heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "heap_min", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "heap_blk", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "psram",    heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        float tc;
+        if (s_tsens_ok && temperature_sensor_get_celsius(s_tsens, &tc) == ESP_OK)
+            cJSON_AddNumberToObject(o, "temp_c", (double)((int)(tc * 10.0f + 0.5f)) / 10.0);
+        else
+            cJSON_AddNullToObject(o, "temp_c");
+        wifi_ap_record_t ap;
+        if (s_connected && esp_wifi_sta_get_ap_info(&ap) == ESP_OK)
+            cJSON_AddNumberToObject(o, "rssi", ap.rssi);
+        else
+            cJSON_AddNullToObject(o, "rssi");
+        cJSON *tasks = cJSON_AddArrayToObject(o, "tasks");
+        const char *name;
+        int free_b;
+        for (int i = 0; g_task_stack_info(i, &name, &free_b); i++) {
+            cJSON *t = cJSON_CreateArray();
+            cJSON_AddItemToArray(t, cJSON_CreateString(name));
+            cJSON_AddItemToArray(t, cJSON_CreateNumber(free_b));
+            cJSON_AddItemToArray(tasks, t);
+        }
+    }
+
+    hwtest_json(root, "test");
+    return send_json(req, root, NULL);
+}
+
+static const httpd_uri_t s_uri_get_hw_json = {
+    .uri = "/hw.json", .method = HTTP_GET, .handler = handle_get_hw_json
+};
+
+// POST /hw/test  {"cmd":"start"|"set"|"keepalive"|"stop", "owner":<u32>, "mask":<HWTEST_OUT_*>}
+// 能不能接管由 task_tes_sm 每 tick 判斷；這裡只把最近一次的判斷回給頁面。
+static esp_err_t handle_post_hw_test(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+
+    char buf[128];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *jc = in ? cJSON_GetObjectItem(in, "cmd")   : NULL;
+    const cJSON *jo = in ? cJSON_GetObjectItem(in, "owner") : NULL;
+    const cJSON *jm = in ? cJSON_GetObjectItem(in, "mask")  : NULL;
+    if (!cJSON_IsString(jc) || !cJSON_IsNumber(jo) || jo->valuedouble < 1) {
+        cJSON_Delete(in);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "need cmd + owner");
+        return ESP_FAIL;
+    }
+    uint32_t owner = (uint32_t)jo->valuedouble;
+    uint32_t now   = now_ms();
+    const char *err = NULL;
+
+    if (strcmp(jc->valuestring, "start") == 0) {
+        hwtest_block_t b = hwtest_svc_start(owner, now);
+        if (b != HWTEST_OK) err = hwtest_block_name(b);
+        else ESP_LOGW(TAG, "bench test started from the web page — outputs under manual control");
+    } else if (strcmp(jc->valuestring, "set") == 0) {
+        if (!cJSON_IsNumber(jm) || !hwtest_svc_set(owner, (uint8_t)jm->valueint, now))
+            err = "not_active";
+    } else if (strcmp(jc->valuestring, "keepalive") == 0) {
+        if (!hwtest_svc_keepalive(owner, now)) err = "not_active";
+    } else if (strcmp(jc->valuestring, "stop") == 0) {
+        hwtest_svc_stop(owner);
+    } else {
+        err = "bad_cmd";
+    }
+    cJSON_Delete(in);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", err == NULL);
+    if (err) cJSON_AddStringToObject(root, "error", err);
+    hwtest_json(root, "test");
+    return send_json(req, root, err ? "409 Conflict" : NULL);
+}
+
+static const httpd_uri_t s_uri_post_hw_test = {
+    .uri = "/hw/test", .method = HTTP_POST, .handler = handle_post_hw_test
+};
+
 // ── WiFi event handler ────────────────────────────────────────────────────────
 
 // 建立（或更新）mDNS 廣告。AP 與 STA 兩條路徑共用。
@@ -1452,7 +1725,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 24;   // 目前註冊 18 個，留餘裕
+    cfg.max_uri_handlers  = 28;   // 目前註冊 23 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
 
@@ -1481,6 +1754,9 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_page);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_json);
+    httpd_register_uri_handler(s_server, &s_uri_post_hw_test);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
 

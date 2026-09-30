@@ -120,6 +120,21 @@ void g_task_unregister_self(void)
     taskEXIT_CRITICAL(&s_task_mux);
 }
 
+// 給硬體狀態頁（network_svc 以 extern 呼叫）：第 i 個任務的名字與堆疊歷史最低餘裕。
+// 讀水位時持有 s_task_mux —— 自我刪除的任務必須先通過 g_task_unregister_self()
+// 才會 vTaskDelete，所以鎖住期間 handle 一定還有效。已結束的任務 *free_bytes = -1。
+bool g_task_stack_info(int i, const char **name, int *free_bytes)
+{
+    if (i < 0 || i >= g_task_count) return false;
+    taskENTER_CRITICAL(&s_task_mux);
+    *name = g_tasks[i].name;
+    *free_bytes = g_tasks[i].handle
+        ? (int)(uxTaskGetStackHighWaterMark(g_tasks[i].handle) * sizeof(StackType_t))
+        : -1;
+    taskEXIT_CRITICAL(&s_task_mux);
+    return true;
+}
+
 // 建立任務並登記到 g_tasks，讓 task_monitor 能回報堆疊餘裕
 static void spawn(TaskFunction_t fn, const char *name, uint32_t stack, UBaseType_t prio)
 {

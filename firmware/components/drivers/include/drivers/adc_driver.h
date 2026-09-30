@@ -37,3 +37,7 @@ float adc_driver_read_voltage(void);
 
 // 單端 AIN2：CP 訊號電壓
 float adc_driver_read_cp_voltage(void);
+
+// 開機以來 ADS1115 讀取失敗的次數（兩個通道合計）。持續上升代表 I2C 有問題 ——
+// 讀值此時沿用上一筆，畫面上看起來會「卡住」而不是歸零。
+uint32_t adc_driver_fail_count(void);

@@ -4,7 +4,9 @@
 #include "tes_protocol/tes_types.h"
 #include "drivers/can_driver.h"
 #include "drivers/psu_driver.h"
+#include "drivers/led_driver.h"
 #include "hal/hal_gpio.h"
+#include "services/hwtest_svc.h"
 #include "services/config_svc.h"
 #include "services/event_bus.h"
 #include "services/trace_svc.h"
@@ -250,6 +252,40 @@ static void can_send_checked(const can_frame_t *f, uint32_t *ok_counter)
     }
 }
 
+// ── 工作台測試模式（/hw 頁面手動切輸出）──────────────────────────────────────
+// 條件寫在這裡、不寫在 hwtest_svc：它們讀的就是狀態機本 tick 的輸入與結果。
+// 每 tick 都重新判斷，任何一條不成立，hwtest_svc_tick() 就在同一個 tick 結束
+// 接管，下面 execute_outputs() 寫到腳位的就是狀態機自己的輸出。
+//
+// 只在「確定沒有車」時允許：狀態機在 IDLE、沒有緊急停止鎖存、CP 在 OFF 範圍
+// 以下、最近 3 秒沒收到 0x500。之後有人按 START、插上車、按緊急停止，接管
+// 都會立刻結束。PSU 設定值與 CAN 發送不受測試模式影響。
+#define BENCH_CP_MAX_V       1.9f    // 與 CP_STATE_OFF 的上限相同
+#define BENCH_CAN_QUIET_MS   3000u
+
+static void bench_test_override(const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
+{
+    hwtest_block_t block = HWTEST_OK;
+    if (s_sm.state != TES_STATE_IDLE)            block = HWTEST_BLOCK_NOT_IDLE;
+    else if (in->emergency_requested)            block = HWTEST_BLOCK_EMERGENCY;
+    else if (in->cp_voltage >= BENCH_CP_MAX_V)   block = HWTEST_BLOCK_CP_PRESENT;
+    else if (s_rx_500_seen &&
+             in->tick_ms - s_rx_500_ms < BENCH_CAN_QUIET_MS)
+                                                 block = HWTEST_BLOCK_VEHICLE_CAN;
+
+    uint8_t m;
+    bool active = hwtest_svc_tick(block, in->tick_ms, &m);
+    if (active) {
+        out->relay_on     = (m & HWTEST_OUT_RELAY) != 0;
+        out->coupler_lock = (m & HWTEST_OUT_LOCK)  != 0;
+        out->vp_relay     = (m & HWTEST_OUT_VP)    != 0;
+    }
+    led_driver_set_test(active,
+        ((m & HWTEST_OUT_LED_STANDBY)  ? LED_TEST_STANDBY  : 0) |
+        ((m & HWTEST_OUT_LED_CHARGING) ? LED_TEST_CHARGING : 0) |
+        ((m & HWTEST_OUT_LED_ERROR)    ? LED_TEST_ERROR    : 0));
+}
+
 static void execute_outputs(const tes_sm_outputs_t *out)
 {
     hal_gpio_relay_set(out->relay_on);
@@ -346,6 +382,7 @@ void task_tes_sm(void *arg)
         inputs.auto_start_enabled = cfg.auto_start;
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
+        bench_test_override(&inputs, &outputs);
         execute_outputs(&outputs);
 
         // Cache last sent TX frames for CAN diag
