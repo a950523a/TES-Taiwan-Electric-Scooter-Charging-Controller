@@ -160,6 +160,8 @@ static bool csrf_ok(httpd_req_t *req)
 // 充電流程進行中（含 ENDING 收尾）→ true。
 // OTA 會直接 esp_restart()，在這些狀態下重開機會讓繼電器/電磁鎖失去控制，
 // 而且 PSU 仍保持最後的 setpoint 繼續輸出。
+static void psu_pair_json(cJSON *root);
+
 static bool charger_is_busy(void)
 {
     tes_state_t st = TES_STATE_IDLE;
@@ -281,6 +283,7 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
         cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
     }
+    psu_pair_json(root);   // 配對進度與配對碼：/control 的配對畫面靠它
 
     // OTA 狀態
     ota_state_t ota_st = ota_svc_get_state();
@@ -1285,14 +1288,73 @@ static esp_err_t handle_post_psu_pair(httpd_req_t *req)
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"psu_transport is not ESP-NOW\"}");
         return ESP_OK;
     }
+    // 充電流程中不配對：X25519 在 task_hal_poll 裡要算幾十 ms，而且配對期間
+    // START/STOP 被拿去當確認／取消
+    if (charger_is_busy()) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"charging — stop first\"}");
+        return ESP_OK;
+    }
     psu_driver_start_pairing(NULL);   // callback 在 psu_driver_set_transport() 時已由 main.c 登錄
-    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"pairing window open (10s)\"}");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"pairing started — put the PSU in pairing mode\"}");
     return ESP_OK;
 }
 
 static const httpd_uri_t s_uri_post_psu_pair = {
     .uri = "/psu/pair", .method = HTTP_POST, .handler = handle_post_psu_pair
 };
+
+// POST /psu/pair/confirm  {"accept":true|false}
+// 使用者看了兩邊的配對碼：相同就確認，不同（或想放棄）就取消。
+// 跟 OLED 上按 START／STOP 效果相同。
+static esp_err_t handle_post_psu_pair_confirm(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char buf[48];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *a = in ? cJSON_GetObjectItem(in, "accept") : NULL;
+    bool ok = cJSON_IsBool(a);
+    if (ok) psu_driver_pair_user(cJSON_IsTrue(a));
+    cJSON_Delete(in);
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"need accept:true|false\"}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_psu_pair_confirm = {
+    .uri = "/psu/pair/confirm", .method = HTTP_POST, .handler = handle_post_psu_pair_confirm
+};
+
+// 配對進度（/status 與 /hw.json 共用）
+static void psu_pair_json(cJSON *root)
+{
+    psu_pair_info_t p = psu_driver_pair_info();
+    psu_status_t    s = psu_driver_get_status();
+    cJSON *o = cJSON_AddObjectToObject(root, "psu_pair");
+    cJSON_AddNumberToObject(o, "state",    p.state);      // psu_pair_state_t
+    cJSON_AddNumberToObject(o, "fail",     p.fail);       // psu_pair_fail_t
+    cJSON_AddBoolToObject  (o, "busy",     psu_driver_is_pairing());
+    if (p.state == 3 /* CONFIRM */ || p.state == 4 /* DONE */) {
+        char code[8];
+        snprintf(code, sizeof code, "%06lu", (unsigned long)p.code);
+        cJSON_AddStringToObject(o, "code", code);
+    }
+    cJSON_AddBoolToObject  (o, "local_ok", p.local_ok);
+    cJSON_AddBoolToObject  (o, "peer_ok",  p.peer_ok);
+    cJSON_AddBoolToObject  (o, "legacy",   p.legacy_seen);
+    cJSON_AddNumberToObject(o, "age_ms",   p.age_ms);
+    cJSON_AddBoolToObject  (o, "link_auth",    s.link_auth);
+    cJSON_AddBoolToObject  (o, "needs_repair", s.needs_repair);
+    cJSON_AddNumberToObject(o, "auth_rejects", s.auth_rejects);
+}
 
 // ── GET /mqtt/link ────────────────────────────────────────────────────────────
 // Returns the Cloud PWA URL pre-filled with broker hostname, WS port, and topic.
@@ -1663,6 +1725,7 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
     }
 
     tcp_json(root);
+    psu_pair_json(root);
     hwtest_json(root, "test");
     return send_json(req, root, NULL);
 }
@@ -1826,7 +1889,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 28;   // 目前註冊 23 個，留餘裕
+    cfg.max_uri_handlers  = 28;   // 目前註冊 24 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     s_httpd_max_sockets   = cfg.max_open_sockets;
@@ -1855,6 +1918,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
+    httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
     httpd_register_uri_handler(s_server, &s_uri_get_hw_page);
     httpd_register_uri_handler(s_server, &s_uri_get_hw_json);

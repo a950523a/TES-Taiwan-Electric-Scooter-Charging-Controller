@@ -55,6 +55,17 @@ button:active{opacity:.65}
 /* ── 未儲存變更：浮動儲存列 + 欄位標記 ──
    設定區塊很長，儲存鍵原本只在最底部，改一個值就得捲到底；
    而且改完之後介面看不出有沒有未存的東西。兩個問題都由這條列解決。 */
+#pair-ov{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:60;display:none;
+  width:min(92vw,380px);background:#15191f;border:1px solid #3d5a80;border-radius:12px;
+  padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+#pair-ov h3{margin:0 0 6px;font-size:.95em;color:#9cf}
+#pair-ov .code{font:700 2.3em ui-monospace,Consolas,monospace;letter-spacing:.12em;text-align:center;
+  color:#fff;margin:6px 0 4px}
+#pair-ov .msg{font-size:.82em;color:#aab;line-height:1.55}
+#pair-ov .acts{display:flex;gap:8px;margin-top:10px}
+#pair-ov .acts button{flex:1;padding:9px;border-radius:7px;font-weight:bold;cursor:pointer;font-size:.85em}
+#pair-ov .yes{background:#1d3a26;border:1px solid #4dd97a;color:#bfe}
+#pair-ov .no{background:#2a1c1c;border:1px solid #844;color:#f99}
 #cfg-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:none;
   background:#16202c;border-top:1px solid #2c4460;
   box-shadow:0 -4px 14px rgba(0,0,0,.45);
@@ -410,8 +421,9 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     </div>
     <div id="psu-espnow-panel" style="display:none">
       <div id="psu-pair-status" style="font-size:.82em;color:#555;margin-bottom:8px">配對狀態：讀取中…</div>
-      <button class="b-scan" id="psu-pair-btn" onclick="startPsuPair()">📡 開始配對（10 秒）</button>
-      <div style="font-size:.75em;color:#444;margin-top:5px;line-height:1.5">確認 PSU 端已進入配對模式後再點擊</div>
+      <button class="b-scan" id="psu-pair-btn" onclick="startPsuPair()">📡 開始配對</button>
+      <div style="font-size:.75em;color:#444;margin-top:5px;line-height:1.5">按下後在 PSU 端也開始配對。兩邊會顯示同一組 6 位數配對碼，
+        數字相同才在兩邊按確認 —— 跟藍牙配對一樣。配對後每則無線訊息都會驗證，別人無法冒充。</div>
     </div>
     <div style="font-size:.75em;color:#444;margin-top:6px">Transport 變更後需儲存設定並重啟生效</div>
   </div>
@@ -429,6 +441,15 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 
 <!-- 儲存入口只有這一個。設定區塊很長，固定在底部才不用為了存檔捲到最下面；
      原本卡片底部那顆按鈕已移除，兩個做同一件事的按鈕只會讓人猶豫按哪個。 -->
+<div id="pair-ov" role="dialog" aria-live="polite">
+  <h3 id="pair-ttl">📡 PSU 配對</h3>
+  <div class="code" id="pair-code"></div>
+  <div class="msg" id="pair-msg"></div>
+  <div class="acts" id="pair-acts">
+    <button class="yes" id="pair-yes" onclick="pairAnswer(true)">數字相同，確認</button>
+    <button class="no" onclick="pairAnswer(false)">不同／取消</button>
+  </div>
+</div>
 <div id="cfg-bar">
   <div class="n"><span id="cfg-txt"><b id="cfg-n">0</b> 項設定未儲存</span></div>
   <button class="b-rv" id="cfg-rv" onclick="revertCfg()">捨棄</button>
@@ -686,6 +707,12 @@ function fmt(s){
 async function poll(){
   try{
     const d=await(await fetch('/status')).json();
+    renderPair(d.psu_pair);
+    if(d.psu_pair&&d.psu_pair.needs_repair){
+      // 更新前的配對只存了 MAC、沒有驗證金鑰：連不上，必須重新配對
+      const pps=document.getElementById('psu-pair-status');
+      if(pps){pps.textContent='配對狀態：舊版配對（沒有驗證金鑰）—— 請重新配對，PSU 韌體也要更新';pps.style.color='#f96';}
+    }
     const b=document.getElementById('badge');
     if(d.state==='idle'&&d.fault){
       b.textContent='FAULT STOP';
@@ -772,7 +799,7 @@ async function poll(){
           pdot='#f55';
           ptxt=fs>0?`ESP-NOW TxFail(${fs})`:'ESP-NOW 失連';
         }else{
-          pdot='#555';ptxt='ESP-NOW 未配對';
+          pdot='#555';ptxt=(d.psu_pair&&d.psu_pair.needs_repair)?'ESP-NOW 需重新配對':'ESP-NOW 未配對';
         }
       }else{
         pdot=pc?'#4d4':'#555';
@@ -1812,12 +1839,12 @@ async function startPsuPair(){
   const btn=document.getElementById('psu-pair-btn');
   const st=document.getElementById('psu-pair-status');
   btn.disabled=true;
-  if(st){st.textContent='配對中（10 秒）…';st.style.color='#db4';}
   try{
     const r=await(await fetch('/psu/pair',{method:'POST'})).json();
     if(r.ok){
-      if(st){st.textContent='配對視窗已開啟，請在 10 秒內操作 PSU 端';st.style.color='#db4';}
-      setTimeout(()=>loadCfg(),11000);
+      pairShowUntil=Date.now()+2000;   // 下一次 /status 回來之前先把視窗打開
+      renderPair({state:1,busy:true});
+      btn.disabled=false;
     }else{
       if(st){st.textContent='✗ '+(r.error||'配對失敗');st.style.color='#f55';}
       btn.disabled=false;
@@ -1826,6 +1853,46 @@ async function startPsuPair(){
     if(st){st.textContent='✗ 連線錯誤';st.style.color='#f55';}
     btn.disabled=false;
   }
+}
+
+// ── ESP-NOW 配對視窗（跟藍牙一樣：兩邊顯示同一組數字，相同才確認）──
+// 狀態值對應 psu_link/psu_pair.h：1 找 PSU、2 交換金鑰、3 比對配對碼、4 完成、5 失敗
+const PAIR_FAIL={1:'逾時 —— 沒找到 PSU，或太久沒有確認',2:'已在這裡取消',3:'PSU 端取消了',
+  4:'安全檢查失敗（承諾值不符）—— 可能有人在中間攔截，請遠離其他裝置再試',
+  5:'安全檢查失敗（金鑰確認不符）—— 可能有人在中間攔截，請遠離其他裝置再試',6:'加密運算錯誤'};
+let pairShowUntil=0,pairLastState=0;
+function renderPair(p){
+  const ov=document.getElementById('pair-ov');
+  if(!p||!ov)return;
+  const st=p.state,busy=p.busy||st===1||st===2||st===3;
+  const showEnd=(st===4||st===5)&&p.age_ms<5000&&pairLastState!==0;
+  if(busy)pairLastState=st;
+  if(!busy&&!showEnd&&Date.now()>pairShowUntil){ov.style.display='none';if(!busy&&!showEnd)pairLastState=0;return;}
+  ov.style.display='block';
+  const code=document.getElementById('pair-code'),msg=document.getElementById('pair-msg'),
+        acts=document.getElementById('pair-acts'),ttl=document.getElementById('pair-ttl');
+  ttl.textContent='📡 PSU 配對';code.textContent='';acts.style.display='none';
+  if(st===3){
+    code.textContent=p.code?p.code.slice(0,3)+' '+p.code.slice(3):'';
+    if(p.local_ok){msg.innerHTML='已確認，等 PSU 端按確認…';acts.style.display='flex';
+      document.getElementById('pair-yes').style.display='none';}
+    else{msg.innerHTML='PSU 螢幕上的數字<b>完全相同</b>嗎？相同才確認；不同代表配到別台或有人攔截，請取消。<br>'
+      +'<span style="color:#667">控制器上按 START＝確認、STOP＝取消，效果一樣。</span>';
+      acts.style.display='flex';document.getElementById('pair-yes').style.display='';}
+  }else if(busy){
+    msg.innerHTML=(st===2?'找到 PSU，交換金鑰中…':'搜尋中…請在 PSU 端開始配對。')
+      +(p.legacy?'<br><span style="color:#f96">⚠ 收到舊版 PSU 韌體的配對訊號 —— 它不支援新的安全配對，請先更新 PSU 韌體。</span>':'');
+    acts.style.display='flex';document.getElementById('pair-yes').style.display='none';
+  }else if(st===4){
+    ttl.textContent='✅ 配對完成';code.textContent=p.code?p.code.slice(0,3)+' '+p.code.slice(3):'';
+    msg.textContent='之後每則無線訊息都會驗證，其他裝置無法冒充這台控制器或 PSU。';
+  }else if(st===5){
+    ttl.textContent='✗ 配對失敗';msg.textContent=(PAIR_FAIL[p.fail]||'錯誤')+'。沒有儲存任何東西。';
+  }
+}
+async function pairAnswer(ok){
+  try{await fetch('/psu/pair/confirm',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({accept:ok})});}catch(e){}
 }
 
 let s_psu_transport_loaded=0;

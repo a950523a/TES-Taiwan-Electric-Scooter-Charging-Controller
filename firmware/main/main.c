@@ -73,9 +73,9 @@ static void draw_auto_volt_screen(void)
 
 static const char *TAG = "main";
 
-static void on_psu_paired(const uint8_t peer_mac[6])
+static void on_psu_paired(const uint8_t peer_mac[6], const uint8_t ltk[32])
 {
-    config_svc_set_psu(PSU_TRANSPORT_ESPNOW, peer_mac, true);
+    config_svc_set_psu_pairing(peer_mac, ltk);
 }
 
 // ── Global definitions ───────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ void app_main(void)
     // vsnprintf("%f")，newlib 的浮點格式化本身就要好幾百 bytes。
     // 4KB 時按下 START 會堆疊溢位重開機。
     spawn(task_tes_sm,   "tes_sm",   8192,  12);
-    spawn(task_hal_poll, "hal_poll", 4096,  10);
+    spawn(task_hal_poll, "hal_poll", 6144,  10);   // 6 KB：ESP-NOW 配對的 X25519（mbedTLS ECP）在這裡跑
     spawn(task_display,  "display",  4096,   4);
     spawn(task_network,  "network",  12288,  3);
     spawn(task_ota,      "ota",      16384,  2);
@@ -257,11 +257,15 @@ void app_main(void)
     // psu_driver 會靜默 fallback 回 UART，ESP-NOW 永遠不會生效。
     {
         const charger_config_t *cfg = config_svc_get();
+        uint8_t ltk[32];
+        bool have_ltk = config_svc_get_psu_ltk(ltk);
         psu_driver_set_pair_callback(on_psu_paired);
         esp_err_t r = psu_driver_set_transport(
             (psu_transport_t)cfg->psu_transport,
-            cfg->psu_paired ? cfg->psu_peer_mac : NULL
+            cfg->psu_paired ? cfg->psu_peer_mac : NULL,
+            have_ltk ? ltk : NULL
         );
+        memset(ltk, 0, sizeof ltk);
         if (r != ESP_OK) {
             ESP_LOGE(TAG, "PSU transport init failed: %s — falling back to UART",
                      esp_err_to_name(r));

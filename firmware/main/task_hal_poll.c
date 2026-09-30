@@ -103,24 +103,32 @@ void task_hal_poll(void *arg)
         if (ev_emerg == BTN_SHORT || ev_emerg == BTN_LONG)
             atomic_store(&g_emergency_stop, true);
 
+        // ESP-NOW 配對中：START = 兩邊配對碼相同、STOP = 取消。這時候絕不能
+        // 照平常送進狀態機 —— 使用者看著配對碼按 START，結果是開始充電。
+        bool pairing = psu_driver_pair_wants_buttons();
+        if (pairing) {
+            if (ev_start == BTN_SHORT) psu_driver_pair_user(true);
+            if (ev_stop  == BTN_SHORT) psu_driver_pair_user(false);
+        }
+
         // START: short → SM or menu nav; long/repeat → menu edit coarse adjust only
-        if (ev_start == BTN_SHORT) {
+        if (!pairing && ev_start == BTN_SHORT) {
             if (g_menu_open)
                 send_btn(g_display_btn_queue, EVT_BUTTON_START);
             else
                 send_btn(g_btn_event_queue, EVT_BUTTON_START);
         }
-        if ((ev_start == BTN_LONG || ev_start == BTN_REPEAT) && g_menu_open)
+        if (!pairing && (ev_start == BTN_LONG || ev_start == BTN_REPEAT) && g_menu_open)
             send_btn(g_display_btn_queue, EVT_BUTTON_START_LONG);
 
         // STOP: same pattern as START
-        if (ev_stop == BTN_SHORT) {
+        if (!pairing && ev_stop == BTN_SHORT) {
             if (g_menu_open)
                 send_btn(g_display_btn_queue, EVT_BUTTON_STOP);
             else
                 send_btn(g_btn_event_queue, EVT_BUTTON_STOP);
         }
-        if ((ev_stop == BTN_LONG || ev_stop == BTN_REPEAT) && g_menu_open)
+        if (!pairing && (ev_stop == BTN_LONG || ev_stop == BTN_REPEAT) && g_menu_open)
             send_btn(g_display_btn_queue, EVT_BUTTON_STOP_LONG);
 
         // SETTING: short → quick SOC cycle (status) / confirm (menu)

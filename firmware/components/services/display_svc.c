@@ -13,6 +13,7 @@
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
 #include "services/hwtest_svc.h"
+#include "psu_link/psu_pair.h"
 #include "hal/hal_gpio.h"
 #include "platform/platform.h"
 #include "esp_app_desc.h"
@@ -581,6 +582,96 @@ static void render_status(const tes_snapshot_t *snap)
     display_driver_flush();
 }
 
+// ── ESP-NOW 配對畫面 ───────────────────────────────────────────────────────────
+//
+// 跟藍牙一樣：兩邊螢幕顯示同一組 6 位數，使用者比對後在兩邊都按確認。
+// 配對中這個畫面蓋過一切（包括設定選單）—— 因為 task_hal_poll 此時把
+// START/STOP 當成確認/取消，畫面必須說清楚按鈕現在的意思。
+// 結束後留幾秒顯示結果。狀態值見 psu_link/psu_pair.h。
+#define PAIR_DONE_SHOW_MS  3000u
+#define PAIR_FAIL_SHOW_MS  5000u
+
+static bool render_pair(void)
+{
+    psu_pair_info_t p = psu_driver_pair_info();
+    bool busy = p.state == PSU_PAIR_SEARCHING || p.state == PSU_PAIR_EXCHANGING ||
+                p.state == PSU_PAIR_CONFIRM;
+    bool show_done = p.state == PSU_PAIR_DONE   && p.age_ms < PAIR_DONE_SHOW_MS;
+    bool show_fail = p.state == PSU_PAIR_FAILED && p.age_ms < PAIR_FAIL_SHOW_MS;
+    if (!busy && !show_done && !show_fail && !psu_driver_is_pairing()) return false;
+
+    char buf[28];
+    display_driver_clear();
+    display_driver_set_color(1);
+    display_driver_font_bold();
+
+    if (p.state == PSU_PAIR_CONFIRM) {
+        display_driver_draw_str(0, 12, "PSU PAIRING");
+        display_driver_draw_hline(0, 15, 128);
+        // 大號配對碼，分兩半畫（字型只有數字，不依賴空白字元）
+        char a[8], b[8];
+        snprintf(a, sizeof a, "%03lu", (unsigned long)((p.code / 1000u) % 1000u));
+        snprintf(b, sizeof b, "%03lu", (unsigned long)(p.code % 1000u));
+        display_driver_font_digits();
+        int wa = display_driver_str_width(a), wb = display_driver_str_width(b);
+        int x = (128 - (wa + 10 + wb)) / 2;
+        display_driver_draw_str(x, 40, a);
+        display_driver_draw_str(x + wa + 10, 40, b);
+        display_driver_font_small();
+        if (p.local_ok) {
+            display_driver_draw_str(0, 52, "Waiting for the PSU...");
+            display_driver_draw_str(0, 62, "STOP = cancel");
+        } else {
+            display_driver_draw_str(0, 52, "Same code on the PSU?");
+            display_driver_draw_str(0, 62, "START = yes   STOP = no");
+        }
+    } else if (busy || psu_driver_is_pairing()) {
+        display_driver_draw_str(0, 12, "PSU PAIRING");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 29, p.state == PSU_PAIR_EXCHANGING ? "PSU found..." : "Searching...");
+        display_driver_font_small();
+        if (p.legacy_seen) {
+            // 收到舊版 LianMing 的純文字配對：它不會做新流程，一定配不起來
+            display_driver_draw_str(0, 41, "PSU firmware too old!");
+            display_driver_draw_str(0, 51, "Update the PSU first");
+        } else {
+            display_driver_draw_str(0, 41, "Start pairing on PSU");
+        }
+        display_driver_draw_str(0, 62, "STOP = cancel");
+    } else if (show_done) {
+        display_driver_draw_str(0, 12, "PAIRED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, "PSU linked securely");
+        display_driver_font_small();
+        snprintf(buf, sizeof buf, "PSU %02X:%02X:%02X:%02X:%02X:%02X",
+                 p.peer_mac[0], p.peer_mac[1], p.peer_mac[2],
+                 p.peer_mac[3], p.peer_mac[4], p.peer_mac[5]);
+        display_driver_draw_str(0, 44, buf);
+    } else {
+        const char *why;
+        switch (p.fail) {
+        case PSU_PAIR_FAIL_TIMEOUT:     why = "Timed out";            break;
+        case PSU_PAIR_FAIL_USER_REJECT: why = "Cancelled";            break;
+        case PSU_PAIR_FAIL_PEER_REJECT: why = "Cancelled on PSU";     break;
+        case PSU_PAIR_FAIL_COMMIT:
+        case PSU_PAIR_FAIL_CONFIRM:     why = "Security check fail";  break;
+        default:                        why = "Error";                break;
+        }
+        display_driver_draw_str(0, 12, "PAIRING FAILED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, why);
+        display_driver_font_small();
+        display_driver_draw_str(0, 44, "Nothing was saved");
+        if (p.fail == PSU_PAIR_FAIL_COMMIT || p.fail == PSU_PAIR_FAIL_CONFIRM)
+            display_driver_draw_str(0, 54, "Retry away from others");
+    }
+    display_driver_flush();
+    return true;
+}
+
 // ── 工作台測試模式畫面 ─────────────────────────────────────────────────────────
 //
 // 測試中，繼電器與 LED 由網頁 /hw 手動控制 —— 站在機器前的人必須看得出來，
@@ -808,6 +899,8 @@ void display_svc_tick(void)
     led_driver_tick();
 
     if (!display_driver_is_ok()) return;
+
+    if (render_pair()) return;   // 配對中蓋過選單：按鈕此時是確認／取消
 
     switch (s_screen) {
     case DISP_SCREEN_STATUS:

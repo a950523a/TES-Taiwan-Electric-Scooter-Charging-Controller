@@ -16,6 +16,7 @@ void display_driver_font_small  (void);  // 5x8 or 6x10
 void display_driver_font_medium (void);  // 8pt
 void display_driver_font_large  (void);  // 10-12pt
 void display_driver_font_bold   (void);  // 7x13B
+void display_driver_font_digits (void);  // 大號數字（logisoso20，只有數字）
 
 // 繪圖
 void     display_driver_set_color  (uint8_t color);            // 0=clear 1=set 2=XOR

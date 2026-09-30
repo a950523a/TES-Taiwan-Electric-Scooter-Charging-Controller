@@ -41,15 +41,33 @@ typedef struct {
     uint32_t rx_frames;       // 解碼成功的訊框
     uint32_t rx_crc_errors;   // CRC 錯誤 —— 持續上升代表線路雜訊或鮑率不對
     uint32_t rx_bad_frames;   // CRC 對但內容不認得（類型或欄位不對，多半是版本不一致）
+
+    // ── ESP-NOW 連線驗證（UART 不用；見 psu_link/psu_sess.h）─────────────────
+    bool     link_auth;       // 已跟配對的節點完成握手，訊框驗證中
+    bool     needs_repair;    // 有舊版配對（只有 MAC、沒有金鑰）—— 必須重新配對
+    uint32_t auth_rejects;    // 被擋下的訊框：驗證碼不符、重送、沒帶驗證碼的偽造
 } psu_status_t;
+
+// 配對進度，給 OLED 與網頁顯示（值見 psu_link/psu_pair.h）
+typedef struct {
+    uint8_t  state;           // psu_pair_state_t；PSU_PAIR_IDLE = 沒在配對
+    uint8_t  fail;            // psu_pair_fail_t
+    uint32_t code;            // CONFIRM / DONE 時有效，顯示成 6 位數
+    bool     local_ok;        // 這邊已按確認
+    bool     peer_ok;         // PSU 那邊已按確認
+    bool     legacy_seen;     // 收到舊版 PSU 的純文字 PSU_HELLO —— PSU 韌體要更新
+    uint8_t  peer_mac[6];
+    uint32_t age_ms;          // 距離進入目前狀態多久（DONE / FAILED 顯示幾秒後收起來）
+} psu_pair_info_t;
 
 typedef enum {
     PSU_TRANSPORT_UART   = 0,   // 有線 UART（預設）
     PSU_TRANSPORT_ESPNOW = 1,   // 無線 ESP-NOW
 } psu_transport_t;
 
-// 配對完成時的回呼，peer_mac 為 PSU 的 MAC 地址（6 bytes）
-typedef void (*psu_pair_done_cb_t)(const uint8_t peer_mac[6]);
+// 配對完成時的回呼：peer_mac 為 PSU 的 MAC，ltk 為配對算出的長期金鑰（32 B）。
+// 兩者都要存進 NVS；ltk 是秘密，不可出現在任何對外介面。
+typedef void (*psu_pair_done_cb_t)(const uint8_t peer_mac[6], const uint8_t ltk[32]);
 
 esp_err_t    psu_driver_init        (void);
 void         psu_driver_poll        (void);   // 非阻塞，由 task_hal_poll 每 tick（10 ms）呼叫
@@ -63,15 +81,27 @@ bool psu_driver_can_set_voltage(void);
 bool psu_driver_can_set_current(void);
 
 // 在 network_svc_init() 之後呼叫（ESP-NOW 需要 WiFi 已啟動）
-// peer_mac_6 = NULL 表示尚未配對
-esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6);
+// peer_mac_6 = NULL 表示尚未配對。ltk_32 = NULL 而有 peer_mac 表示舊版配對：
+// 沒有金鑰就無法驗證，視同未配對，status.needs_repair 會是 true。
+esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6,
+                                   const uint8_t *ltk_32);
 
 // 設定配對完成的持久回呼（會在每次配對成功時呼叫）
 void psu_driver_set_pair_callback(psu_pair_done_cb_t cb);
 
-// 啟動 10 秒配對視窗；cb 可為 NULL（使用已設定的持久回呼）
+// 開始配對（數字比對，見 psu_link/psu_pair.h）。可從任何任務呼叫 —— 只是
+// 送出要求，實際在 psu_driver_poll() 裡啟動。cb 可為 NULL（沿用持久回呼）。
 void psu_driver_start_pairing(psu_pair_done_cb_t cb);
 bool psu_driver_is_pairing(void);
+
+// 使用者對配對碼的回應：accept = 兩邊數字相同。配對碼出來之前傳 false = 取消。
+// 可從任何任務呼叫（網頁、按鈕）。
+void psu_driver_pair_user(bool accept);
+
+// 配對進行中：START／STOP 必須當成「確認／取消」，不可送進狀態機
+bool psu_driver_pair_wants_buttons(void);
+
+psu_pair_info_t psu_driver_pair_info(void);
 
 // ESP-NOW 專用：是否已有已配對的 peer（transport=UART 時永遠回傳 false）
 bool psu_driver_has_peer(void);

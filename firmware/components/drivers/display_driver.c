@@ -99,6 +99,8 @@ void display_driver_font_small (void) { u8g2_SetFont(&s_u8g2, u8g2_font_5x8_tr);
 void display_driver_font_medium(void) { u8g2_SetFont(&s_u8g2, u8g2_font_6x10_tr); }
 void display_driver_font_large (void) { u8g2_SetFont(&s_u8g2, u8g2_font_8x13_tr); }
 void display_driver_font_bold  (void) { u8g2_SetFont(&s_u8g2, u8g2_font_7x13B_tr); }
+// 大號數字（約 20 px 高），只有數字與少數符號 —— 配對碼用
+void display_driver_font_digits(void) { u8g2_SetFont(&s_u8g2, u8g2_font_logisoso20_tn); }
 
 void display_driver_set_color(uint8_t color)
 {

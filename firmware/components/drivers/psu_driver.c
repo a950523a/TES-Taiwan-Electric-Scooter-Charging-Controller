@@ -1,10 +1,14 @@
 #include "drivers/psu_driver.h"
 #include "hal/hal_uart.h"
+#include "psu_link/psu_pair.h"
+#include "psu_link/psu_sess.h"
+#include "psu_link/psu_crypto_mbedtls.h"
 #include "esp_log.h"
 #include "esp_now.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include <string.h>
 
 #define PSU_UART_TIMEOUT_TICKS    300   // 300 × 10ms = 3s   (UART，有線可寬鬆)
@@ -13,7 +17,7 @@
 #define PSU_SET_MIN_TICKS          50   //  50 × 10ms = 500ms：同值 SET 最短發送間隔（UART 與 ESP-NOW 共用）
 #define PSU_HELLO_INTERVAL_TICKS  100   // 100 × 10ms = 1s：已連線但還不知道節點能力時，多久問一次
 #define PSU_ESPNOW_RSSI_WARN      -80   // dBm，低於此值印 LOGW
-#define PAIRING_TIMEOUT_TICKS    1000   // 1000 × 10ms = 10s pairing window
+#define PAIR_LINGER_TICKS         300   // 配對結束後再處理 3 s 的訊息：對方可能還在等最後一則確認
 
 static const char *TAG = "psu_driver";
 
@@ -40,7 +44,7 @@ static bool s_rx_discard = false;   // 行太長：丟到下一個 '\n' 為止�
 // ── ESP-NOW state ─────────────────────────────────────────────────────────────
 
 typedef struct {
-    char    data[PSU_LINK_MAX_LINE];
+    char    data[PSU_LINK_MAX_AUTH_LINE];
     int     len;
     uint8_t src_mac[6];
 } espnow_rx_item_t;
@@ -48,9 +52,33 @@ typedef struct {
 static QueueHandle_t      s_espnow_rx_q = NULL;
 static bool               s_has_peer    = false;
 static uint8_t            s_peer_mac[6] = {0};
-static volatile bool      s_pairing     = false;
-static uint32_t           s_pairing_end = 0;
 static psu_pair_done_cb_t s_pair_cb     = NULL;
+
+// ── ESP-NOW 配對與連線驗證 ──────────────────────────────────────────────────────
+//
+// 無線上任何人都能送封包，所以配對的節點送來的每一行都要驗證（psu_sess），
+// 沒帶驗證碼的只接受配對與握手訊息。為什麼不用 ESP-NOW 自己的加密：它擋不住
+// 偽造 —— 裝置照樣收未加密的單播，回呼也分不出來。見 psu_link/psu_sess.h。
+//
+// s_sess 會被兩個任務碰：task_hal_poll（收、握手）與 task_tes_sm（送 SET 時加尾碼）。
+// 用 mutex 不用 portMUX：HMAC 要幾十 µs，不適合關中斷。送出也在鎖內，
+// 否則計數器 5、6 可能以 6、5 的順序送出，5 就被當成重送丟掉。
+static SemaphoreHandle_t s_link_lock;
+static psu_sess_t        s_sess;
+static bool              s_sess_on;        // 有配對金鑰，驗證生效中
+static bool              s_needs_repair;   // NVS 裡只有舊版配對的 MAC
+
+// 配對狀態機只在 task_hal_poll 裡跑；其他任務只送要求
+static psu_pair_t        s_pair;
+static bool              s_pair_on;        // 配對中，或剛結束、還在收尾
+static uint32_t          s_pair_state_ticks;
+static uint8_t           s_pair_last_state;
+static bool              s_legacy_seen;
+static volatile bool     s_pair_start_req;
+static volatile uint8_t  s_pair_user_req;  // 0 = 無、1 = 確認、2 = 取消
+static psu_pair_info_t   s_pair_info;      // 給 OLED／網頁，在 s_status_mux 下讀寫
+
+static uint32_t now_ms(void) { return s_poll_ticks * 10u; }
 
 // ESP-NOW 品質追蹤
 static volatile uint8_t  s_send_fail_streak = 0;   // 連續 MAC-ACK 失敗次數（WiFi task 寫）
@@ -91,20 +119,35 @@ static void link_alive(void)
     s_last_valid_ticks = s_poll_ticks;
 }
 
-static void send_line(const char *buf, size_t len)
-{
-    if (s_transport == PSU_TRANSPORT_ESPNOW) {
-        if (s_has_peer) esp_now_send(s_peer_mac, (const uint8_t *)buf, len);
-    } else {
-        hal_uart_psu_write((const uint8_t *)buf, len);
-    }
-}
+static void add_peer(const uint8_t *mac);
 
+// 一般訊息（HELO、SET）。ESP-NOW 上一律加驗證尾碼；還沒握手完成就不送 ——
+// 節點反正會丟掉沒驗證的訊息，送了只是佔頻寬。
 static void send_msg(const psu_msg_t *m)
 {
     char buf[PSU_LINK_MAX_LINE];
     size_t n = psu_link_encode(m, buf, sizeof buf);
-    if (n > 0) send_line(buf, n);
+    if (n == 0) return;
+    if (s_transport != PSU_TRANSPORT_ESPNOW) {
+        hal_uart_psu_write((const uint8_t *)buf, n);
+        return;
+    }
+    if (!s_sess_on || !s_link_lock) return;
+    if (xSemaphoreTake(s_link_lock, pdMS_TO_TICKS(5)) != pdTRUE) return;   // SET 會在 500 ms 內重送
+    char out[PSU_LINK_MAX_AUTH_LINE];
+    size_t w = psu_sess_wrap(&s_sess, buf, n, out, sizeof out);
+    if (w > 0) esp_now_send(s_peer_mac, (const uint8_t *)out, w);
+    xSemaphoreGive(s_link_lock);
+}
+
+// 配對與握手訊息：不帶驗證尾碼（它們本身就是建立驗證的過程）
+static void send_plain(const uint8_t *dest, const psu_msg_t *m)
+{
+    char buf[PSU_LINK_MAX_LINE];
+    size_t n = psu_link_encode(m, buf, sizeof buf);
+    if (n == 0) return;
+    add_peer(dest);
+    esp_now_send(dest, (const uint8_t *)buf, n);
 }
 
 // ── Incoming messages ─────────────────────────────────────────────────────────
@@ -197,13 +240,60 @@ static void handle_line(const char *line, size_t len)
     }
 }
 
+static void count_reject(void)
+{
+    taskENTER_CRITICAL(&s_status_mux);
+    s_status.auth_rejects++;
+    taskEXIT_CRITICAL(&s_status_mux);
+}
+
+// ESP-NOW 收到的一行。配對的節點送來、驗證通過的才交給 handle_line()；
+// 沒帶驗證碼的只接受配對與握手訊息 —— 其餘的正是冒用 MAC 的偽造。
+static void handle_espnow_line(const char *line, size_t len, const uint8_t src[6])
+{
+    bool from_peer = s_has_peer && memcmp(src, s_peer_mac, 6) == 0;
+    size_t inner = 0;
+    psu_sess_result_t r = PSU_SESS_PLAIN;
+
+    xSemaphoreTake(s_link_lock, portMAX_DELAY);
+    if (s_sess_on && from_peer) r = psu_sess_unwrap(&s_sess, line, len, &inner, now_ms());
+    xSemaphoreGive(s_link_lock);
+
+    if (r == PSU_SESS_OK) { handle_line(line, inner); return; }
+    if (r != PSU_SESS_PLAIN) { count_reject(); return; }   // 驗不過、重送、還沒握手
+
+    psu_msg_t m;
+    if (psu_link_decode(line, len, &m) != PSU_LINK_OK) {
+        // 舊版 LianMing 韌體的純文字配對廣播：提示使用者更新 PSU
+        if (s_pair_on && len >= 9 && memcmp(line, "PSU_HELLO", 9) == 0) s_legacy_seen = true;
+        return;
+    }
+    switch (m.type) {
+    case PSU_MSG_SESS_INIT: case PSU_MSG_SESS_REPLY:
+    case PSU_MSG_SESS_FINISH: case PSU_MSG_SESS_REQUEST:
+        if (s_sess_on && from_peer) {
+            xSemaphoreTake(s_link_lock, portMAX_DELAY);
+            psu_sess_rx(&s_sess, &m, now_ms());
+            xSemaphoreGive(s_link_lock);
+        }
+        return;
+    case PSU_MSG_PAIR_KEY: case PSU_MSG_PAIR_COMMIT: case PSU_MSG_PAIR_NONCE:
+    case PSU_MSG_PAIR_CONFIRM: case PSU_MSG_PAIR_REJECT:
+        if (s_pair_on) psu_pair_rx(&s_pair, &m, src, now_ms());
+        return;
+    default:
+        if (from_peer) count_reject();   // 沒有驗證碼的 ST／ACK／CAP：不收
+        return;
+    }
+}
+
 // 一個 ESP-NOW 封包可能帶不只一行
-static void handle_datagram(const char *data, int len)
+static void handle_datagram(const char *data, int len, const uint8_t src[6])
 {
     int start = 0;
     for (int i = 0; i <= len; i++) {
         if (i == len || data[i] == '\n') {
-            if (i > start) handle_line(data + start, (size_t)(i - start));
+            if (i > start) handle_espnow_line(data + start, (size_t)(i - start), src);
             start = i + 1;
         }
     }
@@ -239,7 +329,7 @@ static void espnow_send_cb(const esp_now_send_info_t *tx_info, esp_now_send_stat
 static void espnow_recv_cb(const esp_now_recv_info_t *recv_info,
                            const uint8_t *data, int data_len)
 {
-    if (data_len <= 0 || data_len > (int)PSU_LINK_MAX_LINE - 1 || !s_espnow_rx_q) return;
+    if (data_len <= 0 || data_len > (int)PSU_LINK_MAX_AUTH_LINE - 1 || !s_espnow_rx_q) return;
     // 記錄 RSSI
     if (recv_info->rx_ctrl) s_last_rssi = (int8_t)recv_info->rx_ctrl->rssi;
     espnow_rx_item_t item;
@@ -274,36 +364,131 @@ static void poll_uart(void)
     }
 }
 
+static void pair_start(void)
+{
+    // PSU 廣播固定在 channel 1。只有在未連上 AP 時才切換 channel ——
+    // STA 已連線時 esp_wifi_set_channel() 會被 AP 的 channel 覆寫，
+    // 而且強行切換會打斷現有連線（Web UI / MQTT 全斷）。
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        ESP_LOGW(TAG, "pairing while STA connected on ch%u — "
+                      "PSU must broadcast on the same channel", (unsigned)ap.primary);
+    } else {
+        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+        ESP_LOGI(TAG, "switched to ch1 for pairing");
+    }
+
+    // ESP-NOW 從 STA 介面送出，節點看到的來源位址就是這個 MAC；
+    // 兩邊推導金鑰時都要用對方「看到的」MAC，對不上金鑰確認就會失敗。
+    uint8_t mac[6];
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    psu_pair_start(&s_pair, PSU_ROLE_CONTROLLER, mac, psu_crypto_mbedtls(), now_ms());
+    s_pair_on     = true;
+    s_legacy_seen = false;
+    ESP_LOGI(TAG, "ESP-NOW pairing started — waiting for a PSU in pairing mode");
+}
+
+static void pair_apply(void)
+{
+    if (s_has_peer && memcmp(s_peer_mac, s_pair.peer_mac, 6) != 0) esp_now_del_peer(s_peer_mac);
+    memcpy(s_peer_mac, s_pair.peer_mac, 6);
+    s_has_peer     = true;
+    s_needs_repair = false;
+    add_peer(s_peer_mac);
+
+    xSemaphoreTake(s_link_lock, portMAX_DELAY);
+    psu_sess_init(&s_sess, PSU_ROLE_CONTROLLER, s_pair.ltk, psu_crypto_mbedtls(), now_ms());
+    s_sess_on = true;
+    xSemaphoreGive(s_link_lock);
+    link_down();   // 新的節點從頭來：先握手，再等它的 CAP / ST
+
+    ESP_LOGI(TAG, "PSU paired (code %06lu): %02X:%02X:%02X:%02X:%02X:%02X",
+             (unsigned long)s_pair.code, s_peer_mac[0], s_peer_mac[1], s_peer_mac[2],
+             s_peer_mac[3], s_peer_mac[4], s_peer_mac[5]);
+    if (s_pair_cb) s_pair_cb(s_peer_mac, s_pair.ltk);
+}
+
+static const char *pair_fail_name(uint8_t f)
+{
+    switch (f) {
+    case PSU_PAIR_FAIL_TIMEOUT:     return "timeout";
+    case PSU_PAIR_FAIL_USER_REJECT: return "cancelled here";
+    case PSU_PAIR_FAIL_PEER_REJECT: return "cancelled on the PSU";
+    case PSU_PAIR_FAIL_COMMIT:      return "commitment mismatch (possible man-in-the-middle)";
+    case PSU_PAIR_FAIL_CONFIRM:     return "key confirmation mismatch (possible man-in-the-middle)";
+    case PSU_PAIR_FAIL_CRYPTO:      return "crypto error";
+    default:                        return "?";
+    }
+}
+
+static void pair_step(void)
+{
+    if (s_pair_start_req) {
+        s_pair_start_req = false;
+        pair_start();
+    }
+    uint8_t u = s_pair_user_req;
+    if (u) {
+        s_pair_user_req = 0;
+        if (s_pair_on) psu_pair_user(&s_pair, u == 1, now_ms());
+    }
+    if (!s_pair_on) return;
+
+    psu_msg_t m;
+    bool bcast;
+    while (psu_pair_poll(&s_pair, now_ms(), &m, &bcast))
+        send_plain(bcast ? BCAST_MAC : s_pair.peer_mac, &m);
+
+    if (s_pair.state != s_pair_last_state) {
+        s_pair_last_state  = s_pair.state;
+        s_pair_state_ticks = s_poll_ticks;
+        if (s_pair.state == PSU_PAIR_CONFIRM)
+            ESP_LOGI(TAG, "pairing code %06lu — confirm on both devices", (unsigned long)s_pair.code);
+        else if (s_pair.state == PSU_PAIR_DONE)
+            pair_apply();
+        else if (s_pair.state == PSU_PAIR_FAILED)
+            ESP_LOGW(TAG, "pairing failed: %s", pair_fail_name(s_pair.fail));
+    }
+    if (!psu_pair_busy(&s_pair) && s_poll_ticks - s_pair_state_ticks >= PAIR_LINGER_TICKS) {
+        s_pair_on = false;
+        memset(s_pair.ltk, 0, sizeof s_pair.ltk);   // 已存進 s_sess 與 NVS
+    }
+}
+
+static void pair_publish(void)
+{
+    psu_pair_info_t i = {
+        .state       = s_pair.state,
+        .fail        = s_pair.fail,
+        .code        = s_pair.code,
+        .local_ok    = s_pair.local_ok,
+        .peer_ok     = s_pair.peer_ok,
+        .legacy_seen = s_legacy_seen,
+        .age_ms      = (s_poll_ticks - s_pair_state_ticks) * 10u,
+    };
+    memcpy(i.peer_mac, s_pair.peer_mac, 6);
+    taskENTER_CRITICAL(&s_status_mux);
+    s_pair_info = i;
+    taskEXIT_CRITICAL(&s_status_mux);
+}
+
 static void poll_espnow(void)
 {
     if (!s_espnow_rx_q) return;
 
     espnow_rx_item_t item;
-    while (xQueueReceive(s_espnow_rx_q, &item, 0) == pdTRUE) {
-        if (s_pairing) {
-            if (strncmp(item.data, "PSU_HELLO", 9) == 0) {
-                memcpy(s_peer_mac, item.src_mac, 6);
-                s_has_peer = true;
-                s_pairing  = false;
-                add_peer(s_peer_mac);
-                // PSU learns TES MAC from the Src MAC of this reply (any payload works)
-                const char reply[] = "TES_HELLO\n";
-                esp_now_send(s_peer_mac, (const uint8_t *)reply, sizeof(reply) - 1);
-                ESP_LOGI(TAG, "PSU paired: %02X:%02X:%02X:%02X:%02X:%02X",
-                         s_peer_mac[0], s_peer_mac[1], s_peer_mac[2],
-                         s_peer_mac[3], s_peer_mac[4], s_peer_mac[5]);
-                if (s_pair_cb) s_pair_cb(s_peer_mac);
-            }
-            continue;
-        }
-        if (!s_has_peer || memcmp(item.src_mac, s_peer_mac, 6) != 0) continue;
-        handle_datagram(item.data, item.len);
-    }
+    while (xQueueReceive(s_espnow_rx_q, &item, 0) == pdTRUE)
+        handle_datagram(item.data, item.len, item.src_mac);
 
-    // 配對逾時
-    if (s_pairing && s_poll_ticks >= s_pairing_end) {
-        s_pairing = false;
-        ESP_LOGW(TAG, "ESP-NOW pairing timed out");
+    pair_step();
+    pair_publish();
+
+    // 握手訊息（SH1 重送、SH3）。在鎖內送：跟 send_msg() 的計數器順序一致
+    if (s_sess_on) {
+        psu_msg_t m;
+        xSemaphoreTake(s_link_lock, portMAX_DELAY);
+        while (psu_sess_poll(&s_sess, now_ms(), &m)) send_plain(s_peer_mac, &m);
+        xSemaphoreGive(s_link_lock);
     }
 
     // 連續 MAC-ACK 失敗 → 立即斷線（不等 timeout）
@@ -332,7 +517,8 @@ esp_err_t psu_driver_init(void)
     return ESP_OK;   // UART already initialised by hal_uart_psu_init()
 }
 
-esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
+esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6,
+                                   const uint8_t *ltk_32)
 {
     if (t != PSU_TRANSPORT_ESPNOW) {
         s_transport = PSU_TRANSPORT_UART;
@@ -340,8 +526,9 @@ esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
     }
     // pair_cb 若已由外部設定則保留，否則等 start_pairing() 時再設定
 
+    s_link_lock = xSemaphoreCreateMutex();
     s_espnow_rx_q = xQueueCreate(8, sizeof(espnow_rx_item_t));
-    if (!s_espnow_rx_q) return ESP_ERR_NO_MEM;
+    if (!s_espnow_rx_q || !s_link_lock) return ESP_ERR_NO_MEM;
 
     esp_err_t r = esp_now_init();
     if (r != ESP_OK) {
@@ -357,13 +544,19 @@ esp_err_t psu_driver_set_transport(psu_transport_t t, const uint8_t *peer_mac_6)
     // 廣播 peer — 配對時接收 PSU_HELLO 廣播封包
     add_peer(BCAST_MAC);
 
-    if (peer_mac_6) {
+    if (peer_mac_6 && ltk_32) {
         memcpy(s_peer_mac, peer_mac_6, 6);
         s_has_peer = true;
         add_peer(s_peer_mac);
+        psu_sess_init(&s_sess, PSU_ROLE_CONTROLLER, ltk_32, psu_crypto_mbedtls(), now_ms());
+        s_sess_on = true;
         ESP_LOGI(TAG, "ESP-NOW transport ready, peer: %02X:%02X:%02X:%02X:%02X:%02X",
                  s_peer_mac[0], s_peer_mac[1], s_peer_mac[2],
                  s_peer_mac[3], s_peer_mac[4], s_peer_mac[5]);
+    } else if (peer_mac_6) {
+        // 舊版配對只存了 MAC：沒有金鑰就無法驗證任何一則訊息，只能當成沒配對
+        s_needs_repair = true;
+        ESP_LOGW(TAG, "ESP-NOW: stored pairing predates link authentication — pair the PSU again");
     } else {
         ESP_LOGI(TAG, "ESP-NOW transport ready, no peer yet — awaiting pairing");
     }
@@ -386,27 +579,36 @@ void psu_driver_start_pairing(psu_pair_done_cb_t cb)
         return;
     }
     if (cb) s_pair_cb = cb;   // 覆蓋；NULL 表示沿用已設定的持久回呼
+    s_pair_start_req = true;  // task_hal_poll 的 psu_driver_poll() 裡才真正開始
+}
 
-    // PSU 廣播固定在 channel 1。只有在未連上 AP 時才切換 channel ——
-    // STA 已連線時 esp_wifi_set_channel() 會被 AP 的 channel 覆寫，
-    // 而且強行切換會打斷現有連線（Web UI / MQTT 全斷）。
-    wifi_ap_record_t ap;
-    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
-        ESP_LOGW(TAG, "pairing while STA connected on ch%u — "
-                      "PSU must broadcast on the same channel", (unsigned)ap.primary);
-    } else {
-        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
-        ESP_LOGI(TAG, "switched to ch1 for pairing");
-    }
+psu_pair_info_t psu_driver_pair_info(void)
+{
+    psu_pair_info_t i;
+    taskENTER_CRITICAL(&s_status_mux);
+    i = s_pair_info;
+    taskEXIT_CRITICAL(&s_status_mux);
+    return i;
+}
 
-    s_pairing     = true;
-    s_pairing_end = s_poll_ticks + PAIRING_TIMEOUT_TICKS;
-    ESP_LOGI(TAG, "ESP-NOW pairing started (10s window)");
+static bool pair_busy_state(uint8_t st)
+{
+    return st == PSU_PAIR_SEARCHING || st == PSU_PAIR_EXCHANGING || st == PSU_PAIR_CONFIRM;
 }
 
 bool psu_driver_is_pairing(void)
 {
-    return s_pairing;
+    return s_pair_start_req || pair_busy_state(psu_driver_pair_info().state);
+}
+
+bool psu_driver_pair_wants_buttons(void)
+{
+    return psu_driver_is_pairing();
+}
+
+void psu_driver_pair_user(bool accept)
+{
+    s_pair_user_req = accept ? 1 : 2;
 }
 
 bool psu_driver_has_peer(void)
@@ -513,8 +715,10 @@ psu_status_t psu_driver_get_status(void)
     taskEXIT_CRITICAL(&s_status_mux);
     st.status_age_ms = s_have_st ? (s_poll_ticks - s_last_st_ticks) * 10u : UINT32_MAX;
     if (s_transport == PSU_TRANSPORT_ESPNOW) {
-        st.rssi        = s_last_rssi;
-        st.fail_streak = s_send_fail_streak;
+        st.rssi         = s_last_rssi;
+        st.fail_streak  = s_send_fail_streak;
+        st.link_auth    = s_sess_on && psu_sess_ready(&s_sess);
+        st.needs_repair = s_needs_repair;
     }
     return st;
 }

@@ -241,7 +241,7 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 |------|----------|-------|--------|------|
 | `task_can_rx` | 15 | **4 KB** | event | TWAI receive -> raw queue + `can_driver_service()` |
 | `task_tes_sm` | 12 | **8 KB** | 10 ms | SM tick + output execution + snapshot update |
-| `task_hal_poll` | 10 | 4 KB | 10 ms | button debounce + ADC + PSU UART poll |
+| `task_hal_poll` | 10 | **6 KB** | 10 ms | button debounce + ADC + PSU poll (incl. ESP-NOW pairing crypto) |
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
@@ -1019,12 +1019,46 @@ talking, so an empty UART stays silent.
 - `PSU_TRANSPORT_UART=0`: UART pins 43/44, always available
 - `PSU_TRANSPORT_ESPNOW=1`: wireless, PSU also uses ESP32; init after `network_svc_init()`
 
-**ESP-NOW pairing flow:**
-1. PSU enters pairing mode → broadcasts `"PSU_HELLO\n"` every 500 ms
-2. TES enters pairing mode (`POST /psu/pair` or button combo)
-3. TES receives `PSU_HELLO` → saves sender MAC to NVS (`psu_mac` blob) → adds as peer
-4. Both sides use stored MAC for all subsequent communication
-5. Pairing window = 10 s; timeout logs warning and clears pairing flag
+**ESP-NOW pairing and link authentication (2026-09-30, on `dev`, not hardware-tested).**
+The old flow — TES saved the MAC of the first `PSU_HELLO` it heard, nobody confirmed
+anything — could pair with the wrong unit, and nothing stopped a forged `$SET`. Both
+halves now live in the PSU-Link submodule (`psu_pair`, `psu_sess`; design and attack
+tests there), shared with the LianMing PSU Controller:
+
+1. **Pairing = Bluetooth-style numeric comparison.** `POST /psu/pair` (IDLE only — X25519
+   runs in `task_hal_poll` for tens of ms, and START/STOP are repurposed) starts it; the
+   PSU broadcasts its X25519 key, TES replies, the PSU commits to its nonce before seeing
+   TES's, and both derive the same **6-digit code**. OLED shows it large (`render_pair()`
+   in `display_svc`, overriding even the settings menu) and `/control` pops a dialog.
+   The user confirms on **both** devices: TES by START (STOP = cancel) or the dialog's
+   button (`POST /psu/pair/confirm`), the PSU on its own buttons. Only then do both
+   store the peer MAC and a 32-byte long-term key. A wrong unit or a man in the middle
+   shows a different number; the commitment keeps an attacker's odds at 10⁻⁶.
+2. **Every ESP-NOW frame is authenticated.** ESP-NOW's own LMK encryption does not stop
+   forgery — broadcast and unencrypted unicast are always delivered and the callback
+   cannot tell them apart — so it is not used. Instead a 3-message handshake derives a
+   fresh connection key from the LTK each time either side starts, and every line
+   carries `~<counter><HMAC tag>`. `handle_espnow_line()` in `psu_driver.c` passes only
+   verified lines on; without a tag it accepts only pairing and handshake messages.
+   Forged, altered, reflected and replayed frames are dropped and counted
+   (`psu_status_t.auth_rejects`). UART is a wire and is not authenticated.
+
+`s_sess` is shared between `task_hal_poll` (receive, handshake) and `task_tes_sm` (SET),
+so it sits behind a mutex; sending happens inside the lock so counters leave in order.
+`task_hal_poll`'s stack went 4 → 6 KB for mbedTLS ECP.
+
+**Breaking change, by decision:** a TES on this firmware only pairs with a LianMing
+running the matching firmware, and an existing pairing (MAC only, no key) becomes
+`needs_repair` — the UI says so and asks for a re-pair. Acceptable because ESP-NOW has
+not shipped on `main`; nobody in the field depends on the old flow. A legacy
+`PSU_HELLO` seen during pairing is reported as "PSU firmware too old".
+
+**To verify on hardware:** both screens show the same code; confirming on one side
+alone times out after 60 s with nothing stored; the MAC the PSU sees for TES matches
+`esp_wifi_get_mac(WIFI_IF_STA)` (otherwise key confirmation fails — safe, but pairing
+never completes); after pairing, `auth_rejects` stays 0 and `link_auth` is true;
+rebooting either side re-establishes the link within ~2 s; `hal_poll` stack headroom
+during pairing.
 
 **ESP-NOW init constraint:** `psu_driver_set_transport()` must be called after `network_svc_init()` (ESP-NOW needs WiFi driver started). In `main.c`, called immediately after `network_svc_init()`.
 
@@ -1051,6 +1085,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
 | `mqtt_cmd` | bool | **true** | 允許透過 MQTT 遠端啟停。false = 只發佈狀態、不訂閱 cmd。預設 true 是相容考量，見 Security 一節 |
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
+| `psu_ltk` | blob[32] | — | ESP-NOW 配對的長期金鑰。**秘密**：不進 `charger_config_t`（那個結構會被 `GET /config` 整包送出），只經 `config_svc_get_psu_ltk()` 讀。有 `psu_mac` 沒有 `psu_ltk` = 舊版配對，需重新配對 |
 | `sta_en` | bool | **true** | false = 固定 AP 模式但保留 SSID／密碼。預設必須為 true，否則 OTA 上來的舊機器會全部掉進 AP 模式 |
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
@@ -1415,8 +1450,9 @@ is deliberately not, and why.
 
 ### Implemented
 
-**CSRF protection.** The eight state-changing endpoints (`POST /config`, `/start`,
-`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`, `/hw/test`) require an
+**CSRF protection.** The nine state-changing endpoints (`POST /config`, `/start`,
+`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`, `/psu/pair/confirm`,
+`/hw/test`) require an
 `X-TES-Request` header; `csrf_ok()` in `network_svc.c` rejects the rest with 403.
 
 Why a header works: a custom header forces the browser to send a CORS preflight, and
@@ -1675,7 +1711,8 @@ shows 離線 without affecting the others.
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
 | POST | `/notify/test` | Send test push notification |
-| POST | `/psu/pair` | Start 10 s ESP-NOW pairing window (requires psu_transport=1) |
+| POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
+| POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
 | GET | `/mqtt/link` | Cloud PWA URL with broker/topic fragment |
 | GET | `/hw` | Hardware status page (board drawing + live pin/ADC/PSU/CAN/system state) |
 | GET | `/hw.json` | Data for `/hw`, polled every 500 ms |
@@ -1684,7 +1721,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 28`; currently 23 handlers registered
+- `max_uri_handlers = 28`; currently 24 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
