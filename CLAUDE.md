@@ -78,13 +78,30 @@ or neither.**
 Staying on 5.5.x rather than 6.x is a deliberate call, not inertia — see
 **Why not ESP-IDF 6.x** below.
 
-**Build environment (PowerShell, Windows):** ESP-IDF is a git checkout at
-`C:\Users\user\esp\v5.5.5\esp-idf` (upgrade = `git checkout <tag>` + `git submodule
-update --init --recursive` + `idf_tools.py install`), tools in `C:\Users\user\.espressif`.
+**Build environment (PowerShell, Windows).** Two machines, two layouts — **the paths
+below differ per machine and following the wrong set fails immediately.**
+
+| | 筆電 (laptop, user `user`) | 桌機 (desktop `Kaino-PC`, user `a9505`) |
+|---|---|---|
+| Checkout 路徑 | `C:\Users\user\Documents\GitHub\...` ✅ ASCII | `D:\文件\GitHub\...` ⚠ **非 ASCII，無法建置** |
+| `IDF_PATH` | `C:\Users\user\esp\v5.5.5\esp-idf` | `C:\Espressif\frameworks\esp-idf-v5.5.5` |
+| `IDF_TOOLS_PATH` | `C:\Users\user\.espressif` | `C:\Espressif` |
+| venv python | `...\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` | `C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` |
+| 安裝方式 | git checkout + `idf_tools.py install` | Espressif 線上安裝程式 |
+
+Both are ESP-IDF **v5.5.5** at the same tag, so sources are identical; only the
+locations differ. Upgrading a git checkout = `git checkout <tag>` + `git submodule
+update --init --recursive` + `idf_tools.py install`.
+
+> ⚠️ **桌機目前無法建置** — the checkout sits on `D:\文件\...`. See the non-ASCII
+> section below; this is not fixable with env vars. Build on the laptop, or re-clone
+> the desktop copy to an ASCII path (e.g. `D:\GitHub\TES-Charger`).
 
 ```powershell
-$env:IDF_PATH = "C:\Users\user\esp\v5.5.5\esp-idf"
-$py = "C:\Users\user\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
+# 依機器挑一組 —— 下面是桌機 (Kaino-PC) 的值
+$env:IDF_PATH       = "C:\Espressif\frameworks\esp-idf-v5.5.5"
+$env:IDF_TOOLS_PATH = "C:\Espressif"
+$py = "C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
 # 動態取得工具鏈 PATH —— 不要寫死版本號，換 IDF 版本時工具鏈目錄也會變
 # （v5.5.1 用 xtensa-esp-elf/esp-14.2.0_20241119，v5.5.5 用 esp-14.2.0_20260121）
 foreach ($line in (& $py "$env:IDF_PATH\tools\idf_tools.py" export --format key-value)) {
@@ -96,30 +113,53 @@ Set-Location "<repo>\firmware"
 & $py "$env:IDF_PATH\tools\idf.py" build
 ```
 
+**Never mix the two sets.** A build with `IDF_PATH` from one install and the toolchain
+from the other dies during CMake configure with no useful message — `build/config.env`
+names one tree while `build/CMakeCache.txt` names the other. If a build fails in a way
+that makes no sense, check those two files agree before anything else. (The desktop
+carried a second, *toolchain-less* checkout at `C:\esp\v5.5.5\esp-idf` for exactly this
+reason; it has been removed, leaving `C:\Espressif` as the only install there.)
+
 Changing `IDF_PATH` invalidates the CMake cache — delete `firmware/build` and re-run
 `set-target esp32s3` after any IDF version change, otherwise the stale cache points at
 the previous compiler.
 
 `export.ps1` / `Initialize-Idf.ps1` are best avoided: they define `idf.py` as a
 *PowerShell function*, so they must be dot-sourced and used in the same scope —
-`& export.ps1` silently loses it.
+`& export.ps1` silently loses it. `Initialize-Idf.ps1` additionally resolves Python
+through `idf-env`, which reads `%USERPROFILE%\.espressif\esp_idf.json` — on the desktop
+that file listed no installs and the script failed with a null interpreter.
 
-> ### ⚠️ Non-ASCII checkout paths break the build (not an issue on the current machine)
+**Building from Git Bash / MSYS2 does not work.** `idf_tools.py` aborts with
+`MSys/Mingw is not supported` whenever `MSYSTEM` is in the environment, and Git Bash
+re-injects it into every Windows child process, so `env -u MSYSTEM` from the bash side
+is not enough. Drop it inside PowerShell instead:
+`Remove-Item Env:MSYSTEM -ErrorAction SilentlyContinue`.
+
+> ### ⚠️ Non-ASCII checkout paths break the build (this is why the desktop cannot build)
 >
-> The current checkout is on an ASCII path, so this does not apply — but a checkout under
-> e.g. `D:\文件\GitHub\...` on a cp950 (Traditional Chinese) Windows locale fails in three
-> separate tools:
+> The laptop checkout is on an ASCII path and is fine. The **desktop checkout is at
+> `D:\文件\GitHub\...`** on a cp950 (Traditional Chinese) Windows locale, and that
+> breaks the build in four separate places:
 >
 > | Stage | Failure | Workaround |
 > |-------|---------|-----------|
 > | `kconfgen` | `UnicodeDecodeError: 'cp950' codec can't decode` reading `build/config.env` | `PYTHONUTF8=1` |
 > | `ccache` | `filesystem error: Cannot convert character sequence` | `idf.py --no-ccache` |
+> | **`ldgen` batch wrapper** | `Batch file failed at line 2 with errorcode 1` — CMake writes `CMakeFiles\sections.ld-*.bat` as UTF-8, cmd.exe reads it as cp950, so `cd /D D:\文件\...` cannot find the directory | **no workaround** |
 > | `objdump` (link step) | `xtensa-esp32s3-elf-objdump -h .../libxtensa.a` exits 1 | **no workaround** |
 >
-> The first two are fixable with env vars; the **objdump failure at the link stage is
-> not** — GNU binutils resolves filenames through the ANSI codepage, and a directory
-> junction does not help (CMake canonicalises it back to the physical path). The source
-> must sit on an ASCII-only path. GitHub Actions is unaffected (Linux runner).
+> The first two are fixable with env vars. The last two are not — cmd.exe and GNU
+> binutils both resolve paths through the ANSI codepage, and a directory junction does
+> not help (CMake canonicalises it back to the physical path).
+>
+> **Measured 2026-10-01 on the desktop:** all 1396 compile steps succeed; the build dies
+> at step 1397 generating `sections.ld`, i.e. the ldgen wrapper above — `ldgen.py` is
+> never even reached. Copying the same tree to `C:\Users\a9505\tesascii` and rebuilding
+> gives `BUILD EXIT=0`, so **the source is fine; only the path is wrong.**
+>
+> Fix properly by re-cloning the desktop copy somewhere ASCII (e.g. `D:\GitHub\TES-Charger`)
+> rather than copying per build. GitHub Actions is unaffected (Linux runner).
 
 ### Why not ESP-IDF 6.x
 
