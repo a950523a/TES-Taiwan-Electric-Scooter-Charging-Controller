@@ -419,6 +419,20 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 ---
 
+## Hardware — design is private
+
+**The board design lives in a private repository**,
+[`a950523a/TES-Controller-Hardware`](https://github.com/a950523a/TES-Controller-Hardware),
+checked out next to this one (decided 2026-10-04: hardware is 海龜電能's product, the
+firmware stays public). It holds the EasyEDA and KiCad projects, Gerbers, JLCPCB
+BOM/CPL, enclosure CAD and the scripts, with their history. **This repo publishes the
+schematic only:** `docs/schematic/TES_Controller_V1.3_schematic.pdf`. Do not add layout,
+Gerbers, BOM/CPL, enclosure files or brand assets here again; `.gitignore` blocks the
+old paths. Files committed before the split stay in history — deliberately not
+rewritten — and remain CC BY-NC-SA for anyone who obtained them.
+
+---
+
 ## Safety Notes
 
 - CAN frames sent to the vehicle **can damage the BMS** -- validate all `tes_codec.c` encode functions carefully before testing on hardware.
