@@ -63,10 +63,14 @@ idf.py -p <PORT> flash monitor
 | otadata | 8 KB | OTA slot selector |
 | app0 | **7.94 MB** | active firmware (~17% used) |
 | app1 | **7.94 MB** | OTA update slot |
+| tes_factory | 64 KB | signed factory record (2026-10-05) — **only on boards flashed fresh**, see below |
 
-Only 64 KB of the 16 MB is unallocated (app1 ends at `0xFF0000`). That is not an
-oversight — see **Deployment constraints** above for why the app partitions stay this
-large and why repartitioning is off the table for deployed units.
+The app partitions end at `0xFF0000`; the last 64 KB, unallocated until 2026-10-05, now
+holds `tes_factory` (data, subtype `0x40`). That is the **Deployment constraints**
+pattern in practice: a board flashed over USB with this table gets the partition, a
+deployed unit updated by OTA keeps its old table, and `factory_svc` treats a missing
+partition as "no factory record" — nothing else depends on it. The app partitions did
+not shrink and must not.
 
 Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only is not sufficient.
 
@@ -1408,12 +1412,28 @@ U5, chip temperature on U1, PSU link on H2, CAN on U12). Cards beside it carry t
 numbers, including every task's stack high-water mark — the `task_monitor` line, without
 needing USB.
 
-**The drawing is generated** from the KiCad board by `tools/make_hw_board_svg.py` in the
-private hardware repo (KiCad python), which writes the SVG
-between `<!--BOARD-->` and `<!--/BOARD-->` in `web/hw.html`; each footprint is a
-`<g id="fp-<ref>">` and the page's JS only depends on those ids. Rerun it after a board
-change. The key parts — buttons, LEDs, connectors — sit at mechanically locked positions,
-so the V1.3 drawing is also right for V1.1/V1.2.
+**The production board's drawing is not in this firmware (2026-10-05).** The page asks
+the device for `GET /hw/board.svg`, which answers per board:
+
+| Board | Drawing |
+|---|---|
+| valid factory record (`factory_svc`: our signature, this chip's MAC, drawing hash) | the full production drawing, read gzip'd from the `tes_factory` partition |
+| V1.1 / V1.2 (AIN3 level 0) — every unit in the field, treated as genuine | `web/hw_board_base.svg`: the board minus the V1.3-only parts (D9, D10, R33–R37) and the V1.3 silk text. Their placement was already public in the EasyEDA projects, so this discloses nothing new |
+| anything else (V1.3+ without a valid record, unknown revision) | 404 — the page shows the numbers only |
+
+The factory record is written at production by `tools/provision_factory.py` in the
+private hardware repo: version, serial, MAC, AIN3 level and the gzip'd drawing, signed
+with ECDSA P-256. The **public key** is compiled into `factory_svc.c`; the private key
+lives only on the author's PC (`%USERPROFILE%/.tes/`). It writes flash only — no eFuse —
+so a mistake is fixed by writing again. A copied record fails the MAC check, a forged one
+the signature. A modified firmware can of course skip the check; this decides only what
+the official firmware shows, it is not a security boundary. `factory_svc` verifies
+lazily on the first `/hw` request, in the httpd worker (8 KB stack) — ECDSA does not fit
+`app_main`'s 3.5 KB. `/hw.json` reports the record's state and serial under `factory`.
+
+Both drawings are generated from the KiCad board by `tools/make_hw_board_svg.py` in the
+private hardware repo; it writes `hw_board_base.svg` here and the full drawing there.
+Each footprint is a `<g id="fp-<ref>">` and the page's JS only depends on those ids.
 Back-side footprints are drawn too, with only their
 through-hole pads and a dashed outline — H2, the PSU UART header, is mounted on the back
 and was missing until that was added.

@@ -11,6 +11,7 @@ idf_component_register(
         "mqtt_svc.c"
         "scheduler_svc.c"
         "hwtest_svc.c"
+        "factory_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
@@ -20,6 +21,7 @@ idf_component_register(
         "web/sw.js"
         "web/icon.svg"
         "web/hw.html"
+        "web/hw_board_base.svg"
     REQUIRES
         tes_protocol
         tes_sm
@@ -40,4 +42,5 @@ idf_component_register(
         freertos
         esp_timer
         esp_driver_tsens
+        esp_partition
 )

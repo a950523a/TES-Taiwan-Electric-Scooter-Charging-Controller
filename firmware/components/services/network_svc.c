@@ -28,6 +28,7 @@
 #include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
 #include "services/hwtest_svc.h"
+#include "services/factory_svc.h"
 #include "drivers/display_driver.h"
 #include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
@@ -187,6 +188,8 @@ extern const uint8_t s_icon_svg_start[]     asm("_binary_icon_svg_start");
 extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
 extern const uint8_t s_hw_html_start[]      asm("_binary_hw_html_start");
 extern const uint8_t s_hw_html_end[]        asm("_binary_hw_html_end");
+extern const uint8_t s_hw_board_base_svg_start[] asm("_binary_hw_board_base_svg_start");
+extern const uint8_t s_hw_board_base_svg_end[]   asm("_binary_hw_board_base_svg_end");
 
 // "/"        → 裝置列表（先看到有哪幾台，再點進去）
 // "/control" → 原本的控制介面
@@ -1622,6 +1625,45 @@ static const httpd_uri_t s_uri_get_hw_page = {
     .uri = "/hw", .method = HTTP_GET, .handler = handle_get_hw_page
 };
 
+// GET /hw/board.svg —— /hw 頁面的電路板圖，依硬體決定給哪一張（2026-10-05）：
+//   出廠資料有效（原廠生產的 V1.3 起）→ 完整的生產板圖，從出廠資料讀，不在公開韌體裡
+//   V1.1／V1.2（AIN3 接地，級數 0）   → 舊版底圖 hw_board_base.svg：這兩版的擺放
+//                                        早已公開，現場的都是原廠板，一律當原廠
+//   其他（V1.3 起但沒有有效出廠資料、或認不出版本）→ 404，頁面只顯示數值
+// 圖由私有硬體 repo 的 tools/make_hw_board_svg.py 產生。
+static esp_err_t handle_get_hw_board(httpd_req_t *req)
+{
+    const factory_info_t *fi = factory_svc_get();
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
+    if (fi->state == FACTORY_VALID) {
+        httpd_resp_set_type(req, "image/svg+xml");
+        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");   // 出廠時就是 gzip 存的
+        char buf[1024];
+        for (size_t off = 0; off < fi->drawing_len; ) {
+            size_t n = fi->drawing_len - off < sizeof buf ? fi->drawing_len - off : sizeof buf;
+            if (factory_svc_read_drawing(off, buf, n) != ESP_OK ||
+                httpd_resp_send_chunk(req, buf, n) != ESP_OK) {
+                httpd_resp_send_chunk(req, NULL, 0);
+                return ESP_FAIL;
+            }
+            off += n;
+        }
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+    if (adc_driver_board()->level == 0) {
+        httpd_resp_set_type(req, "image/svg+xml");
+        return httpd_resp_send(req, (const char *)s_hw_board_base_svg_start,
+                               s_hw_board_base_svg_end - s_hw_board_base_svg_start);
+    }
+    httpd_resp_set_status(req, "404 Not Found");
+    httpd_resp_set_type(req, "text/plain");
+    return httpd_resp_sendstr(req, "board drawing is shown on factory-provisioned hardware only");
+}
+
+static const httpd_uri_t s_uri_get_hw_board = {
+    .uri = "/hw/board.svg", .method = HTTP_GET, .handler = handle_get_hw_board
+};
+
 static esp_err_t handle_get_hw_json(httpd_req_t *req)
 {
     tes_snapshot_t snap;
@@ -1726,6 +1768,18 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
 
     tcp_json(root);
     psu_pair_json(root);
+    {
+        // 出廠資料：決定 /hw/board.svg 給哪張圖，也讓維修時看得到序號
+        const factory_info_t *fi = factory_svc_get();
+        cJSON *o = cJSON_AddObjectToObject(root, "factory");
+        cJSON_AddStringToObject(o, "state", fi->state == FACTORY_VALID ? "valid" :
+                                            fi->state == FACTORY_INVALID ? "invalid" : "none");
+        cJSON_AddStringToObject(o, "reason", fi->reason);
+        if (fi->state == FACTORY_VALID) {
+            cJSON_AddStringToObject(o, "serial", fi->serial);
+            cJSON_AddNumberToObject(o, "made", fi->made_unix);
+        }
+    }
     hwtest_json(root, "test");
     return send_json(req, root, NULL);
 }
@@ -1889,7 +1943,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 28;   // 目前註冊 24 個，留餘裕
+    cfg.max_uri_handlers  = 28;   // 目前註冊 25 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     s_httpd_max_sockets   = cfg.max_open_sockets;
@@ -1921,6 +1975,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
     httpd_register_uri_handler(s_server, &s_uri_get_hw_page);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_board);
     httpd_register_uri_handler(s_server, &s_uri_get_hw_json);
     httpd_register_uri_handler(s_server, &s_uri_post_hw_test);
     ESP_LOGI(TAG, "HTTP server started on port 80");
