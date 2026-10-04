@@ -184,6 +184,13 @@ CC BY-NC-SA 4.0 **只授權著作權，不授權專利權**。這不是本專案
 因此，依 CC BY-NC-SA 4.0 使用本專案者，僅取得著作權範圍內之授權。**如需商業
 使用授權，請另行聯絡作者。**
 
+### 名稱與 Logo
+
+同一條款也不授權商標權：**「海龜電能」名稱與海龜 Logo 不在 CC BY-NC-SA 授權範圍內**，
+用於識別作者製作的產品。依本授權重製或改作時，請勿使用它們，避免被誤認為原廠產品。
+電路板絲印上的 Logo 請移除；外殼產生腳本（`tools/make_case_lid.py`）在沒有 Logo 檔時
+會產生不含 Logo 的上蓋，Logo 原始檔不在本 repo 中。
+
 Copyright (c) 2025-2026 Chris Huang.
 All rights not expressly granted under the above license are reserved.
 

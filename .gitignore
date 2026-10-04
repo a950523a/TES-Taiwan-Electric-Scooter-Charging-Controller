@@ -69,3 +69,9 @@ hardware/kicad/.history/
 
 # 生產檔的上傳 zip 是 hardware/fab/*/gerber 的打包，由 tools/make_fab.sh 產生
 hardware/fab/*/*.zip
+
+# 外殼上蓋 V2 的輸出：tools/make_case_lid.py 隨時可重新產生，不進版控（repo 瘦身過）
+hardware/enclosure/*.stl
+hardware/enclosure/*.step
+# Logo 原始檔：名稱與 Logo 不在 CC 授權範圍內，不公開（README「名稱與 Logo」）
+hardware/enclosure/logo/

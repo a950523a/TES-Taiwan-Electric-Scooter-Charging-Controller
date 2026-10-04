@@ -743,6 +743,34 @@ stay with their positions, so no copper moves), then record the pad swap in
 > `regen_hw.sh` runs it before DRC. Recovery is
 > `git checkout hardware/kicad/TES_Controller.kicad_pro`.
 
+### Enclosure lid V2 (2026-10-04, not yet printed)
+
+`tools/make_case_lid.py` (FreeCAD: `freecadcmd tools/make_case_lid.py`) starts from
+`docs/PCB/TES_Controller_V1_Case_Top.stp` and writes `hardware/enclosure/` — STEP, the
+two print STLs (lid + buttons, logo inlay) and a small test coupon. **Outputs are
+gitignored; rerun the script.** It prints every clearance check and says whether they
+pass.
+
+- **Buttons print in place** with the lid, face-down: caps flush with the lid top on the
+  bed; once the lid is on the PCB the switches lift them 3.2 mm to the same 2.5 mm
+  protrusion as before. 6 mm guide sleeves under the lid, Ø7 caps, a flange that keeps
+  them captive. Heights are **derived from a measurement**, not drawings: the old 16 mm
+  button stood 2.5 mm proud, so the TS-1187A top is 13.5 mm below the lid top. Print
+  gaps 0.3 radial / ~0.5 on the 45° seats (a flat seat would be a sagging overhang).
+- **BOOT / EN are flush flexure tongues** with a post 0.6 mm above the switch — the gap
+  is deliberate: a post resting on BOOT would put the ESP32 into download mode at boot.
+- **Logo — the source file is deliberately not in the repo.** The name and logo are
+  outside the CC BY-NC-SA licence (README → 名稱與 Logo), so the master vector stays on
+  the author's machine in the gitignored `hardware/enclosure/logo/` (or `TES_LOGO_SVG`);
+  without it the script builds a plain lid. It was committed once and removed by
+  rewriting that commit on 2026-10-04 — do not add brand assets back. Converted by
+  `tools/logo_inlay.py` into a two-colour inlay (X2D dual nozzle), 27 × 24 mm, 0.8 mm
+  deep. Lines are thickened to ≥ 0.45 mm, the 3-unit hairline round the shell is
+  dropped, and slivers under 0.4 mm are removed — below that the nozzle cannot print
+  them. At 19 mm high the shell's outer ring vanished, which is why it is 24 mm.
+- **Open:** START / SETTING sleeves are an estimated 0.79 mm from the OLED module's
+  edge, based on a typical 27.3 mm module — measure the real one.
+
 ---
 
 ## Safety Notes
