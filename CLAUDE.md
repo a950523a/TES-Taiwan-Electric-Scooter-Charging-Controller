@@ -406,86 +406,32 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 
 ---
 
-## Hardware — V1.3 board (KiCad)
+## Hardware — design is private; what the firmware needs is here
 
-**The board design moved from EasyEDA Pro to KiCad 10.0.6 and is done, except
-for fabrication output.** The EasyEDA project stays in `docs/PCB/` as the
-reference; `hardware/TES_Controller_V1.3/` holds its text export (netlist, BOM,
-rules, raw `.esch`/`.epcb`), which is what every check is run against.
+**The board design lives in a private repository** —
+[`a950523a/TES-Controller-Hardware`](https://github.com/a950523a/TES-Controller-Hardware),
+checked out next to this one as `Documents/GitHub/TES-Controller-Hardware` (decided
+2026-10-04: hardware is 海龜電能's product, firmware stays public). It holds the KiCad and
+EasyEDA projects, Gerbers, JLCPCB BOM/CPL, the enclosure CAD, the logo source and every
+`tools/` script, with their history and their own CLAUDE.md (everything that used to be
+in this chapter). **This repo publishes the schematic only:**
+`docs/schematic/TES_Controller_V1.3_schematic.pdf`, exported from the KiCad project
+(`kicad-cli sch export pdf`). Do not add layout, Gerbers, BOM/CPL, enclosure files or
+brand assets here again.
 
-`sh tools/regen_hw.sh` rebuilds the whole design from that export and verifies
-it. Eight idempotent steps; add `--relib` to re-pull the component library from
-LCSC (slow, needs network — the library is committed, so normally skip it).
-**Close KiCad first** — see the warning below.
+Files committed before the split stay in this repo's history — deliberately not
+rewritten. They remain CC BY-NC-SA for anyone who obtained them.
 
-### Where it stands
+Two things here are still generated from the private repo: the board drawing in
+`firmware/components/services/web/hw.html` (`tools/make_hw_board_svg.py` writes into
+this checkout) and the schematic PDF.
 
-| | State |
-|---|---|
-| Component library | 45 symbols — 34 from LCSC part numbers, 4 generated for parts that have none, 6 power symbols plus PWR_FLAG — and 32 footprints (two silkscreen logos and the mounting hole among them). 3D models regenerate on demand and are gitignored (39 MB) |
-| Schematic | Redrawn at the original EasyEDA coordinates by `tools/sch_import_easyeda.py` — same block titles, grouping boxes and wires as the author's layout |
-| Netlist | **236 of 236 connections, zero difference** against the EasyEDA export plus the changes declared in `tools/changes_v13.py`, checked on every regeneration |
-| ERC | 0 violations |
-| PCB | 2-layer, single-sided SMT. 90 footprints (84 parts, 2 logos, 4 mounting holes), 530 tracks, 133 vias, bottom layer is one 5333 mm² ground pour. **Matches the schematic 236/236** — every V1.3 change is on the board |
-| DRC | **0 errors, 0 unconnected pads.** 181 warnings remain, all silkscreen overlap / courtyard / library-mismatch. Two of them are R35's outline touching the existing `D+` silk label — cosmetic, left as is |
-| Mechanical | 20 enclosure-critical positions and the 4 mounting holes locked (`hardware/kicad/mechanical_lock.json`), checked **against the KiCad board** by `tools/check_mech_kicad.py` — the Inventor enclosure does not have to change |
-| Electrical fixes | R10 over-voltage, ADS1115 I²C level, 120 V creepage, TVS on the buck module's input and output — all applied, each with its reasoning in `tools/changes_v13.py` |
+### Board identification on ADS1115 AIN3 (V1.3 onwards)
 
-### Pending changes (work stopped 2026-09-15, resumed 2026-09-23)
-
-| | Schematic + library | PCB |
-|---|---|---|
-| **R36 / R37** hardware-ID divider on ADS1115 AIN3 (replaces the U13 EEPROM) | ✅ | ✅ **done 2026-09-29** — hand-routed, DRC clean |
-| **D10** SMBJ13A → **SMBJ12A**, moved out from under the buck module | ✅ | ✅ **done 2026-09-29** — see below |
-| **R35** 10 kΩ, Q4 gate divider (with `Q2.3 → VP_PGATE_DRV`) | ✅ | ✅ **done 2026-09-29** — see below |
-
-**Silkscreen logo (2026-09-29).** The Turtle Power (海龜電能) logo is on both sides:
-9 mm on top (LOGO1, 177.6, 91.9 — the largest free spot on the top side, north of the
-buck module) and 20 mm on the bottom (LOGO2, 164.5, 113.0). `tools/make_logo.py`
-(KiCad python) turns `hardware/kicad/lib/logo/turtle_power.png` into
-`TES.pretty/LOGO_TurtlePower_<n>mm`: board-only, no pads, excluded from BOM and
-placement files, so the netlist check does not see them. **The source is a thin line
-drawing** — at 9 mm its lines are 0.066 mm, below JLCPCB's ~0.15 mm silkscreen
-minimum — so the script measures the median stroke and dilates it to ≥ 0.2 mm
-(≈ 0.23 mm at both sizes). To change the art or size, edit the PNG or `SIZES_MM` and
-rerun; the placed copies do not update themselves (re-place from the library).
-
-**All V1.3 changes are on the board. Next: Gerbers** (and merge `bom.csv` with
-`changes_v13.py` before ordering — see the ordering note further down).
-
-Both were placed and routed by hand; the auto-placer's first attempt put D10
-16.6 mm from W2 and R35 3.6 mm from Q4 with a bottom-layer hop. Positions and
-reasoning are in `changes_v13.py` (`at=`).
-
-- **D10** sits in the strip east of the buck module, directly north of W2
-  (181.50, 108.50): its 12V pad is *on* the 12V trunk, ~2.4 mm from W2. The trunk
-  (1.27 mm) now jogs west around D10's ground pad — under the module, which is a
-  component keepout, not a routing one — and D10's ground pad drops to two vias
-  into the bottom plane. **Found on the way:** the 12V branch into the board
-  reached W2 only by touching D10's old pad, a leftover of the ground-plane
-  restructure; it now goes straight to W2.
-- **R35** is in the gap east of R26 under Q2 (138.05, 133.30): Q2.3 → R35.2,
-  R35.1 → R26.1 → Q4 gate, top layer only, no vias.
-
-⚠ **Do not run `regen_hw.sh` end to end on the PCB.** Step 6 re-imports the board
-from the EasyEDA zip, and the ground-plane restructure (`_pcb_restructure_run.py`)
-is not part of that script — a full regen throws the restructured board away. Apply
-changes to the committed board instead: `_pcb_apply_nets.py`, then
-`_pcb_apply_changes.py`, then `_pcb_repair.py`, then DRC. The schematic steps
-(1–5) are safe to rerun.
-
-### Board identification: a divider on AIN3, not an EEPROM (2026-09-29)
-
-V1.3 changes the voltage-divider coefficient (30.000 → 38.954), so one firmware
-binary has to tell the boards apart. The first plan was **U13, a 24C02S I²C
-EEPROM** — it could not be placed: SDA, SCL and VCC all had to reach it, and the
-nearest free spot big enough was 32 mm from the I²C pins, with SDA/SCL running
-28 mm each on the bottom layer through the ground plane. U13 and C30 were removed.
-
-What replaced it: **ADS1115 AIN3 (U5 pin 7) was tied to ground and used only as
-the negative side of the CP measurement.** Now it carries `HW_ID`, the midpoint of
-R36 (to VDD33) and R37 (to GND). Only one net has to reach U5; VDD33 and GND are
-everywhere. Full level table and reasoning in `changes_v13.py` (R36).
+V1.3 changes the voltage-divider coefficient (30.000 → 38.954), so one firmware binary
+tells the boards apart by the voltage on AIN3 — grounded on V1.1/V1.2, the midpoint of
+R36/R37 from V1.3 on. The level a future revision uses is chosen in the private repo
+(`tools/changes_v13.py`, R36).
 
 | AIN3 reading | Meaning | Divider coefficient |
 |---|---|---|
@@ -493,108 +439,6 @@ everywhere. Full level table and reasoning in `changes_v13.py` (R36).
 | level k = round(V / 0.275 V), k = 1…11 | a board revision; **V1.3 = k 6 (R36 = R37 = 10 k)** | per revision |
 | > 3.162 V (AIN3 tied straight to VDD33) | extension code: "this board has an EEPROM at 0x50, read it" | from EEPROM |
 | between levels | unknown revision | 30.000 + warning |
-
-Worst-case error (two 1 % resistors, 3.3 V rail ±2 %) stays inside every level's
-band. Every level uses one 10 k (C25804, already on the board); V1.3 uses two, so
-**no new part number**. Only revisions the firmware must distinguish take a level.
-
-**CP is unaffected.** AIN3's ground was the local ground 1.7 mm from U5, not the
-ground at the CP divider (R8/R9, ~20 mm away), so the old AIN2−AIN3 differential
-never had a Kelvin benefit. Reading AIN2 single-ended gives the same value on every
-board, old ones included.
-
-PCB: R37 below C7 at (132.30, 91.80), R36 at (133.70, 94.10) rotated 180°. HW_ID is
-hand-routed on the top layer at 0.2 mm with no via-in-pad: out of U5.7 eastward,
-between C20 and C7's ground pads, down the east side of the CP trunk. The GND stub
-and stitching via that sat east of U5.7 were removed — that was the only exit.
-
-### U5's VDD33 was fed the long way round (fixed 2026-09-29)
-
-When `24991a2` moved the ADS1115 back to 3.3 V, the auto-repair connected U5.8 by a
-**31 mm top-layer trace down the board's left edge** from C1 (ESP32 area), passing
-the HV divider R34 on the way, and reached decoupling cap C20 only through a
-bottom-layer detour and a via in C20's pad. Meanwhile a dangling VDD33 stub from
-C28 (U12's VIO node, fed from U6) pointed straight at U5 — the remnant of the
-original short path.
-
-Now: U5.8 → C20.1 directly on top (~2 mm, 0.3 mm), and the C28 stub → C20.1 along
-x = 134.05 (~5 mm). The left-edge trace, the bottom detour and two vias are gone;
-VDD33 copper went from 137 mm / 9 vias to 97 mm / 7 vias.
-
-**Why the router did that — and will again.** `_pcb_maze.py` protects the ground
-plane with `BOTTOM_COST = 4`, `VIA_COST = 12`, and routes on a 0.15 mm grid where
-obstacles are inflated by clearance. Around U5/C20/C7 the real gaps are a few tenths
-of a millimetre: passable in true geometry, solid on the grid. So a short path is
-invisible, a layer change is expensive, and a long top-layer detour wins. **After
-any `set_net` + `_pcb_repair.py`, look at what it routed** — "connected" is all it
-guarantees. HW_ID (above) hit the same wall and was hand-routed.
-
-### Fabrication (2026-09-29)
-
-`sh tools/make_fab.sh` regenerates everything into `hardware/fab/V1.3/`: DRC with
-zones refilled, the KiCad-side mechanical check, Gerbers + Excellon drills, the
-JLCPCB BOM/CPL, and `TES_Controller_V1.3_gerber.zip` for upload. Settings follow
-JLCPCB's KiCad guide (Protel extensions, no X2, silkscreen minus mask openings,
-metric decimal Excellon, PTH/NPTH separate). Checked by parsing the output: outline
-64.135 × 89.318 mm; 168 plated holes = 133 vias + 35 THT pads (4 of them Type-C
-slots); 4 NPTH Ø3.2; 236 paste openings = 236 top SMD pads.
-
-**The four mounting holes were missing from the KiCad board until this step.**
-EasyEDA draws them as filled circles on its Multi-Layer; the import dropped them,
-and the mechanical lock stayed green because `pcb_geometry.py` reads the EasyEDA
-export, not the KiCad board. They are the buck module's standoffs **and** the
-enclosure's fixing points. Now MH1–MH4, footprint `MountingHole_3.2mm_NPTH_Keepout4.6mm`
-(`tools/make_mounting_hole.py`): NPTH Ø3.2 plus a Ø4.6 copper keepout on both sides.
-The keepout is small on purpose — **nylon standoffs and plastic screws**, so nothing
-metal touches the board. If that ever changes to brass standoffs, grow it to Ø6.0 and
-first move GND_BACK and CP_SENSE off MH1 (their edges are 2.37 / 2.58 mm from its
-centre). `tools/check_mech_kicad.py` now guards the holes and positions against the
-KiCad board and is step 8 of `regen_hw.sh`. (The lock file stores angles after
-flipping EasyEDA's Y axis, so 90° and 270° swap; the check flips them back.)
-
-**SMT (JLCPCB), `tools/make_jlc_assembly.py`:** 69 parts / 31 line items; 15 are
-hand-soldered (`hand_solder.txt`: connectors, LEDs, headers, U10, W1–W4). Part
-numbers come from `bom.csv` plus `changes_v13.py` through `MPN_LCSC`. Rotations are
-KiCad's — compared part by part, all 77 original parts match EasyEDA's angles, which
-is the convention JLCPCB uses; still check each part in JLCPCB's placement preview.
-**JLCPCB's order number:** no `JLCJLCJLCJLC` marker on the silkscreen — the user
-leaves its placement to JLCPCB's engineers (decided 2026-09-29). Stock as of 2026-09-29:
-- **R10/R33/R34 115 k 0.1 %:** the originally specified RT0603BRD07115KL (C861084)
-  had 2 in stock and the board needs 3, so the design now uses **RT0603BRE07115KL
-  (C861635)** — same Yageo RT thin film, ±0.1 %, TCR code E instead of D. Accepted by
-  the user; schematic, board and BOM all carry the new part number.
-- R11 9.09 k 0.1 % RT0603BRD079K09L C861611; D9 SMBJ130A-13-F C135040; D10 = D3's
-  SMBJ12A C908793; R35–R37 = C25804.
-
-### Two bugs found on the way, both fixed
-
-1. **`easyeda2kicad --overwrite` appends, it does not replace.** Every library
-   regeneration added a second copy of every symbol — 35 duplicates were
-   removed. This is where the mystery duplicate `ADS1115IDGSR` came from, and
-   it was worse than untidy: the duplicate **silently reverted the AO3400A pin
-   renumbering**, so the library held one symbol with 1=G and one with 1=S.
-   `kicad_lib.py` now dedupes (keeping the last copy) before applying
-   `PIN_RENUMBER`.
-2. **The buck-module keepout used the wrong rectangle.** It was the one bounded
-   by the four mounting holes (127.86–176.46 × 100.22–124.22), not the module
-   body (125.5–179.0 × 97.2–127.2, the outline drawn on F.SilkS). Every edge
-   was 2.4–3.0 mm short, and **that is how D10 ended up under the module** —
-   it slipped through the 2.5 mm gap on the right.
-
-### What is deliberately not done
-
-- **Nothing has been ordered yet.** Fabrication files exist (see **Fabrication**
-  below); the order itself is the user's.
-- **DRC and ERC stay out of CI.** Design checks belong to the moment of
-  designing, not to every push.
-- **The V1.3-only parts borrow a library symbol.** R33/R34 (115 k), R10's new
-  value, R11 (9.09 k), D9 (SMBJ130A) and D10 (SMBJ13A) carry the right MPN in
-  their `Value` field but reuse the graphic of a same-package part, because the
-  library is generated from the V1.3 BOM and those part numbers are not in it.
-  Footprints happen to be right in every case (0603, SMB). Regenerate the
-  library from an updated BOM before trusting a KiCad-side BOM export.
-- **`ADS1115IDGSR` is in `TES.kicad_sym` twice**, identical apart from a `-0.00`
-  on one pin. Harmless, but it is duplication nobody put there on purpose.
 
 ### Firmware side of V1.3
 
@@ -675,7 +519,7 @@ spare, and on both revisions the pin limit binds before the PGA does.
 
 #### Why the hardware changed at all
 
-Two defects, both explained with their reasoning in `tools/changes_v13.py`:
+Two defects, both explained with their reasoning in `tools/changes_v13.py` (private hardware repo):
 
 1. **A single 0603 cannot hold off 120 V.** Its rated working voltage is
    75 V and the upper arm sees 116 V. Three in series drop 39 V each.
@@ -686,90 +530,6 @@ Two defects, both explained with their reasoning in `tools/changes_v13.py`:
    3.3 V is what forces the lower arm to 9.09 kΩ, and *that* is what moves
    the coefficient.
 
-> **Ordering note, not a firmware item:** `hardware/TES_Controller_V1.3/bom.csv`
-> is the EasyEDA export and predates all of this — it still lists R10 as 348 kΩ,
-> R11 as 12 kΩ, and has no R33/R34/D9/D10. The real V1.3 BOM is that file
-> **plus** `tools/changes_v13.py`. Merge them before ordering anything.
-
-### ⚠ Q1-Q3: the SOT-23 footprint numbers its pads backwards, and the symbol
-### compensates. Do not "fix" either one alone.
-
-LCSC's `SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR` footprint — the one their C20917
-(AOS AO3400A) ships with — numbers pads 1 and 2 the opposite way round from
-JEDEC TO-236. Viewed from the top, `1 → 2 → 3` runs **clockwise**; the
-convention, and every other package in this library, runs counter-clockwise.
-So the pad stamped "1" physically sits under the chip's **pin 2 (Source)**.
-
-Evidence, all checkable from the repo:
-
-| Package in `TES.pretty` | `1 → 2 → last` from top | Cross-check |
-|---|---|---|
-| MSOP-10 (U5), SOIC-8 (U12), SOT-23-6 (D5), SOT-223 (U6) | counter-clockwise | TJA1051 pin1=TXD, AMS1117 pin1=GND, USBLC6 pin2=GND — all correct |
-| `SOT-23_…-BR` (Q4, AO3401A) | counter-clockwise | gate on pad 1, standard symbol, correct |
-| `SOT-23-3_…-BR` (Q1-Q3, AO3400A) | **clockwise** | the odd one out |
-
-The AOS AO3400A datasheet labels the leads D/G/S without numbers; its SOT23
-top view puts D alone on one side and G, S counter-clockwise from it, which
-under TO-236 numbering is **1=G, 2=S, 3=D**.
-
-The original EasyEDA design handles this by drawing Q1-Q3 with the
-`AO3400A-MS` symbol, whose pins 1 and 2 are swapped, so the net lands on the
-right copper: pad 1 → Source → GND, pad 2 → Gate → RELAY_GATE / VP_NGATE /
-COUPLER_GATE. `tools/kicad_lib.py` reproduces that with `PIN_RENUMBER`,
-applied every time the library is regenerated. **The KiCad symbol therefore
-shows G on pin 2 on purpose.**
-
-Using LCSC's unmodified symbol (1=G) with this footprint ties the gate to GND
-and feeds the gate drive into the source. The MOSFET never turns on, so the
-DC relay, the VP relay and the coupler lock all stay dead — and nothing in
-ERC or DRC says a word about it. The board was already built this way once.
-
-If you would rather have the library match the datasheet, the other half of
-the fix has to come with it: renumber the pads in the `.kicad_mod` **and**
-swap the `number` fields on Q1-Q3's pads in `TES_Controller.kicad_pcb` (nets
-stay with their positions, so no copper moves), then record the pad swap in
-`tools/changes_v13.py` so the netlist check still passes.
-
-> ### ⚠ Close KiCad before regenerating anything under `hardware/kicad/`
->
-> KiCad holds the project in memory and writes it back on close. Twice now it
-> has silently reverted `TES_Controller.kicad_sch` (losing 8 components) and
-> `TES_Controller.kicad_pro` (restoring deleted netclasses and a 0.2 mm
-> clearance). Nothing reports an error — the symptom is hundreds of
-> inexplicable DRC violations on the next run, against netclasses that were
-> deleted days ago.
->
-> `python tools/check_project.py` compares the key settings and says so;
-> `regen_hw.sh` runs it before DRC. Recovery is
-> `git checkout hardware/kicad/TES_Controller.kicad_pro`.
-
-### Enclosure lid V2 (2026-10-04, not yet printed)
-
-`tools/make_case_lid.py` (FreeCAD: `freecadcmd tools/make_case_lid.py`) starts from
-`docs/PCB/TES_Controller_V1_Case_Top.stp` and writes `hardware/enclosure/` — STEP, the
-two print STLs (lid + buttons, logo inlay) and a small test coupon. **Outputs are
-gitignored; rerun the script.** It prints every clearance check and says whether they
-pass.
-
-- **Buttons print in place** with the lid, face-down: caps flush with the lid top on the
-  bed; once the lid is on the PCB the switches lift them 3.2 mm to the same 2.5 mm
-  protrusion as before. 6 mm guide sleeves under the lid, Ø7 caps, a flange that keeps
-  them captive. Heights are **derived from a measurement**, not drawings: the old 16 mm
-  button stood 2.5 mm proud, so the TS-1187A top is 13.5 mm below the lid top. Print
-  gaps 0.3 radial / ~0.5 on the 45° seats (a flat seat would be a sagging overhang).
-- **BOOT / EN are flush flexure tongues** with a post 0.6 mm above the switch — the gap
-  is deliberate: a post resting on BOOT would put the ESP32 into download mode at boot.
-- **Logo — the source file is deliberately not in the repo.** The name and logo are
-  outside the CC BY-NC-SA licence (README → 名稱與 Logo), so the master vector stays on
-  the author's machine in the gitignored `hardware/enclosure/logo/` (or `TES_LOGO_SVG`);
-  without it the script builds a plain lid. It was committed once and removed by
-  rewriting that commit on 2026-10-04 — do not add brand assets back. Converted by
-  `tools/logo_inlay.py` into a two-colour inlay (X2D dual nozzle), 27 × 24 mm, 0.8 mm
-  deep. Lines are thickened to ≥ 0.45 mm, the 3-unit hairline round the shell is
-  dropped, and slivers under 0.4 mm are removed — below that the nozzle cannot print
-  them. At 19 mm high the shell's outer ring vanished, which is why it is 24 mm.
-- **Open:** START / SETTING sleeves are an estimated 0.79 mm from the OLED module's
-  edge, based on a typical 27.3 mm module — measure the real one.
 
 ---
 
@@ -815,7 +575,7 @@ field. No migration was written.
 **Hardware V1.3 (2026-09-15):** the EasyEDA → KiCad migration is finished and the
 board passes every check it has — netlist zero-difference, ERC clean, DRC 0 errors
 and 0 unconnected. Gerbers are the only step left, and nothing has been ordered.
-Details, and what is deliberately left undone, in **Hardware — V1.3 board (KiCad)**.
+Details, and what is deliberately left undone, in the private hardware repo's CLAUDE.md.
 Note that V1.3 is **not compatible with the shipped firmware constant**: its divider
 reads 38.954, deployed units read 30.000.
 
@@ -835,8 +595,9 @@ or no tag. (It did, on 2026-09-15: main now builds green and the published binar
 carries the CSRF header requirement. The Releases the OTA button pulls from are still
 v3.5.0, which does not — only re-flashed units have it.)
 
-**`main` carries firmware only; the V1.3 hardware work stays on `dev`** (decided
-2026-09-15). Do **not** fast-forward `main` to `dev` — pick the firmware commits across
+**`main` carries firmware only; the V1.3 hardware work stayed on `dev`** (decided
+2026-09-15) — and since 2026-10-04 the hardware is not in this repo at all (see
+**Hardware** above). Do **not** fast-forward `main` to `dev` — pick the firmware commits across
 deliberately, as was done for the eight above and for the CI fix (`ff3a831`, a
 cherry-pick of `0794ad3`). That cherry-pick means the branches have diverged, so bringing
 `dev` over later needs a merge commit rather than a fast-forward; the workflow file is
@@ -1426,7 +1187,7 @@ them from httpd directly would race lwIP.
 ### 🟡 To evaluate: the ESP32 module is rated to 65 °C; PSRAM ECC raises it to 85 °C
 
 Recorded 2026-09-28, **nothing changed yet.** U1 is `ESP32-S3-WROOM-1-N16R8`
-(`hardware/TES_Controller_V1.3/bom.csv`). The **R8 variants (octal PSRAM) are rated
+(the V1.3 BOM, in the private hardware repo). The **R8 variants (octal PSRAM) are rated
 −40 to 65 °C ambient**, not the 85 °C of the plain modules. The
 [datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
 states that enabling PSRAM ECC raises that to **85 °C**, at the cost of 1/16 of the
@@ -1647,7 +1408,8 @@ U5, chip temperature on U1, PSU link on H2, CAN on U12). Cards beside it carry t
 numbers, including every task's stack high-water mark — the `task_monitor` line, without
 needing USB.
 
-**The drawing is generated.** `tools/make_hw_board_svg.py` (KiCad python) writes the SVG
+**The drawing is generated** from the KiCad board by `tools/make_hw_board_svg.py` in the
+private hardware repo (KiCad python), which writes the SVG
 between `<!--BOARD-->` and `<!--/BOARD-->` in `web/hw.html`; each footprint is a
 `<g id="fp-<ref>">` and the page's JS only depends on those ids. Rerun it after a board
 change. The key parts — buttons, LEDs, connectors — sit at mechanically locked positions,
@@ -1658,7 +1420,7 @@ and was missing until that was added.
 
 **The OLED is not in the KiCad file** — it is a 0.96″ SSD1306 module on the H1 header,
 stacked over the ESP32-S3 module. Its glass is drawn from the enclosure lid's display
-window (`docs/PCB/TES_Controller_V1_Case_Top.stp`, a 26.50 × 19.59 mm cut-out). Lid
+window (the lid STEP in the private hardware repo, a 26.50 × 19.59 mm cut-out). Lid
 coordinates map onto the board as **`x_pcb = x_lid + 152.07`, `y_pcb = 104.66 − y_lid`**:
 fitted on the four mounting holes, then checked against every button, LED and the
 BOOT/EN pin-holes in the lid — all within 0.1 mm. Worth reusing for enclosure work.
@@ -1793,7 +1555,7 @@ firmware/
 |   |   +-- web/manifest.json   PWA manifest
 |   |   +-- web/sw.js           service worker
 |   |   +-- web/icon.svg        app icon
-|   |   +-- web/hw.html         hardware status page, served at /hw (board SVG from tools/make_hw_board_svg.py)
+|   |   +-- web/hw.html         hardware status page, served at /hw (board SVG generated in the private hardware repo)
 |   |   +-- hwtest_svc.c/.h     bench test mode: request + lease (conditions live in task_tes_sm.c)
 |   |   +-- notify_svc.c/.h     push notification service (v3.1.0)
 |   |   +-- log_svc.c/.h        charge session history (v3.1.0)
@@ -1815,4 +1577,5 @@ docs/
 +-- index.html              GitHub Pages 首次燒錄工具 (ESP Web Tools)
 +-- manifest.json           燒錄工具 manifest（相對路徑 ./tes_charger_flash.bin）
 +-- monitor.html            Cloud PWA 遠端監控（MQTT.js WebSocket，v3.2.0）
++-- schematic/              V1.3 原理圖 PDF（唯一公開的硬體檔；layout、BOM、生產檔在私有 repo）
 ```

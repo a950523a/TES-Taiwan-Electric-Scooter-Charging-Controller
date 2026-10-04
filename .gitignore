@@ -45,33 +45,14 @@ firmware/dependencies.lock
 
 # Temporary scripts
 firmware/read_serial.py
-docs/PCB/TES_Controller_V1.3_backup/TES_Controller_V1.3_v675_2026-05-07-22-34.zip
 .claude/settings.local.json
-
-# KiCad 3D models — 39 MB of derived files, regenerate with tools/kicad_lib.py
-hardware/kicad/lib/TES.3dshapes/
-
-# KiCad working files
-hardware/kicad/*-backups/
-hardware/kicad/*.kicad_prl
-hardware/kicad/fp-info-cache
 
 # Python
 __pycache__/
 *.pyc
 
-# KiCad 執行中的暫存與鎖定檔
-hardware/kicad/*.lck
-hardware/kicad/~*
-
-# KiCad 的本機歷史（KiCad 自己維護的，不進版控）
-hardware/kicad/.history/
-
-# 生產檔的上傳 zip 是 hardware/fab/*/gerber 的打包，由 tools/make_fab.sh 產生
-hardware/fab/*/*.zip
-
-# 外殼上蓋 V2 的輸出：tools/make_case_lid.py 隨時可重新產生，不進版控（repo 瘦身過）
-hardware/enclosure/*.stl
-hardware/enclosure/*.step
-# Logo 原始檔：名稱與 Logo 不在 CC 授權範圍內，不公開（README「名稱與 Logo」）
-hardware/enclosure/logo/
+# 硬體設計在私有 repo a950523a/TES-Controller-Hardware（2026-10-04 起）。這些路徑
+# 擋在這裡，避免在這個公開 repo 又被加回來；公開的只有 docs/schematic/ 的原理圖 PDF。
+hardware/
+docs/PCB/
+tools/

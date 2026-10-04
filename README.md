@@ -16,7 +16,7 @@
 
 ## ⚠️ 免責聲明與安全警告
 
-**本專案僅包含「控制板」的軟硬體設計，不包含功率級電源模組。**
+**本專案公開「控制板」的韌體與原理圖，不包含功率級電源模組；電路板 layout、BOM 與生產檔不公開。**
 
 1. **高壓危險**：本控制器需配合高壓直流電源使用，組裝與測試過程存在觸電與火災風險。
 2. **非商業產品**：本專案為個人研究與技術驗證性質，未經 BSMI、UL 等安規認證。
@@ -123,10 +123,9 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 tes_charger_flash.bin
 
 ## 🛠️ 硬體設計
 
-- **原理圖 / PCB / BOM**：`docs/PCB/` 目錄（EasyEDA Pro 專案）
+- **原理圖**：[`docs/schematic/TES_Controller_V1.3_schematic.pdf`](docs/schematic/TES_Controller_V1.3_schematic.pdf)（V1.3，供了解電路與維修參考）
 - **主要元件**：ESP32-S3 N16R8、ADS1115、SSD1306 OLED、CAN Transceiver、繼電器模組
-
-硬體設計以通用性為核心，亦適合使用萬用板手工搭建。
+- **電路板 layout、BOM、生產檔與外殼**：不公開。成品請見上方海龜電能的產品連結。
 
 ---
 
@@ -188,8 +187,6 @@ CC BY-NC-SA 4.0 **只授權著作權，不授權專利權**。這不是本專案
 
 同一條款也不授權商標權：**「海龜電能」名稱與海龜 Logo 不在 CC BY-NC-SA 授權範圍內**，
 用於識別作者製作的產品。依本授權重製或改作時，請勿使用它們，避免被誤認為原廠產品。
-電路板絲印上的 Logo 請移除；外殼產生腳本（`tools/make_case_lid.py`）在沒有 Logo 檔時
-會產生不含 Logo 的上蓋，Logo 原始檔不在本 repo 中。
 
 Copyright (c) 2025-2026 Chris Huang.
 All rights not expressly granted under the above license are reserved.
