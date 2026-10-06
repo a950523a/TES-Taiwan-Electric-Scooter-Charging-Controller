@@ -17,6 +17,7 @@
 // tes-charger.local 繼續能用；兩台都掛時會由其中一台回應，但兩台各自的
 // tes-<id>.local 一定準確，所以不影響。
 
+#include "services/restart_svc.h"
 #include "services/network_svc.h"
 #include "services/config_svc.h"
 #include "drivers/psu_driver.h"
@@ -1280,6 +1281,28 @@ static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
 };
 
+// ── POST /reboot ──────────────────────────────────────────────────────────────
+// 使用者在網頁按「重新啟動」。充電流程中拒絕（409），理由見 restart_svc.h。
+// 延遲 500 ms 才重啟，讓這個回應送得出去。
+
+static esp_err_t handle_post_reboot(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    if (!restart_svc_request(500, "web")) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"charging — stop first\"}");
+        return ESP_OK;
+    }
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_reboot = {
+    .uri = "/reboot", .method = HTTP_POST, .handler = handle_post_reboot
+};
+
 // ── POST /psu/pair ────────────────────────────────────────────────────────────
 
 static esp_err_t handle_post_psu_pair(httpd_req_t *req)
@@ -1943,7 +1966,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 28;   // 目前註冊 25 個，留餘裕
+    cfg.max_uri_handlers  = 28;   // 目前註冊 26 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     s_httpd_max_sockets   = cfg.max_open_sockets;
@@ -1971,6 +1994,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_trace);
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
+    httpd_register_uri_handler(s_server, &s_uri_post_reboot);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);

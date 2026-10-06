@@ -184,7 +184,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 </head>
 <body>
 
-<h1><a href="/" style="text-decoration:none;color:#666;font-size:.8em;margin-right:2px" title="裝置列表">‹</a>
+<h1><a href="/?list" style="text-decoration:none;color:#666;font-size:.8em;margin-right:2px" title="裝置列表">‹</a>
 ⚡ <span id="devname">TES Charger</span> <span class="ts" id="ts">--:--:--</span></h1>
 
 <!-- 狀態卡 -->
@@ -266,6 +266,10 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <label class="lbl2">手動上傳韌體 (.bin)</label>
     <input type="file" id="ota-file" accept=".bin" style="color:#ccc;font-size:.85em;width:100%;padding:4px 0;box-sizing:border-box">
     <button class="b-ota" id="ota-up-btn" onclick="uploadFirmware()" style="margin-top:6px">📤&nbsp;上傳韌體</button>
+  </div>
+  <div style="margin-top:12px;border-top:1px solid #333;padding-top:10px">
+    <div id="reboot-msg"></div>
+    <button class="b-ota" id="reboot-btn" onclick="rebootDevice()" style="background:#333">🔁 重新啟動控制器</button>
   </div>
   <div class="ver" id="fw-ver"></div>
   <div class="ver" style="margin-top:2px"><a href="/hw" style="color:#6a8">🔧 硬體狀態（腳位、ADC、PSU、CAN、系統）→</a></div>
@@ -1384,6 +1388,36 @@ async function startOta(){
     const r=await(await fetch('/ota',{method:'POST'})).json();
     if(!r.ok){om.className='err';om.textContent='✗ 無法啟動更新';btn.disabled=false;upBtn.disabled=false;}
   }catch(e){om.className='err';om.textContent='✗ 連線錯誤';btn.disabled=false;upBtn.disabled=false;}
+}
+
+// 重新啟動：充電流程中裝置會拒絕（409）。成功後等它斷線再回來，回來了就重新載入頁面 ——
+// Auto Volt 開著的話開機要多等幾秒量電源電壓，所以最多等 60 秒。
+async function rebootDevice(){
+  const btn=document.getElementById('reboot-btn');
+  const m=document.getElementById('reboot-msg');
+  if(!confirm('確定要重新啟動控制器嗎？\n充電中無法重新啟動；設定選單中未儲存的變更會遺失。'))return;
+  btn.disabled=true;m.className='';m.textContent='送出中…';
+  let r;
+  try{ r=await fetch('/reboot',{method:'POST'}); }
+  catch(e){ m.className='err';m.textContent='✗ 連線錯誤';btn.disabled=false;return; }
+  if(!r.ok){
+    const j=await r.json().catch(()=>({}));
+    m.className='err';
+    m.textContent=r.status===409?'✗ 充電中無法重新啟動，請先停止充電':'✗ 無法重新啟動'+(j.error?'（'+j.error+'）':'');
+    btn.disabled=false;return;
+  }
+  m.className='';m.textContent='重新啟動中，請稍候…';
+  const t0=Date.now();let wentDown=false;
+  const poll=async()=>{
+    try{
+      const ac=new AbortController();setTimeout(()=>ac.abort(),2000);
+      const s=await fetch('/status',{cache:'no-store',signal:ac.signal});
+      if(s.ok&&(wentDown||Date.now()-t0>8000)){location.reload();return;}
+    }catch(e){wentDown=true;}
+    if(Date.now()-t0>60000){m.className='err';m.textContent='✗ 60 秒內沒有回應，請確認控制器有電、WiFi 正常後重新整理頁面';btn.disabled=false;return;}
+    setTimeout(poll,2000);
+  };
+  setTimeout(poll,1500);
 }
 
 async function uploadFirmware(){

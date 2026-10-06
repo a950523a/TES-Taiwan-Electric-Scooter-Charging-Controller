@@ -732,6 +732,7 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | Scheduler | ON / OFF | toggle | toggle |
 | [Beta] Auto | ON / OFF | toggle | toggle |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
+| Restart | 重新啟動：**按兩次**（第一次顯示 `Restart? press again`，3 秒內再按才執行，移動游標就取消）；充電流程中顯示 `Restart (stop first)`、不可用。未儲存的設定變更會丟掉 | confirm ×2 | — |
 | About | 韌體版本 + 作者（唯讀） | — | — |
 | Board（位於 `tes-<id>` 下一行） | 硬體版本（唯讀，開機時由 AIN3 辨識；不認得顯示 `? 1.23V`） | — | — |
 | Save & Exit | writes to NVS | — | — |
@@ -1255,9 +1256,9 @@ is deliberately not, and why.
 
 ### Implemented
 
-**CSRF protection.** The nine state-changing endpoints (`POST /config`, `/start`,
+**CSRF protection.** The ten state-changing endpoints (`POST /config`, `/start`,
 `/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`, `/psu/pair/confirm`,
-`/hw/test`) require an
+`/hw/test`, `/reboot`) require an
 `X-TES-Request` header; `csrf_ok()` in `network_svc.c` rejects the rest with 403.
 
 Why a header works: a custom header forces the browser to send a CORS preflight, and
@@ -1506,6 +1507,11 @@ UI moved to **`/control`**. `GET /devices` does the discovery **on the device** 
 `mdns_query_ptr("_http","_tcp", 2000ms, 20)`, because browsers have no mDNS-browse API and
 subnet-scanning from JS is slow and often blocked.
 
+**Only one controller found → straight to `/control`** (2026-10-06): on the page's first,
+automatic scan, if the list holds just this unit, `location.replace('/control')` — a list of
+one has nothing to choose. A manual rescan, or `/?list` (what the control page's ‹ link now
+points at), stays on the list; otherwise ‹ would bounce straight back.
+
 Results are filtered on the TXT record `dev=tes-charger` so other `_http._tcp` services
 (NAS, printers) are excluded. Most mDNS stacks do not answer their own queries, so the
 handler appends itself if it wasn't in the results — otherwise the list would be short one
@@ -1533,6 +1539,7 @@ shows 離線 without affecting the others.
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
 | POST | `/notify/test` | Send test push notification |
+| POST | `/reboot` | Restart after 500 ms. **409** while charging (PARAM_EXCHANGE … ENDING) — `restart_svc`, same reason as the OTA check; an unreadable state counts as busy. The web UI button confirms first, then waits for the unit to come back and reloads |
 | POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
 | POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
 | GET | `/mqtt/link` | Cloud PWA URL with broker/topic fragment |
@@ -1543,7 +1550,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 28`; currently 24 handlers registered
+- `max_uri_handlers = 28`; currently 26 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)

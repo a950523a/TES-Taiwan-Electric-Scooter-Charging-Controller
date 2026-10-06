@@ -13,6 +13,7 @@
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
 #include "services/hwtest_svc.h"
+#include "services/restart_svc.h"
 #include "psu_link/psu_pair.h"
 #include "hal/hal_gpio.h"
 #include "platform/platform.h"
@@ -53,6 +54,7 @@ typedef enum {
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
+    MENU_ITEM_RESTART,       // 重新啟動：按兩次確認；充電流程中不可用（restart_svc）
     MENU_ITEM_ABOUT,         // 韌體版本 + 作者（唯讀）
     MENU_ITEM_SAVE,
     MENU_ITEM_CANCEL,
@@ -80,6 +82,12 @@ static bool        s_edit_beacon;
 static bool        s_edit_sched_enabled;
 static bool        s_edit_auto_start;
 
+// 重新啟動要按兩次：第一次只是「武裝」，3 秒內再按 SETTING 才執行；移動游標就取消。
+// 選單裡捲動時一不小心按到 SETTING 不該讓機器重開。
+#define RESTART_CONFIRM_MS 3000u
+static bool     s_restart_armed;
+static uint32_t s_restart_armed_ms;
+
 static int s_visible_items[MENU_ITEM_COUNT];
 static int s_visible_count = 0;
 
@@ -95,6 +103,7 @@ static void build_visible_list(void);  // forward declaration
 static void menu_open(void)
 {
     const charger_config_t *cfg = config_svc_get();
+    s_restart_armed       = false;
     s_edit_auto_voltage   = cfg->auto_voltage;
     s_edit_voltage        = cfg->max_voltage_01v;
     s_edit_current        = cfg->max_current_01a;
@@ -232,6 +241,14 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_RESET_FAULT:
         snprintf(buf, bufsz, "Reset Fault");
+        break;
+    case MENU_ITEM_RESTART:
+        if (!restart_svc_allowed())
+            snprintf(buf, bufsz, "Restart (stop first)");
+        else if (s_restart_armed)
+            snprintf(buf, bufsz, "Restart? press again");
+        else
+            snprintf(buf, bufsz, "Restart");
         break;
     case MENU_ITEM_ABOUT: {
         const esp_app_desc_t *app = esp_app_get_description();
@@ -820,6 +837,7 @@ void display_svc_button(uint8_t evt)
     if (s_mode == MENU_MODE_NAV) {
         switch (evt) {
         case EVT_BUTTON_START:   // scroll UP
+            s_restart_armed = false;
             if (s_cursor > 0) {
                 s_cursor--;
                 if (s_cursor < s_scroll_top)
@@ -828,6 +846,7 @@ void display_svc_button(uint8_t evt)
             break;
 
         case EVT_BUTTON_STOP:    // scroll DOWN
+            s_restart_armed = false;
             if (s_cursor < s_visible_count - 1) {
                 s_cursor++;
                 if (s_cursor >= s_scroll_top + MAX_VISIBLE_ROWS)
@@ -843,6 +862,16 @@ void display_svc_button(uint8_t evt)
                     menu_close();
                 } else if (actual == MENU_ITEM_CANCEL) {
                     menu_close();
+                } else if (actual == MENU_ITEM_RESTART) {
+                    uint32_t now = platform_tick_ms();
+                    if (s_restart_armed && now - s_restart_armed_ms < RESTART_CONFIRM_MS) {
+                        // 未儲存的設定變更會被丟掉 —— 和 Cancel 一樣
+                        if (restart_svc_request(500, "oled")) menu_close();
+                        s_restart_armed = false;
+                    } else if (restart_svc_allowed()) {
+                        s_restart_armed    = true;
+                        s_restart_armed_ms = now;
+                    }
                 } else if (actual == MENU_ITEM_RESET_FAULT) {
                     uint8_t evt = (uint8_t)EVT_FAULT_CLEAR;
                     xQueueSend(g_btn_event_queue, &evt, 0);
@@ -899,6 +928,18 @@ void display_svc_tick(void)
     led_driver_tick();
 
     if (!display_driver_is_ok()) return;
+
+    if (restart_svc_pending()) {   // 網頁或選單要求重新啟動：剩不到一秒，說清楚螢幕為什麼要黑掉
+        display_driver_clear();
+        display_driver_set_color(1);
+        display_driver_font_bold();
+        display_driver_draw_str(0, 36, "Restarting...");
+        display_driver_flush();
+        return;
+    }
+    if (s_restart_armed && platform_tick_ms() - s_restart_armed_ms >= RESTART_CONFIRM_MS) {
+        s_restart_armed = false;   // 逾時沒按第二次，標籤變回 Restart
+    }
 
     if (render_pair()) return;   // 配對中蓋過選單：按鈕此時是確認／取消
 

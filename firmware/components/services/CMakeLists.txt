@@ -13,6 +13,7 @@ idf_component_register(
         "hwtest_svc.c"
         "factory_svc.c"
         "auto_volt.c"
+        "restart_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
