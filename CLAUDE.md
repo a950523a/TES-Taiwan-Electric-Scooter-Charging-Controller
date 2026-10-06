@@ -151,7 +151,7 @@ IDF version is invisible to users, so it is not a reason for V4 on its own):
 | Path | Upstream | Notes |
 |------|----------|-------|
 | `firmware/components/u8g2/` | `olikraus/u8g2` | third-party, never edited here |
-| `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_types.h`, `tes_codec.c/.h` live here |
+| `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_wire.h` (CAN frames + bit macros), `tes_types.h` (application types; includes `tes_wire.h`), `tes_codec.c/.h` live here |
 | `firmware/components/psu_link/` | `a950523a/PSU-Link` | **our own repo** — the controller ↔ power-node link (`psu_link.h/.c`), shared with the LianMing PSU Controller |
 
 On a fresh clone:
@@ -159,7 +159,7 @@ On a fresh clone:
 git submodule update --init
 ```
 
-⚠️ Editing `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
+⚠️ Editing `tes_wire.h`, `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
 Those changes must be committed and pushed in `firmware/components/tes_protocol/`
 first, then the updated pointer committed here — otherwise CI checks out the old
 `tes_protocol` and the build breaks on missing symbols. The same applies to
@@ -331,7 +331,7 @@ Fields that were missing before and are now present: `v501_soc`, `v5f0` bit1 熔
 
 ### 0x500 bit definitions (TES-0D-02-01 表 16)
 
-Named macros live in `tes_types.h` (`V500_FAULT_*`, `V500_ST_*`) — do not use bare hex.
+Named macros live in `tes_wire.h` (`V500_FAULT_*`, `V500_ST_*`; reached through `tes_types.h`) — do not use bare hex.
 
 **byte 0 — 故障旗標** (all 0=正常, 1=異常; bit 6-7 預備固定 0)
 
