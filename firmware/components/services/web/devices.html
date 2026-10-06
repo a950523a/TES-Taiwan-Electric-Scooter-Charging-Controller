@@ -129,7 +129,14 @@ async function pollDevice(d){
   }
 }
 
+// 網段上只有本機一台的時候，清單沒有東西可選 —— 直接進控制頁。
+// 只在打開頁面的第一次自動搜尋時做；手動「重新搜尋」或網址帶 ?list（控制頁的
+// ‹ 連結）就留在清單，否則從控制頁按回清單會立刻又被彈回去。
+// location.replace：上一頁不會回到清單再被彈走一次。
+let autoJump=!new URLSearchParams(location.search).has('list');
+
 async function scan(){
+  const firstScan=autoJump;autoJump=false;
   const btn=document.getElementById('rescan');
   const sub=document.getElementById('sub');
   btn.disabled=true;btn.textContent='搜尋中…';
@@ -140,6 +147,11 @@ async function scan(){
     devices=d.devices||[];
     // 本機排最前面，其餘依名稱排序
     devices.sort((a,b)=>(b.self?1:0)-(a.self?1:0)||String(a.name).localeCompare(String(b.name)));
+    if(firstScan&&devices.length===1&&devices[0].self){
+      sub.textContent='只找到本機，進入控制介面…';
+      location.replace('/control');
+      return;
+    }
     sub.textContent=`找到 ${devices.length} 台裝置`;
     render(devices);
   }catch(e){
