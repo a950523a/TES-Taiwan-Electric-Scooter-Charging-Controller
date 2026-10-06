@@ -10,6 +10,7 @@
 #include "services/config_svc.h"
 #include "services/event_bus.h"
 #include "services/trace_svc.h"
+#include "services/auto_volt.h"
 #include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -333,6 +334,11 @@ void task_tes_sm(void *arg)
     tes_sm_outputs_t outputs;
     memset(&inputs, 0, sizeof(inputs));
 
+    // Auto Volt 的待機追蹤：開機時已在 main.c 量過一次，這裡在 IDLE（沒有負載）時
+    // 繼續取樣，電源爬得慢或之後才到穩態，Max Voltage 會跟著往上（只往上）。
+    static auto_volt_t s_auto_volt;
+    auto_volt_init(&s_auto_volt, AUTO_VOLT_MIN_01V, AUTO_VOLT_MAX_01V, platform_tick_ms());
+
     TickType_t last_wake = xTaskGetTickCount();
 
     while (1) {
@@ -373,6 +379,15 @@ void task_tes_sm(void *arg)
         // 一致性快照：這些值會直接進入 0x508/0x509 廣播給 BMS，
         // 不能出現「新電壓 + 舊電流」這種被 setter 寫到一半的組合。
         config_svc_get_copy(&cfg);
+        if (cfg.auto_voltage) {
+            uint16_t up = auto_volt_idle_step(&s_auto_volt,
+                                              (uint16_t)(g_adc_output_voltage * 10.0f + 0.5f),
+                                              inputs.tick_ms, s_sm.state == TES_STATE_IDLE,
+                                              cfg.max_voltage_01v);
+            if (up) {
+                config_svc_override_voltage(up);   // 下一個 tick 的 get_copy 就會拿到
+            }
+        }
         inputs.max_voltage_01v    = cfg.max_voltage_01v;
         inputs.max_current_01a    = cfg.max_current_01a;
         inputs.target_soc         = cfg.target_soc;

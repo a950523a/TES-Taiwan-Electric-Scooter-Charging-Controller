@@ -890,7 +890,19 @@ Charge history: namespace `"tes_hist"`, blob key `"log"` (**484 bytes**, 20 × `
 ## Feature Summaries
 
 ### Auto-Voltage
-NVS key `auto_v`. At boot: waits 1 s, reads ADC once, if 40–120 V overrides `max_voltage` in RAM (NVS not written). Boot logo shows "Auto Setting Voltage..." on OLED.
+NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40–120 V. Logic in
+`services/auto_volt.c` — pure, data in / data out (2026-10-06; it used to wait 1 s and read once):
+
+- **Boot** (`main.c`, boot logo "Auto Setting Voltage..." on the OLED): sample every 100 ms, use
+  1-second averages, stop when the average rose < 0.3 V over 2 s, take the highest average;
+  at most 10 s. The controller is powered by the PSU itself, so the PSU is often still ramping
+  when it boots — a single read caught a low value.
+- **IDLE** (`task_tes_sm`): keeps sampling while there is no load and raises `max_voltage`
+  when the 1-second average is ≥ 0.2 V above it. Only ever up; samples are dropped on leaving
+  IDLE so charging voltage never gets in.
+- **Why averages, not the raw maximum:** the value goes out as VLIM2 in 0x508, the vehicle's
+  own over-voltage threshold. A spike read as the maximum would loosen that protection; a
+  low value is the safe direction (worst case a "voltage too low" fault).
 
 ### Stop Mode
 Three mutually exclusive termination conditions (NVS key `stop_m`). SM checks in `run_monitoring()`:

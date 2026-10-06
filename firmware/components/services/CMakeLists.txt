@@ -12,6 +12,7 @@ idf_component_register(
         "scheduler_svc.c"
         "hwtest_svc.c"
         "factory_svc.c"
+        "auto_volt.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES

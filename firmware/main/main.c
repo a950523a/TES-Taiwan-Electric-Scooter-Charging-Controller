@@ -16,15 +16,14 @@
 #include "services/trace_svc.h"
 #include "services/mqtt_svc.h"
 #include "services/scheduler_svc.h"
+#include "services/auto_volt.h"
+#include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdatomic.h>
 #include <string.h>
 
-#define AUTO_VOLT_SETTLE_MS  1000   // ADC 穩定等待時間
-#define AUTO_VOLT_MIN_V      40.0f
-#define AUTO_VOLT_MAX_V     120.0f
 
 // ── Boot logo (auto-voltage settle screen) ───────────────────────────────────
 // Turtle mark on left (cx=30, cy=36), "Auto Setting Voltage..." on right.
@@ -209,16 +208,24 @@ void app_main(void)
     mqtt_svc_init();
     ESP_ERROR_CHECK(scheduler_svc_init());
 
-    // Auto-voltage: 等待 ADC 穩定後讀一次電壓，更新 max_voltage（僅 RAM）
+    // Auto-voltage：等電源電壓不再上升（最多 10 秒），取最高的 1 秒平均，更新 max_voltage
+    // （僅 RAM）。之後在 IDLE 由 task_tes_sm 持續往上追蹤 —— 演算法見 services/auto_volt.h
     if (config_svc_get()->auto_voltage) {
-        ESP_LOGI(TAG, "auto-voltage: waiting %dms for ADC to settle", AUTO_VOLT_SETTLE_MS);
         draw_auto_volt_screen();
-        vTaskDelay(pdMS_TO_TICKS(AUTO_VOLT_SETTLE_MS));
-        float v = adc_driver_read_voltage();
-        if (v >= AUTO_VOLT_MIN_V && v <= AUTO_VOLT_MAX_V) {
-            config_svc_override_voltage((uint16_t)(v * 10.0f + 0.5f));
+        auto_volt_t av;
+        uint16_t v01 = 0;
+        uint32_t t0 = platform_tick_ms();
+        auto_volt_init(&av, AUTO_VOLT_MIN_01V, AUTO_VOLT_MAX_01V, t0);
+        while (!auto_volt_boot_step(&av, (uint16_t)(adc_driver_read_voltage() * 10.0f + 0.5f),
+                                    platform_tick_ms(), &v01)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (v01) {
+            ESP_LOGI(TAG, "auto-voltage: settled after %lums", (unsigned long)(platform_tick_ms() - t0));
+            config_svc_override_voltage(v01);
         } else {
-            ESP_LOGW(TAG, "auto-voltage: ADC read %.1fV out of range, keeping NVS value", v);
+            ESP_LOGW(TAG, "auto-voltage: highest reading %u.%uV out of range, keeping NVS value",
+                     av.best_01v / 10, av.best_01v % 10);
         }
     }
 
