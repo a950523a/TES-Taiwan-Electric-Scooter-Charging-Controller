@@ -379,15 +379,6 @@ void task_tes_sm(void *arg)
         // 一致性快照：這些值會直接進入 0x508/0x509 廣播給 BMS，
         // 不能出現「新電壓 + 舊電流」這種被 setter 寫到一半的組合。
         config_svc_get_copy(&cfg);
-        if (cfg.auto_voltage) {
-            uint16_t up = auto_volt_idle_step(&s_auto_volt,
-                                              (uint16_t)(g_adc_output_voltage * 10.0f + 0.5f),
-                                              inputs.tick_ms, s_sm.state == TES_STATE_IDLE,
-                                              cfg.max_voltage_01v);
-            if (up) {
-                config_svc_override_voltage(up);   // 下一個 tick 的 get_copy 就會拿到
-            }
-        }
         inputs.max_voltage_01v    = cfg.max_voltage_01v;
         inputs.max_current_01a    = cfg.max_current_01a;
         inputs.target_soc         = cfg.target_soc;
@@ -399,6 +390,19 @@ void task_tes_sm(void *arg)
         tes_sm_tick(&s_sm, &inputs, &outputs);
         bench_test_override(&inputs, &outputs);
         execute_outputs(&outputs);
+
+        // Auto Volt 只能在充電流程外改 Max Voltage。要放在 tick 之後、用 tick 之後的狀態：
+        // 新值下一個 tick 的 get_copy 才拿到，放在 tick 之前的話，按下 START 的那一拍
+        // 算出的新值會在 PARAM_EXCHANGE 的第一拍才生效 —— VLIM2 在握手中途改變
+        if (cfg.auto_voltage) {
+            uint16_t up = auto_volt_idle_step(&s_auto_volt,
+                                              (uint16_t)(g_adc_output_voltage * 10.0f + 0.5f),
+                                              inputs.tick_ms, s_sm.state == TES_STATE_IDLE,
+                                              cfg.max_voltage_01v);
+            if (up) {
+                config_svc_override_voltage(up);   // 下一個 tick 的 get_copy 就會拿到
+            }
+        }
 
         // Cache last sent TX frames for CAN diag
         if (outputs.tx_charger_status) s_last_508       = outputs.status_508;

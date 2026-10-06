@@ -901,6 +901,11 @@ NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40–12
 - **IDLE** (`task_tes_sm`): keeps sampling while there is no load and raises `max_voltage`
   when the 1-second average is ≥ 0.2 V above it. Only ever up; samples are dropped on leaving
   IDLE so charging voltage never gets in.
+- **Never changes during a charging session** (decided 2026-10-06). The step runs *after*
+  `tes_sm_tick()` and checks the post-tick state: the override only reaches the SM on the next
+  tick, so running it before the tick let a value computed on the START tick land in the first
+  PARAM_EXCHANGE tick — VLIM2 moving mid-handshake. This covers Auto Volt only; a Max Voltage
+  typed by the user is still applied immediately, as before.
 - **Why averages, not the raw maximum:** the value goes out as VLIM2 in 0x508, the vehicle's
   own over-voltage threshold. A spike read as the maximum would loosen that protection; a
   low value is the safe direction (worst case a "voltage too low" fault).
