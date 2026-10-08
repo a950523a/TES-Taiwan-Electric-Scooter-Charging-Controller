@@ -25,6 +25,7 @@
 #include "services/event_bus.h"
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
+#include "services/push_svc.h"
 #include "services/log_svc.h"
 #include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
@@ -409,6 +410,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddBoolToObject  (root, "sta_enabled",    cfg->sta_enabled);
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
+    cJSON_AddNumberToObject(root, "push_tokens",       push_svc_count());   // 只給數量，不給 token
     cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
     cJSON_AddStringToObject(root, "mqtt_topic_prefix", cfg->mqtt_topic_prefix);
     cJSON_AddBoolToObject  (root, "mqtt_cmd_enabled",  cfg->mqtt_cmd_enabled);
@@ -1261,24 +1263,72 @@ static const httpd_uri_t s_uri_get_tracelog = {
 static esp_err_t handle_post_notify_test(httpd_req_t *req)
 {
     if (!csrf_ok(req)) return ESP_FAIL;
-    const char *url = config_svc_get()->notify_url;
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
-    if (url[0] == '\0') {
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"notify_url not configured\"}");
+    if (config_svc_get()->notify_url[0] == '\0' && push_svc_count() == 0) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"notify_url not configured and no app registered\"}");
         return ESP_OK;
     }
     if (!s_connected) {
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no internet (AP mode or disconnected)\"}");
         return ESP_OK;
     }
-    esp_err_t err = notify_svc_send(url, "TES 充電控制器", "推播通知測試成功 ✓", 3);
+    // notify_url 與 App 推播都送，跟真正的事件走同一條路
+    esp_err_t err = notify_svc_broadcast("TES 充電控制器", "推播通知測試成功 ✓", 3);
     httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"send failed\"}");
     return ESP_OK;
 }
 
 static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
+};
+
+// ── POST /push ────────────────────────────────────────────────────────────────
+// 手機 App 登記／取消自己的 Expo 推播 token：{"op":"add"|"remove","token":"ExponentPushToken[...]"}
+// 最多 PUSH_MAX_TOKENS 支手機。token 不經 GET /config 回傳，只回數量（push_tokens）。
+
+static esp_err_t handle_post_push(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char buf[128];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *op  = in ? cJSON_GetObjectItem(in, "op") : NULL;
+    const cJSON *tok = in ? cJSON_GetObjectItem(in, "token") : NULL;
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    if (cJSON_IsString(op) && cJSON_IsString(tok)) {
+        if (strcmp(op->valuestring, "add") == 0)         err = push_svc_add(tok->valuestring);
+        else if (strcmp(op->valuestring, "remove") == 0) err = push_svc_remove(tok->valuestring);
+    }
+    cJSON_Delete(in);
+
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    // 取消一個本來就沒登記的 token 也算成功：App 只想確定「之後不會再收到」
+    if (err == ESP_OK || err == ESP_ERR_NOT_FOUND) {
+        char out[32];
+        snprintf(out, sizeof out, "{\"ok\":true,\"count\":%d}", push_svc_count());
+        httpd_resp_sendstr(req, out);
+    } else if (err == ESP_ERR_NO_MEM) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"too many phones registered\"}");
+    } else {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"need op add|remove and an Expo push token\"}");
+    }
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_push = {
+    .uri = "/push", .method = HTTP_POST, .handler = handle_post_push
 };
 
 // ── POST /reboot ──────────────────────────────────────────────────────────────
@@ -1966,7 +2016,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 28;   // 目前註冊 26 個，留餘裕
+    cfg.max_uri_handlers  = 28;   // 目前註冊 27 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     s_httpd_max_sockets   = cfg.max_open_sockets;
@@ -1994,6 +2044,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_trace);
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
+    httpd_register_uri_handler(s_server, &s_uri_post_push);
     httpd_register_uri_handler(s_server, &s_uri_post_reboot);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);

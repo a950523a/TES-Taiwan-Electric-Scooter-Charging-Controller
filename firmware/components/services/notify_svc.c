@@ -2,6 +2,7 @@
 #include "services/event_bus.h"
 #include "services/config_svc.h"
 #include "services/network_svc.h"
+#include "services/push_svc.h"
 #include "tes_protocol/tes_types.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
@@ -58,7 +59,26 @@ esp_err_t notify_svc_send(const char *url, const char *title, const char *messag
 
 esp_err_t notify_svc_init(void)
 {
-    return ESP_OK;
+    return push_svc_init();
+}
+
+// 同一則通知送到兩條路：notify_url（webhook／ntfy）與 App 推播（Expo）。
+// 任一條成功就算成功；兩條都沒設定回 ESP_ERR_NOT_FOUND。
+esp_err_t notify_svc_broadcast(const char *title, const char *message, int priority)
+{
+    const char *url = config_svc_get()->notify_url;
+    bool any_target = false, any_ok = false;
+    if (url[0] != '\0') {
+        any_target = true;
+        any_ok |= notify_svc_send(url, title, message, priority) == ESP_OK;
+    }
+    esp_err_t pr = push_svc_send_all(title, message);
+    if (pr != ESP_ERR_NOT_FOUND) {
+        any_target = true;
+        any_ok |= pr == ESP_OK;
+    }
+    if (!any_target) return ESP_ERR_NOT_FOUND;
+    return any_ok ? ESP_OK : ESP_FAIL;
 }
 
 void task_notify(void *arg)
@@ -80,13 +100,12 @@ void task_notify(void *arg)
 
         if (!network_svc_is_connected()) continue;   // AP 模式或尚未連線：跳過
 
-        const char *url = config_svc_get()->notify_url;
-        if (url[0] == '\0') continue;
+        if (config_svc_get()->notify_url[0] == '\0' && push_svc_count() == 0) continue;
 
         tes_state_t new_state = (tes_state_t)evt.payload[0];
 
         if (new_state == TES_STATE_CHARGING && !was_charging) {
-            notify_svc_send(url, "充電開始", "充電器已連接並開始充電", 3);
+            notify_svc_broadcast("充電開始", "充電器已連接並開始充電", 3);
             was_charging = true;
 
         } else if (new_state == TES_STATE_IDLE && was_charging) {
@@ -105,16 +124,16 @@ void task_notify(void *arg)
                 } else {
                     snprintf(msg, sizeof(msg), "SOC %d%%  %lum", snap.soc, (unsigned long)m);
                 }
-                notify_svc_send(url, "充電完成", msg, 3);
+                notify_svc_broadcast("充電完成", msg, 3);
             }
             was_charging = false;
 
         } else if (new_state == TES_STATE_FAULT) {
-            notify_svc_send(url, "充電故障", "請確認設備狀態", 4);
+            notify_svc_broadcast("充電故障", "請確認設備狀態", 4);
             was_charging = false;
 
         } else if (new_state == TES_STATE_EMERGENCY) {
-            notify_svc_send(url, "緊急停止", "充電器觸發緊急停止", 5);
+            notify_svc_broadcast("緊急停止", "充電器觸發緊急停止", 5);
             was_charging = false;
 
         } else if (new_state == TES_STATE_IDLE) {

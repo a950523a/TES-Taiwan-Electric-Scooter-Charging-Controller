@@ -6,6 +6,7 @@ idf_component_register(
         "network_svc.c"
         "ota_svc.c"
         "notify_svc.c"
+        "push_svc.c"
         "log_svc.c"
         "trace_svc.c"
         "mqtt_svc.c"

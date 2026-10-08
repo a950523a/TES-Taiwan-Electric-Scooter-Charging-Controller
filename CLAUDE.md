@@ -249,7 +249,7 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
-| `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) |
+| `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) and to the mobile app (Expo) |
 | `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
 | `task_scheduler` | 2 | 4 KB | 30 s | NTP sync (pool.ntp.org, UTC+8) + charging window edge detection → g_btn_event_queue (v3.4.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
@@ -699,7 +699,7 @@ exercised has since been checked, and the ESP-NOW PSU transport with it:
 The pass/fail was recorded, the procedure was not. If any of these is ever suspected
 again, the repro steps have to be rebuilt from scratch — worth writing down next time.
 
-**⚠️ Still not vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan,
+**⚠️ Still not vehicle-tested:** notify_svc, push_svc (mobile-app push), PWA offline caching, log_svc, WiFi scan,
 mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge
 timer stop, scheduler, beta auto-start.
 
@@ -869,6 +869,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `stop_v` | uint32 | 1000 | Stop voltage × 10 (i.e. 100.0 V) |
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
+| `push_toks` | blob[4×64] | empty | Mobile-app Expo push tokens (`push_svc`, not in `charger_config_t`) |
 | `mqtt_url` | str[128] | "" | MQTT broker URL; empty = disabled |
 | `mqtt_topic` | str[64] | "" | MQTT topic prefix |
 | `sched_en` | uint8 | 0 | Scheduler master switch |
@@ -956,6 +957,17 @@ NVS keys: `sched_en`, `sched_start` (minutes from midnight 0-1439), `sched_stop_
 
 ### Webhook / ntfy Push Notification
 NVS key `notify_url` (empty = disabled). `notify_svc` subscribes to event bus, POSTs `{"title":"...", "message":"...", "priority":3}` on: CHARGING entered, IDLE with charge_complete, FAULT, EMERGENCY. Checks `network_svc_is_connected()` before every send. `POST /notify/test` sends a test notification.
+
+**Mobile app push (`push_svc`).** Every event above goes through `notify_svc_broadcast()`, which sends to
+`notify_url` *and* to every phone registered by the mobile app. The app registers its Expo push token
+with `POST /push {"op":"add"|"remove","token":"ExponentPushToken[...]"}` (CSRF header required; at most
+`PUSH_MAX_TOKENS` = 4 phones, the 5th gets 409). Tokens live in one NVS blob `push_toks`, **not** in
+`charger_config_t` — that struct is serialised by `GET /config`, which only reports `push_tokens` (a count).
+Sending is one HTTPS POST per phone to `https://exp.host/--/api/v2/push/send` with
+`channelId: "charging"` (the app creates that Android channel; keep both sides in sync). A response
+containing `DeviceNotRegistered` removes that token. Buffers are heap-allocated because `task_notify`
+has 6 KB of stack — check its `stack free` in `task_monitor` after the first real push.
+A token can only push to the phone it came from, so it is not treated as a secret.
 
 ### Charge Session History
 `task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (**24 bytes**). `log_svc` stores last 20 sessions as NVS blob (`session_log_t` = 4 + 20×24 = **484 bytes**).
@@ -1116,28 +1128,19 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 ---
 
-## Mobile App (In Progress)
+## Mobile App
 
-**技術：** React Native + Expo（Managed Workflow）+ EAS Build → Android APK（側載）
+**The app itself is developed in a separate, non-public repo** (Expo / React Native, Android and iOS).
+This firmware only has to keep the interfaces it relies on stable:
 
-**目標：** 非技術使用者也能輕鬆使用，支援多台控制器管理。
+- **LAN:** `GET /status`, `GET /config` + partial `POST /config`, `POST /start` / `/stop`, `GET /history`,
+  `GET /devices` (the app has no mDNS of its own and uses this to find other units). All POSTs carry
+  `X-TES-Request`. `POST /config` range checks must stay in step with the app's copy.
+- **Remote (read-only):** MQTT `{prefix}/status` and the LWT `{"state":"offline"}` — see MQTT Remote
+  Monitoring. The app does not send `{prefix}/cmd`; remote start/stop waits for authentication.
+- **Push:** `POST /push` and the Expo send in `push_svc` — see Webhook / ntfy Push Notification.
 
-**連線方式：**
-- 本地（同 WiFi）：HTTP REST API，`http://<ip>/`
-- 遠端：MQTT WebSocket（透過 broker）
-
-**控制器配對（首次新增）：**
-- 掃描區域網路子網路，對每個 IP 嘗試 `GET /status`，回應含充電器特徵欄位者視為 TES 控制器
-- 使用者點選後命名，MAC/IP 儲存至 AsyncStorage
-
-**主要畫面：**
-1. 引導流程（首次開啟）：歡迎 → 連線說明 → 自動掃描 → 命名 → 完成
-2. 控制器列表：每台狀態卡片（在線/充電中/離線）
-3. 儀表板：大字電壓/電流/SOC + 開始/停止
-4. 設定：對應現有 REST `/config` API
-5. 充電歷史：對應 `GET /history`
-
-**開發狀態：** 尚未開始。原本卡在 ESP-NOW 韌體，該項已於 2026-09-15 測試通過，前置條件解除。
+Renaming or removing a field in any of these breaks installed apps; add fields instead.
 
 ---
 
@@ -1543,7 +1546,8 @@ shows 離線 without affecting the others.
 | GET | `/sw.js` | Service Worker |
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
-| POST | `/notify/test` | Send test push notification |
+| POST | `/notify/test` | Send a test notification to `notify_url` and every registered phone |
+| POST | `/push` | Mobile app: `{"op":"add"\|"remove","token":"ExponentPushToken[...]"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
 | POST | `/reboot` | Restart after 500 ms. **409** while charging (PARAM_EXCHANGE … ENDING) — `restart_svc`, same reason as the OTA check; an unreadable state counts as busy. The web UI button confirms first, then waits for the unit to come back and reloads |
 | POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
 | POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
@@ -1555,7 +1559,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 28`; currently 26 handlers registered
+- `max_uri_handlers = 28`; currently 27 handlers registered — the next endpoint needs this raised
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
