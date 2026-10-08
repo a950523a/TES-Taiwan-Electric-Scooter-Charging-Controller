@@ -1283,14 +1283,17 @@ static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
 };
 
-// ── POST /push ────────────────────────────────────────────────────────────────
-// 手機 App 登記／取消自己的 Expo 推播 token：{"op":"add"|"remove","token":"ExponentPushToken[...]"}
-// 最多 PUSH_MAX_TOKENS 支手機。token 不經 GET /config 回傳，只回數量（push_tokens）。
+// ── POST /push、GET /push ─────────────────────────────────────────────────────
+// 手機 App 管理推播：
+//   {"op":"add","token":"ExponentPushToken[...]","name":"Galaxy S26 Ultra"}  登記這支（已登記就只更新名稱）
+//   {"op":"remove","token":"..."}                                           取消這支
+//   {"op":"remove_slot","slot":2}                                           移除別支（App 不知道別人的完整 token）
+// 最多 PUSH_MAX_TOKENS 支手機。GET /push 列出名稱、登記時間、token 最後 6 碼，不給完整 token。
 
 static esp_err_t handle_post_push(httpd_req_t *req)
 {
     if (!csrf_ok(req)) return ESP_FAIL;
-    char buf[128];
+    char buf[192];
     int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
     int got = 0;
     while (got < len) {
@@ -1303,10 +1306,17 @@ static esp_err_t handle_post_push(httpd_req_t *req)
     cJSON *in = cJSON_Parse(buf);
     const cJSON *op  = in ? cJSON_GetObjectItem(in, "op") : NULL;
     const cJSON *tok = in ? cJSON_GetObjectItem(in, "token") : NULL;
+    const cJSON *nm  = in ? cJSON_GetObjectItem(in, "name") : NULL;
+    const cJSON *sl  = in ? cJSON_GetObjectItem(in, "slot") : NULL;
     esp_err_t err = ESP_ERR_INVALID_ARG;
-    if (cJSON_IsString(op) && cJSON_IsString(tok)) {
-        if (strcmp(op->valuestring, "add") == 0)         err = push_svc_add(tok->valuestring);
-        else if (strcmp(op->valuestring, "remove") == 0) err = push_svc_remove(tok->valuestring);
+    if (cJSON_IsString(op)) {
+        if (strcmp(op->valuestring, "add") == 0 && cJSON_IsString(tok)) {
+            err = push_svc_add(tok->valuestring, cJSON_IsString(nm) ? nm->valuestring : NULL);
+        } else if (strcmp(op->valuestring, "remove") == 0 && cJSON_IsString(tok)) {
+            err = push_svc_remove(tok->valuestring);
+        } else if (strcmp(op->valuestring, "remove_slot") == 0 && cJSON_IsNumber(sl)) {
+            err = push_svc_remove_slot(sl->valueint);
+        }
     }
     cJSON_Delete(in);
 
@@ -1322,13 +1332,46 @@ static esp_err_t handle_post_push(httpd_req_t *req)
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"too many phones registered\"}");
     } else {
         httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"need op add|remove and an Expo push token\"}");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"need op add|remove with an Expo push token, or remove_slot with slot\"}");
     }
     return ESP_OK;
 }
 
 static const httpd_uri_t s_uri_post_push = {
     .uri = "/push", .method = HTTP_POST, .handler = handle_post_push
+};
+
+static esp_err_t handle_get_push(httpd_req_t *req)
+{
+    push_phone_info_t list[PUSH_MAX_TOKENS];
+    int n = push_svc_list(list);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "max", PUSH_MAX_TOKENS);
+    cJSON *arr = cJSON_AddArrayToObject(root, "phones");
+    for (int i = 0; i < n; i++) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "slot",  list[i].slot);
+        cJSON_AddStringToObject(o, "name",  list[i].name);
+        cJSON_AddNumberToObject(o, "added", list[i].added);
+        cJSON_AddStringToObject(o, "tail",  list[i].tail);
+        cJSON_AddItemToArray(arr, o);
+    }
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    set_cors(req);
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json alloc");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_push = {
+    .uri = "/push", .method = HTTP_GET, .handler = handle_get_push
 };
 
 // ── POST /reboot ──────────────────────────────────────────────────────────────
@@ -2016,7 +2059,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 28;   // 目前註冊 27 個，留餘裕
+    cfg.max_uri_handlers  = 32;   // 目前註冊 28 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     s_httpd_max_sockets   = cfg.max_open_sockets;
@@ -2045,6 +2088,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
     httpd_register_uri_handler(s_server, &s_uri_post_push);
+    httpd_register_uri_handler(s_server, &s_uri_get_push);
     httpd_register_uri_handler(s_server, &s_uri_post_reboot);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);

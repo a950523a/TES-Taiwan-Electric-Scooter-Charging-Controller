@@ -869,7 +869,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `stop_v` | uint32 | 1000 | Stop voltage × 10 (i.e. 100.0 V) |
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
-| `push_toks` | blob[4×64] | empty | Mobile-app Expo push tokens (`push_svc`, not in `charger_config_t`) |
+| `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
 | `mqtt_url` | str[128] | "" | MQTT broker URL; empty = disabled |
 | `mqtt_topic` | str[64] | "" | MQTT topic prefix |
 | `sched_en` | uint8 | 0 | Scheduler master switch |
@@ -960,14 +960,30 @@ NVS key `notify_url` (empty = disabled). `notify_svc` subscribes to event bus, P
 
 **Mobile app push (`push_svc`).** Every event above goes through `notify_svc_broadcast()`, which sends to
 `notify_url` *and* to every phone registered by the mobile app. The app registers its Expo push token
-with `POST /push {"op":"add"|"remove","token":"ExponentPushToken[...]"}` (CSRF header required; at most
-`PUSH_MAX_TOKENS` = 4 phones, the 5th gets 409). Tokens live in one NVS blob `push_toks`, **not** in
+with `POST /push {"op":"add","token":"ExponentPushToken[...]","name":"<phone>"}` (CSRF header required; at
+most `PUSH_MAX_TOKENS` = 4 phones, the 5th gets 409). Each entry stores the token, a phone name and the
+registration time (Unix seconds, 0 if NTP had not synced) in one NVS blob `push_v2`, **not** in
 `charger_config_t` — that struct is serialised by `GET /config`, which only reports `push_tokens` (a count).
+The older token-only blob `push_toks` is migrated on boot. **Managing the phones:** `GET /push` lists
+`{slot,name,added,tail}` — `tail` is the last 6 characters inside the brackets, so the app can recognise
+"this phone" without the firmware ever returning a full token; `{"op":"remove_slot","slot":n}` removes
+another phone, `{"op":"remove","token":...}` this one. Names are sanitised on the way in (no `"`, `\`
+or control characters, cut on a UTF-8 boundary) so they can go into JSON unescaped.
 Sending is one HTTPS POST per phone to `https://exp.host/--/api/v2/push/send` with
 `channelId: "charging"` (the app creates that Android channel; keep both sides in sync). A response
 containing `DeviceNotRegistered` removes that token. Buffers are heap-allocated because `task_notify`
 has 6 KB of stack — check its `stack free` in `task_monitor` after the first real push.
 A token can only push to the phone it came from, so it is not treated as a secret.
+
+**Live charging progress for the app (Android Now Bar / Live Updates).** While CHARGING, `task_notify`
+wakes every 5 s (`LIVE_POLL_MS`) even without events and sends a *data-only* push (no title/body,
+`ttl` 300 s) to registered phones — `{"k":"live","id","m","p","soc","tsoc","v","sv","el","tm","rem","w"}`,
+voltages in 0.1 V, all integers so no `%f` on the 6 KB stack. `p` is the progress the user asked for,
+**by stop mode**: SOC → soc ÷ target, voltage → from the voltage at charge start to the stop voltage,
+timer → elapsed ÷ set time (`live_progress.c`, pure C, host-tested). A push goes out when `p` changes,
+at most once per 30 s (`live_should_send`); leaving CHARGING sends `{"k":"live_end","id","r"}` so the
+app clears its ongoing notification. The app builds the notification itself in a background task — the
+firmware never sends display text for it, and `notify_url` does not get these.
 
 ### Charge Session History
 `task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (**24 bytes**). `log_svc` stores last 20 sessions as NVS blob (`session_log_t` = 4 + 20×24 = **484 bytes**).
@@ -1552,7 +1568,8 @@ shows 離線 without affecting the others.
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
 | POST | `/notify/test` | Send a test notification to `notify_url` and every registered phone |
-| POST | `/push` | Mobile app: `{"op":"add"\|"remove","token":"ExponentPushToken[...]"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
+| GET | `/push` | Registered phones: `{"max":4,"phones":[{"slot","name","added","tail"}]}` — never the full token |
+| POST | `/push` | Mobile app: `{"op":"add","token","name"}` / `{"op":"remove","token"}` / `{"op":"remove_slot","slot"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
 | POST | `/reboot` | Restart after 500 ms. **409** while charging (PARAM_EXCHANGE … ENDING) — `restart_svc`, same reason as the OTA check; an unreadable state counts as busy. The web UI button confirms first, then waits for the unit to come back and reloads |
 | POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
 | POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
@@ -1564,7 +1581,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 28`; currently 27 handlers registered — the next endpoint needs this raised
+- `max_uri_handlers = 32`; currently 28 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)

@@ -3,6 +3,8 @@
 #include "services/config_svc.h"
 #include "services/network_svc.h"
 #include "services/push_svc.h"
+#include "services/live_progress.h"
+#include "esp_timer.h"
 #include "tes_protocol/tes_types.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
@@ -81,6 +83,76 @@ esp_err_t notify_svc_broadcast(const char *title, const char *message, int prior
     return any_ok ? ESP_OK : ESP_FAIL;
 }
 
+// ── App 即時進度（Android Now Bar）────────────────────────────────────────────
+// 充電中把進度用「只有資料」的推播送給 App，App 在背景自己更新那則常駐通知；
+// 離開充電狀態送一則 live_end 讓 App 收掉它。只送給 App（push_svc），不送 notify_url。
+// 每 LIVE_POLL_MS 看一次快照；送不送由 live_should_send() 決定（進度變 1%、至少隔 30 秒）。
+
+#define LIVE_POLL_MS 5000
+
+static struct {
+    bool     active;
+    int      last_pct;
+    uint32_t last_ms;
+    uint16_t v0_01;
+} s_live;
+
+static void live_tick(void)
+{
+    if (!network_svc_is_connected() || push_svc_count() == 0) return;
+
+    // static：task_notify 只有 6 KB 堆疊，送推播時 TLS 還要用
+    static tes_snapshot_t   snap;
+    static charger_config_t cfg;
+    static char             data[256];
+    if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    snap = g_snapshot;
+    xSemaphoreGive(g_snapshot_mutex);
+    config_svc_get_copy(&cfg);
+
+    uint16_t v01 = (uint16_t)(snap.output_voltage * 10.0f + 0.5f);
+    if (snap.state != TES_STATE_CHARGING) {
+        if (s_live.active) {
+            snprintf(data, sizeof data, "{\"k\":\"live_end\",\"id\":\"%s\",\"r\":%u}",
+                     cfg.device_id, (unsigned)snap.stop_reason);
+            push_svc_send_data_all(data);
+            s_live.active = false;
+        }
+        return;
+    }
+
+    bool first = !s_live.active;
+    if (first) {
+        s_live.active = true;
+        s_live.v0_01  = v01;       // 依電壓停止時，進度從這裡起算
+    }
+    live_inputs_t li = {
+        .stop_mode = (uint8_t)cfg.stop_mode,
+        .soc       = snap.soc,
+        .target_soc = snap.target_soc,
+        .v01       = v01,
+        .v0_01     = s_live.v0_01,
+        .stop_v01  = cfg.stop_voltage_01v,
+        .elapsed_s = snap.elapsed_seconds,
+        .timer_min = cfg.charge_timer_min,
+    };
+    int pct = live_progress_pct(&li);
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    if (!live_should_send(pct, s_live.last_pct, now, s_live.last_ms, first)) return;
+
+    // 全部用整數：避免 %f 用掉堆疊；App 端把 0.1 V 換回 V
+    unsigned w = (unsigned)(snap.output_voltage * snap.output_current + 0.5f);
+    snprintf(data, sizeof data,
+             "{\"k\":\"live\",\"id\":\"%s\",\"m\":%u,\"p\":%d,\"soc\":%u,\"tsoc\":%d,"
+             "\"v\":%u,\"sv\":%u,\"el\":%lu,\"tm\":%u,\"rem\":%lu,\"w\":%u}",
+             cfg.device_id, (unsigned)cfg.stop_mode, pct, (unsigned)snap.soc, (int)snap.target_soc,
+             (unsigned)v01, (unsigned)cfg.stop_voltage_01v, (unsigned long)snap.elapsed_seconds,
+             (unsigned)cfg.charge_timer_min, (unsigned long)snap.remaining_seconds, w);
+    // 失敗（例如暫時連不上 Expo）只更新時間：30 秒後再試，不會每 5 秒打一次
+    s_live.last_ms = now;
+    if (push_svc_send_data_all(data) == ESP_OK || first) s_live.last_pct = pct;
+}
+
 void task_notify(void *arg)
 {
     (void)arg;
@@ -95,8 +167,9 @@ void task_notify(void *arg)
     bool was_charging = false;
 
     for (;;) {
-        if (xQueueReceive(q, &evt, portMAX_DELAY) != pdTRUE) continue;
-        if (evt.type != EVT_TES_STATE_CHANGED) continue;
+        bool got = xQueueReceive(q, &evt, pdMS_TO_TICKS(LIVE_POLL_MS)) == pdTRUE;
+        live_tick();
+        if (!got || evt.type != EVT_TES_STATE_CHANGED) continue;
 
         if (!network_svc_is_connected()) continue;   // AP 模式或尚未連線：跳過
 
