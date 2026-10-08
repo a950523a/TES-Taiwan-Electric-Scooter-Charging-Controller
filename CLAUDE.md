@@ -1131,11 +1131,16 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 ## Mobile App
 
 **The app itself is developed in a separate, non-public repo** (Expo / React Native, Android and iOS).
-This firmware only has to keep the interfaces it relies on stable:
+**It has every feature of the web UI** (`index.html`, `hw.html`, `devices.html`) — the author's rule — so
+**a feature added to the web UI should be added to the app too**, and this firmware has to keep the
+interfaces the app relies on stable:
 
-- **LAN:** `GET /status`, `GET /config` + partial `POST /config`, `POST /start` / `/stop`, `GET /history`,
-  `GET /devices` (the app has no mDNS of its own and uses this to find other units). All POSTs carry
-  `X-TES-Request`. `POST /config` range checks must stay in step with the app's copy.
+- **LAN:** every endpoint in the REST table below is used, including `/trace`, `/tracelog`, `/hw.json`,
+  `/hw/board.svg`, `/hw/test`, `/wifi/scan`, `/ota/upload` and the PSU pairing pair. `GET /devices` matters
+  in particular: the app has no mDNS of its own and uses it to find other units. All POSTs carry
+  `X-TES-Request`. `POST /config` range checks must stay in step with the app's copy. The `/status`
+  fault fields (`fault_source`, `fault_ctx_a/b`) are explained by a copy of the `FAULTS` table — add a
+  fault source here, add its text there.
 - **Remote (read-only):** MQTT `{prefix}/status` and the LWT `{"state":"offline"}` — see MQTT Remote
   Monitoring. The app does not send `{prefix}/cmd`; remote start/stop waits for authentication.
 - **Push:** `POST /push` and the Expo send in `push_svc` — see Webhook / ntfy Push Notification.
