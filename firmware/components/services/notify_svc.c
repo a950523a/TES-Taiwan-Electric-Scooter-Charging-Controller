@@ -4,6 +4,9 @@
 #include "services/network_svc.h"
 #include "services/push_svc.h"
 #include "services/live_progress.h"
+#include "services/boot_notice.h"
+#include "hal/hal_nvs.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "tes_protocol/tes_types.h"
 #include "esp_http_client.h"
@@ -27,7 +30,7 @@ static const char *TAG = "notify_svc";
 
 esp_err_t notify_svc_send(const char *url, const char *title, const char *message, int priority)
 {
-    char body[256];
+    char body[384];   // 重開機通知的中文內文可到 ~150 bytes
     snprintf(body, sizeof(body),
              "{\"title\":\"%s\",\"message\":\"%s\",\"priority\":%d}",
              title, message, priority);
@@ -59,9 +62,80 @@ esp_err_t notify_svc_send(const char *url, const char *title, const char *messag
     return result;
 }
 
+// ── 重開機後的補發通知 ────────────────────────────────────────────────────────
+// 當機、看門狗、電壓不足、斷電時來不及送「充電中斷」。開始充電時在 NVS 寫一個標記、
+// 正常結束時清掉；開機看到標記（或異常的重啟原因）就在連上網路後補發。判斷在 boot_notice.c。
+// 標記只在每次充電開始與結束各寫一次，不會磨損 flash。
+
+#define NVS_NS        "tes_cfg"
+#define NVS_KEY_MARK  "chg_mark"     // 0 = 沒在充電；否則 0x100 | 開始時 SOC
+#define MARK_ACTIVE   0x100u
+
+static bool s_mark_set;
+static bool s_new_session;      // 開機後開始過新的充電
+static bool s_boot_pending;
+static bool s_boot_live_end;
+static char s_boot_title[48];
+static char s_boot_body[200];
+
+static boot_rst_t map_reset(esp_reset_reason_t r)
+{
+    switch (r) {
+    case ESP_RST_POWERON:  return BOOT_RST_POWERON;
+    case ESP_RST_EXT:      return BOOT_RST_EXT;
+    case ESP_RST_SW:       return BOOT_RST_SW;
+    case ESP_RST_PANIC:    return BOOT_RST_PANIC;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return BOOT_RST_WDT;
+    case ESP_RST_BROWNOUT: return BOOT_RST_BROWNOUT;
+    default:               return BOOT_RST_OTHER;
+    }
+}
+
+static void charge_mark_set(uint8_t soc)
+{
+    hal_nvs_set_u32(NVS_NS, NVS_KEY_MARK, MARK_ACTIVE | soc);
+    s_mark_set = true;
+}
+
+static void charge_mark_clear(void)
+{
+    if (!s_mark_set) return;          // 沒寫過就不必再寫一次 NVS
+    hal_nvs_set_u32(NVS_NS, NVS_KEY_MARK, 0);
+    s_mark_set = false;
+}
+
 esp_err_t notify_svc_init(void)
 {
-    return push_svc_init();
+    esp_err_t r = push_svc_init();
+
+    uint32_t mark = 0;
+    if (hal_nvs_get_u32(NVS_NS, NVS_KEY_MARK, &mark) != ESP_OK) mark = 0;
+    s_mark_set = (mark & MARK_ACTIVE) != 0;
+    bool was_charging = s_mark_set;
+    boot_rst_t rst = map_reset(esp_reset_reason());
+    s_boot_pending = boot_notice_build(rst, was_charging, was_charging ? (int)(mark & 0xFF) : -1,
+                                       s_boot_title, sizeof s_boot_title, s_boot_body, sizeof s_boot_body);
+    s_boot_live_end = was_charging;   // App 的 Now Bar 進度還停在重開前，請它收掉
+    if (s_boot_pending) ESP_LOGW(TAG, "boot notice pending: %s / %s", s_boot_title, s_boot_body);
+    return r;
+}
+
+// 在 task_notify 迴圈裡呼叫：連上網路才送，送完清掉標記；沒網路就下一圈（5 秒）再試
+static void boot_notice_tick(void)
+{
+    if (!s_boot_pending || !network_svc_is_connected()) return;
+    if (s_boot_live_end && push_svc_count() > 0) {
+        char data[64];
+        snprintf(data, sizeof data, "{\"k\":\"live_end\",\"id\":\"%s\",\"r\":255}", config_svc_get()->device_id);
+        push_svc_send_data_all(data);
+    }
+    // 沒有任何通知對象也算處理完了；送失敗（例如暫時連不上）就下一圈再試
+    if (notify_svc_broadcast(s_boot_title, s_boot_body, 5) != ESP_FAIL) {
+        s_boot_pending = false;
+        if (!s_new_session) charge_mark_clear();
+    }
 }
 
 // 同一則通知送到兩條路：notify_url（webhook／ntfy）與 App 推播（Expo）。
@@ -170,6 +244,7 @@ void task_notify(void *arg)
     for (;;) {
         bool got = xQueueReceive(q, &evt, pdMS_TO_TICKS(LIVE_POLL_MS)) == pdTRUE;
         live_tick();
+        boot_notice_tick();
         if (!got || evt.type != EVT_TES_STATE_CHANGED) continue;
 
         // 先更新「是否在充電、何時開始」，再看能不能送：狀態追蹤不能因為當下斷線或
@@ -181,11 +256,19 @@ void task_notify(void *arg)
         if (started) {
             charge_start_ms = esp_timer_get_time() / 1000;
             was_charging = true;
+            uint8_t soc = 0;
+            if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                soc = g_snapshot.soc;
+                xSemaphoreGive(g_snapshot_mutex);
+            }
+            charge_mark_set(soc);       // 這次充電被當機／斷電打斷的話，重開機後靠它補發
+            s_new_session = true;       // 重開前那筆還沒補發的話，補發後不能清掉這個新的標記
         } else if (new_state == TES_STATE_IDLE || new_state == TES_STATE_FAULT ||
                    new_state == TES_STATE_EMERGENCY) {
             // 時長自己算：狀態機一離開 CHARGING 就把 elapsed_seconds 歸零（update_timer），
             // 回到 IDLE 時再讀快照永遠是 0 —— 舊版的「充電完成」因此一律顯示 0m
             if (finished) secs = (uint32_t)((esp_timer_get_time() / 1000 - charge_start_ms) / 1000);
+            if (was_charging) charge_mark_clear();   // 正常結束（完成、故障、緊急停止都有自己的通知）
             was_charging = false;
         }
 

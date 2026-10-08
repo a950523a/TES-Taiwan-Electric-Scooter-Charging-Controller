@@ -870,6 +870,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
 | `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
+| `chg_mark` | u32 | 0 | Charging-in-progress mark for the post-reboot notice: `0x100 \| start SOC`, 0 = not charging |
 | `mqtt_url` | str[128] | "" | MQTT broker URL; empty = disabled |
 | `mqtt_topic` | str[64] | "" | MQTT topic prefix |
 | `sched_en` | uint8 | 0 | Scheduler master switch |
@@ -974,6 +975,14 @@ Sending is one HTTPS POST per phone to `https://exp.host/--/api/v2/push/send` wi
 containing `DeviceNotRegistered` removes that token. Buffers are heap-allocated because `task_notify`
 has 6 KB of stack — check its `stack free` in `task_monitor` after the first real push.
 A token can only push to the phone it came from, so it is not treated as a secret.
+
+**Notice after a reboot (`boot_notice.c`, host-tested).** A panic, watchdog, brownout or power cut gives the
+firmware no chance to say that charging stopped. So `task_notify` writes NVS `chg_mark` (`0x100 | start SOC`)
+when charging starts and clears it when charging ends normally — one write each per session. On boot
+`notify_svc_init()` reads the mark and `esp_reset_reason()`: mark set → "充電中斷" with the reason (any
+reason, including power loss) plus a `live_end` so the app drops its stale Now Bar progress; no mark but
+panic/watchdog/brownout → "控制器異常重啟"; otherwise nothing. It is sent once the network is up (retried
+every 5 s), then the mark is cleared — unless a new session has already started and written its own.
 
 **Live charging progress for the app (Android Now Bar / Live Updates).** While CHARGING, `task_notify`
 wakes every 5 s (`LIVE_POLL_MS`) even without events and sends a *data-only* push (no title/body,

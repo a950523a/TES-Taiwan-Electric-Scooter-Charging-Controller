@@ -8,6 +8,7 @@ idf_component_register(
         "notify_svc.c"
         "push_svc.c"
         "live_progress.c"
+        "boot_notice.c"
         "log_svc.c"
         "trace_svc.c"
         "mqtt_svc.c"
