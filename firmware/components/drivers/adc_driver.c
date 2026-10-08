@@ -72,6 +72,8 @@ static bool ads_read(uint16_t mux_bits, float *out)
 #define HW_ID_STEP_V   (3.3f / 12.0f)
 #define HW_ID_TOL_V    0.12f
 #define HW_ID_SAMPLES  8
+// 低於這個就是 V1.1/V1.2（AIN3 接地，但接地不良時會飄到零點幾伏）。第 1～3 級保留不用。
+#define LEGACY_MAX_V   (3.5f * HW_ID_STEP_V)          // 0.9625 V
 
 typedef struct {
     int8_t      level;
@@ -136,6 +138,21 @@ static void detect_board(void)
                      v, level, s_board.name, s_board.volt_ratio);
             return;
         }
+    }
+    // V1.1/V1.2 的 AIN3 焊死接地，照理讀 0 V。但實機（2026-10-08，V1.2、槍插在車上時開機）
+    // 讀到 0.431 V＝第 2 級，被判成「不認得」，網頁與 OLED 跳出「電壓不可信」的誤報。
+    // 同一顆 ADS1115 的 CP 讀值正常，所以是 AIN3 那一腳的接地不良（半浮接、被旁邊的線耦合），
+    // 不是整片地電位飄。低於 LEGACY_MAX_V 一律當舊板：這不是猜——第一個有 ID 的 V1.3 在第 6 級
+    // （1.65 V），差了一大截；而且「不認得」本來用的就是舊板係數，結果只差在不再誤報。
+    // 代價：之後的新板不能用第 1～3 級（見 CLAUDE.md「Hardware revision ID」）。
+    if (v < LEGACY_MAX_V) {
+        s_board.name       = BOARD_REVS[0].name;
+        s_board.known      = true;
+        s_board.level      = 0;                       // /hw 的舊板底圖看的是 level 0
+        s_board.volt_ratio = ratio_of(&BOARD_REVS[0]);
+        ESP_LOGW(TAG, "board ID: AIN3 %.3f V — should be 0 V on V1.1/V1.2; treating it as V1.1/V1.2 "
+                 "(check AIN3's ground joint)", v);
+        return;
     }
     // 不認得：比這份韌體新的硬體、擴充碼（EEPROM，尚未支援）、或讀值落在級距之間。
     // 一律退回舊板係數並標成未知，讓 /status 與 OLED 顯示出來 —— 不要猜。

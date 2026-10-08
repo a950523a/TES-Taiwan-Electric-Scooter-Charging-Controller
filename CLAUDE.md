@@ -439,10 +439,17 @@ R36/R37 from V1.3 on. The level a future revision uses is chosen in the private 
 
 | AIN3 reading | Meaning | Divider coefficient |
 |---|---|---|
-| < 0.137 V (pin grounded) | V1.1 / V1.2 — **every unit in the field** | 30.000 |
-| level k = round(V / 0.275 V), k = 1…11 | a board revision; **V1.3 = k 6 (R36 = R37 = 10 k)** | per revision |
+| < 0.9625 V (pin grounded — levels 0–3) | V1.1 / V1.2 — **every unit in the field** | 30.000 |
+| level k = round(V / 0.275 V), k = 4…11 | a board revision; **V1.3 = k 6 (R36 = R37 = 10 k)** | per revision |
 | > 3.162 V (AIN3 tied straight to VDD33) | extension code: "this board has an EEPROM at 0x50, read it" | from EEPROM |
 | between levels | unknown revision | 30.000 + warning |
+
+**Levels 1–3 are reserved — a new revision must not use them.** A V1.2 in the field (2026-10-08)
+read 0.431 V on its "grounded" AIN3 (level 2) when booted with the gun in a vehicle, and was shown as
+an unknown board with a "voltage readings untrustworthy" warning. CP on the same ADS1115 read 0.00 V,
+so it is that pin's ground joint, not the whole ground. Anything under 3.5 levels is now V1.1/V1.2
+(with a log warning). That is not a guess: V1.3 sits at 1.65 V, and the unknown-board fallback used
+the V1.1/V1.2 coefficient anyway — only the false warning and the missing `/hw` drawing go away.
 
 ### Firmware side of V1.3
 
