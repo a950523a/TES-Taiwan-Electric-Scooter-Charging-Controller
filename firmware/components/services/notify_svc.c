@@ -165,24 +165,37 @@ void task_notify(void *arg)
     }
     charger_event_t evt;
     bool was_charging = false;
+    int64_t charge_start_ms = 0;
 
     for (;;) {
         bool got = xQueueReceive(q, &evt, pdMS_TO_TICKS(LIVE_POLL_MS)) == pdTRUE;
         live_tick();
         if (!got || evt.type != EVT_TES_STATE_CHANGED) continue;
 
-        if (!network_svc_is_connected()) continue;   // AP 模式或尚未連線：跳過
+        // 先更新「是否在充電、何時開始」，再看能不能送：狀態追蹤不能因為當下斷線或
+        // 沒有推播對象就跳過，否則開始時剛好斷線，完成時就沒有通知、時長也算錯
+        tes_state_t new_state = (tes_state_t)evt.payload[0];
+        bool started  = (new_state == TES_STATE_CHARGING && !was_charging);
+        bool finished = (new_state == TES_STATE_IDLE && was_charging);
+        uint32_t secs = 0;
+        if (started) {
+            charge_start_ms = esp_timer_get_time() / 1000;
+            was_charging = true;
+        } else if (new_state == TES_STATE_IDLE || new_state == TES_STATE_FAULT ||
+                   new_state == TES_STATE_EMERGENCY) {
+            // 時長自己算：狀態機一離開 CHARGING 就把 elapsed_seconds 歸零（update_timer），
+            // 回到 IDLE 時再讀快照永遠是 0 —— 舊版的「充電完成」因此一律顯示 0m
+            if (finished) secs = (uint32_t)((esp_timer_get_time() / 1000 - charge_start_ms) / 1000);
+            was_charging = false;
+        }
 
+        if (!network_svc_is_connected()) continue;   // AP 模式或尚未連線：跳過
         if (config_svc_get()->notify_url[0] == '\0' && push_svc_count() == 0) continue;
 
-        tes_state_t new_state = (tes_state_t)evt.payload[0];
-
-        if (new_state == TES_STATE_CHARGING && !was_charging) {
+        if (started) {
             notify_svc_broadcast("充電開始", "充電器已連接並開始充電", 3);
-            was_charging = true;
 
-        } else if (new_state == TES_STATE_IDLE && was_charging) {
-            // Read snapshot for SOC + elapsed time right after state transition
+        } else if (finished) {
             tes_snapshot_t snap = {0};
             if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                 snap = g_snapshot;
@@ -190,8 +203,8 @@ void task_notify(void *arg)
             }
             if (snap.charge_complete) {
                 char msg[64];
-                uint32_t h = snap.elapsed_seconds / 3600;
-                uint32_t m = (snap.elapsed_seconds % 3600) / 60;
+                uint32_t h = secs / 3600;
+                uint32_t m = (secs % 3600) / 60;
                 if (h > 0) {
                     snprintf(msg, sizeof(msg), "SOC %d%%  %luh %02lum", snap.soc, (unsigned long)h, (unsigned long)m);
                 } else {
@@ -199,18 +212,12 @@ void task_notify(void *arg)
                 }
                 notify_svc_broadcast("充電完成", msg, 3);
             }
-            was_charging = false;
 
         } else if (new_state == TES_STATE_FAULT) {
             notify_svc_broadcast("充電故障", "請確認設備狀態", 4);
-            was_charging = false;
 
         } else if (new_state == TES_STATE_EMERGENCY) {
             notify_svc_broadcast("緊急停止", "充電器觸發緊急停止", 5);
-            was_charging = false;
-
-        } else if (new_state == TES_STATE_IDLE) {
-            was_charging = false;
         }
     }
 }
