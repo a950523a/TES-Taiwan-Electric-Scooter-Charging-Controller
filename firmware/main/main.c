@@ -254,7 +254,7 @@ void app_main(void)
     spawn(task_notify,   "notify",   6144,   2);
     spawn(task_mqtt,     "mqtt",     8192,   2);
     spawn(task_scheduler,"sched",    4096,   2);
-    spawn(task_log,      "task_log", 3072,   1);
+    spawn(task_log,      "task_log", 4096,   1);   // 3 KB 時實機剩 896 B（2026-10-08），結束充電寫 NVS 時更深
     spawn(task_monitor,  "monitor",  4096,   1);
 
     network_svc_start();   // 這裡才真正呼叫 esp_wifi_start()

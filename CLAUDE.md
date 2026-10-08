@@ -253,7 +253,7 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
 | `task_scheduler` | 2 | 4 KB | 30 s | NTP sync (pool.ntp.org, UTC+8) + charging window edge detection → g_btn_event_queue (v3.4.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
-| `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
+| `task_log` | 1 | 4 KB | event | charge session history to NVS (v3.1.0); was 3 KB until 2026-10-08 (896 B left mid-charge on hardware) |
 
 Charge-curve sampling and the value-change log run inline in `task_tes_sm` (no extra
 task) — see `trace_svc` below.
