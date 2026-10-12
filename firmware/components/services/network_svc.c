@@ -367,6 +367,11 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         cJSON_AddBoolToObject  (root, "hw_known",    hw->known);
         cJSON_AddNumberToObject(root, "hw_id_level", hw->level);
         cJSON_AddNumberToObject(root, "hw_id_v",     (double)((int)(hw->id_volts * 1000.0f + 0.5f)) / 1000.0);
+        // 版本取自哪裡：factory = 已驗證的出廠紀錄（優先），ain3 = 分壓 ID。
+        // hw_id_mismatch = 出廠紀錄和 AIN3 不同 —— 係數照出廠紀錄，但 R36／R37／AIN3 焊點該檢查
+        cJSON_AddStringToObject(root, "hw_source",      hw->from_factory ? "factory" : "ain3");
+        cJSON_AddNumberToObject(root, "hw_ain3_level",  hw->ain3_level);
+        cJSON_AddBoolToObject  (root, "hw_id_mismatch", hw->id_mismatch);
     }
 
     char *json = cJSON_PrintUnformatted(root);
@@ -1816,6 +1821,9 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
         cJSON_AddNumberToObject(a, "hw_level", hw->level);
         cJSON_AddNumberToObject(a, "hw_id_v",  (double)hw->id_volts);
         cJSON_AddNumberToObject(a, "ratio",    (double)hw->volt_ratio);
+        cJSON_AddStringToObject(a, "hw_source",  hw->from_factory ? "factory" : "ain3");
+        cJSON_AddNumberToObject(a, "ain3_level", hw->ain3_level);
+        cJSON_AddBoolToObject  (a, "hw_id_mismatch", hw->id_mismatch);
     }
 
     // PSU 連線

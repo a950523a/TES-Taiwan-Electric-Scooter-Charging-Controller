@@ -307,13 +307,15 @@ function render(d){
   if(prevFails!==null&&a.fails>prevFails)failGrow=Date.now();prevFails=a.fails;
   const adcBad=Date.now()-failGrow<5000;
   cls(['U5'],'bad',adcBad);cls(['U5'],'ok',!adcBad);
-  cls(['R36','R37'],'bad',!a.hw_known);
+  cls(['R36','R37'],'bad',!a.hw_known||a.hw_id_mismatch);
   setTag('cp','CP '+a.cp_v.toFixed(2)+'V');
   setTag('vout',a.vout_v.toFixed(1)+' V');
   setTag('id',a.hw_known?a.hw_rev:'? '+a.hw_id_v.toFixed(2)+'V');
   $('c-adc').innerHTML=row('CP 電壓',a.cp_v.toFixed(2)+' V')+row('CP 判定',CP[a.cp_state]||a.cp_state,a.cp_state===2?'g':a.cp_state===3?'e':'')
     +row('輸出電壓（ADC）',a.vout_v.toFixed(2)+' V')+row('輸出電壓（PSU 回報）',p.connected?p.v.toFixed(2)+' V':'—',p.connected?'':'m')
-    +row('硬體版本',a.hw_known?a.hw_rev:'不認得',a.hw_known?'':'e')+row('AIN3 硬體 ID',a.hw_id_v.toFixed(3)+' V（級 '+a.hw_level+'）')
+    +row('硬體版本',a.hw_known?a.hw_rev:'不認得',a.hw_known?'':'e')+row('版本來源',a.hw_source==='factory'?'出廠紀錄':'AIN3 硬體 ID')
+    +row('AIN3 硬體 ID',a.hw_id_v.toFixed(3)+' V（級 '+(a.ain3_level!==undefined?a.ain3_level:a.hw_level)+'）'
+      +(a.hw_id_mismatch?'，與出廠紀錄不符 → 檢查 R36／R37':''),a.hw_id_mismatch?'e':'')
     +row('分壓係數','×'+a.ratio.toFixed(3))+row('I²C 讀取失敗',a.fails+(adcBad?'（增加中）':''),adcBad?'e':a.fails?'y':'');
   // PSU
   const uart=p.transport===0;

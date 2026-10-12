@@ -24,7 +24,16 @@ typedef struct {
     const char *name;        // "V1.1/V1.2"、"V1.3"、"unknown"
     bool        known;       // false = 韌體不認得這塊板，已退回舊板的 30.000
     float       volt_ratio;  // 輸出電壓實際使用的分壓係數
+    int8_t      ain3_level;  // AIN3 自己判出來的級數（level 可能被出廠紀錄蓋掉，這個不會）
+    bool        from_factory;// true = 版本取自已驗證的出廠紀錄，不是 AIN3
+    bool        id_mismatch; // 出廠紀錄說的版本和 AIN3 讀到的不同 —— R36／R37／AIN3 焊點要檢查
 } adc_board_t;
+
+// 已驗證的出廠紀錄（簽章＋MAC 綁定，見 services/factory_svc.h）裡登記的級數。
+// 出廠紀錄比 AIN3 可靠（AIN3 會因接地不良而飄），有就以它為準：
+// V1.3 被誤判成舊板 = 電壓只讀到 77%，依電壓停止時會充過頭，是危險的方向。
+// 要在任何地方用到輸出電壓之前呼叫（main.c 在 Auto Volt 與狀態機之前）。
+void adc_driver_apply_factory_level(int level);
 
 // 初始化並辨識硬體版本。ADS1115 不在時回傳錯誤，版本維持舊板預設值。
 esp_err_t adc_driver_init(void);

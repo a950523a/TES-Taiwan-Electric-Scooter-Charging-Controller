@@ -451,6 +451,22 @@ so it is that pin's ground joint, not the whole ground. Anything under 3.5 level
 (with a log warning). That is not a guess: V1.3 sits at 1.65 V, and the unknown-board fallback used
 the V1.1/V1.2 coefficient anyway — only the false warning and the missing `/hw` drawing go away.
 
+**A valid factory record overrides AIN3 (2026-10-12).** AIN3 can be misread (a bad joint, as above),
+and the dangerous direction is a V1.3 read as an old board: ×30 instead of ×38.954, 77 % of the real
+voltage, Stop Mode = Volt overcharges. The factory record is signed and bound to the chip's MAC, so
+when `factory_svc` says `FACTORY_VALID`, its `hw_level` decides the board and the coefficient
+(`adc_driver_apply_factory_level()`). `main.c` verifies it right after `adc_driver_init()`, **before**
+Auto Volt and the SM read any voltage, in a short-lived 8 KB task (ECDSA does not fit `app_main`'s
+3.5 KB; on a 5 s timeout it stays with AIN3 and never verifies on the main stack). No record (every
+unit in the field), or an invalid one → AIN3 as before. If the record and AIN3 disagree,
+`id_mismatch` is set: `/status` `hw_id_mismatch`, `/hw.json` `adc.hw_id_mismatch`, the web UI and the
+app say "check R36/R37", `/hw` marks them red, the OLED Board row shows `ID!`. `/status` also carries
+`hw_source` (`factory`/`ain3`) and `hw_ain3_level`; `hw_id_level` is the level actually used.
+
+AIN3 itself is now read as the **median of 16 samples**; if the interquartile spread exceeds 50 mV it
+retries (3 tries, 50 ms apart; the last try's median is used, with a log warning per unsteady try). First V1.3 (TP-0001, 2026-10-12, USB power
+only): AIN3 1.638 V → level 6, factory record valid, no mismatch.
+
 ### Firmware side of V1.3
 
 The divider coefficient goes 30.000 → 38.954 and the constant cannot simply be

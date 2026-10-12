@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stdlib.h>
 
 static const char *TAG = "adc_driver";
 
@@ -71,7 +72,9 @@ static bool ads_read(uint16_t mux_bits, float *out)
 // 3.3 V 穩壓 ±2% 的最壞誤差是 ±0.09 V，都落在自己那一級 ±0.1375 V 的範圍內。
 #define HW_ID_STEP_V   (3.3f / 12.0f)
 #define HW_ID_TOL_V    0.12f
-#define HW_ID_SAMPLES  8
+#define HW_ID_SAMPLES  16
+#define HW_ID_TRIES    3
+#define HW_ID_SPREAD_V 0.05f        // 一輪內四分位距的上限；比級距 0.275 V 小很多
 // 低於這個就是 V1.1/V1.2（AIN3 接地，但接地不良時會飄到零點幾伏）。第 1～3 級保留不用。
 #define LEGACY_MAX_V   (3.5f * HW_ID_STEP_V)          // 0.9625 V
 
@@ -98,6 +101,7 @@ static float ratio_of(const board_rev_t *r)
 static adc_board_t s_board = {
     .level = 0, .id_volts = 0.0f, .name = "V1.1/V1.2", .known = true,
     .volt_ratio = (348.0f + 12.0f) / 12.0f,
+    .ain3_level = -1,                       // -1 = 沒讀到（ADS1115 不在）
 };
 
 static int8_t classify_hw_id(float v)
@@ -109,14 +113,41 @@ static int8_t classify_hw_id(float v)
     return (int8_t)k;
 }
 
+static int cmp_float(const void *a, const void *b)
+{
+    float x = *(const float *)a, y = *(const float *)b;
+    return (x > y) - (x < y);
+}
+
+// AIN3 取 HW_ID_SAMPLES 筆的中位數（一兩筆突波不影響）。這一輪的四分位距超過
+// HW_ID_SPREAD_V 就代表讀值在晃（接地不良、旁邊的線耦合進來），隔一下重讀，最多
+// HW_ID_TRIES 輪，都晃就用最後一輪的中位數並在 log 標出來。回傳讀到的筆數。
+static int read_ain3(float *out)
+{
+    float s[HW_ID_SAMPLES];
+    int n = 0;
+    for (int t = 0; t < HW_ID_TRIES; t++) {
+        n = 0;
+        for (int i = 0; i < HW_ID_SAMPLES; i++) {
+            float v;
+            if (ads_read(ADS_CFG_MUX_3G, &v)) s[n++] = v;
+        }
+        if (n < HW_ID_SAMPLES / 2) return n;
+        qsort(s, n, sizeof s[0], cmp_float);
+        *out = s[n / 2];
+        float iqr = s[(3 * n) / 4] - s[n / 4];
+        if (iqr <= HW_ID_SPREAD_V) return n;
+        ESP_LOGW(TAG, "board ID: AIN3 unsteady (median %.3f V, IQR %.3f V), try %d/%d",
+                 *out, iqr, t + 1, HW_ID_TRIES);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    return n;
+}
+
 static void detect_board(void)
 {
-    float sum = 0.0f;
-    int   n   = 0;
-    for (int i = 0; i < HW_ID_SAMPLES; i++) {
-        float v;
-        if (ads_read(ADS_CFG_MUX_3G, &v)) { sum += v; n++; }
-    }
+    float v = 0.0f;
+    int   n = read_ain3(&v);
     if (n < HW_ID_SAMPLES / 2) {
         s_board.level = -1;
         s_board.name  = "unknown";
@@ -125,7 +156,6 @@ static void detect_board(void)
                  n, HW_ID_SAMPLES);
         return;
     }
-    float v = sum / (float)n;
     int8_t level = classify_hw_id(v);
     s_board.id_volts = v;
     s_board.level    = level;
@@ -172,12 +202,41 @@ esp_err_t adc_driver_init(void)
         return ret;
     }
     detect_board();
+    s_board.ain3_level = s_board.level;
     return ESP_OK;
 }
 
 const adc_board_t *adc_driver_board(void)
 {
     return &s_board;
+}
+
+void adc_driver_apply_factory_level(int level)
+{
+    const board_rev_t *rev = NULL;
+    for (size_t i = 0; i < sizeof(BOARD_REVS) / sizeof(BOARD_REVS[0]); i++) {
+        if (BOARD_REVS[i].level == level) rev = &BOARD_REVS[i];
+    }
+    if (!rev) {
+        // 出廠紀錄登記了這份韌體不認得的版本（比韌體新的板子）：AIN3 也不會認得，維持原判
+        ESP_LOGW(TAG, "board ID: factory record says level %d, not known to this firmware", level);
+        return;
+    }
+    // AIN3 沒讀到（ADS1115 不在）就沒得比；讀到了而且不同 → 標出來，但以出廠紀錄為準
+    s_board.id_mismatch  = s_board.ain3_level >= 0 && s_board.ain3_level != level;
+    s_board.from_factory = true;
+    s_board.level        = (int8_t)level;
+    s_board.name         = rev->name;
+    s_board.known        = true;
+    s_board.volt_ratio   = ratio_of(rev);
+    if (s_board.id_mismatch) {
+        ESP_LOGW(TAG, "board ID: factory record = level %d (%s) but AIN3 %.3f V = level %d — "
+                 "using the factory record; check R36/R37 and the AIN3 joint",
+                 level, rev->name, s_board.id_volts, s_board.ain3_level);
+    } else {
+        ESP_LOGI(TAG, "board ID: factory record confirms level %d (%s), divider x%.3f",
+                 level, rev->name, s_board.volt_ratio);
+    }
 }
 
 // 最後一次有效讀值；I2C 失敗時沿用，避免瞬間掉到 0V

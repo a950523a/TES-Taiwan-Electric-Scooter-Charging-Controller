@@ -17,6 +17,7 @@
 #include "services/mqtt_svc.h"
 #include "services/scheduler_svc.h"
 #include "services/auto_volt.h"
+#include "services/factory_svc.h"
 #include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -173,6 +174,34 @@ void task_mqtt      (void *arg);
 void task_scheduler (void *arg);
 void task_monitor   (void *arg);
 
+// ── 硬體版本：出廠紀錄優先於 AIN3 ─────────────────────────────────────────────
+// 出廠紀錄有簽章、綁這顆晶片的 MAC，登記的級數比 AIN3 讀值可靠（AIN3 會因接地不良而飄）。
+// V1.3 被誤判成舊板 = 電壓只讀到 77%，依電壓停止時充過頭 —— 所以開機就驗、在 Auto Volt
+// 與狀態機用到電壓之前套用。驗簽（ECDSA）要幾 KB 堆疊，app_main 只有 3.5 KB，
+// 所以開一個短命的任務來做；factory_svc 會把結果快取，之後 /hw 不必再驗一次。
+
+static void factory_check_task(void *arg)
+{
+    factory_svc_get();
+    xTaskNotifyGive((TaskHandle_t)arg);
+    vTaskDelete(NULL);
+}
+
+static void apply_factory_board_id(void)
+{
+    if (xTaskCreate(factory_check_task, "factory", 8192, xTaskGetCurrentTaskHandle(), 5, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "factory check task not created — board ID from AIN3 only");
+        return;
+    }
+    // 逾時就只用 AIN3。絕對不要在這裡自己呼叫 factory_svc_get() 補救：會在 3.5 KB 的堆疊上驗簽
+    if (!ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5000))) {
+        ESP_LOGW(TAG, "factory check timed out — board ID from AIN3 only");
+        return;
+    }
+    const factory_info_t *fi = factory_svc_get();   // 已驗過，只讀快取
+    if (fi->state == FACTORY_VALID) adc_driver_apply_factory_level(fi->hw_level);
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 void app_main(void)
@@ -192,6 +221,7 @@ void app_main(void)
     if (adc_driver_init() != ESP_OK) {
         ESP_LOGE(TAG, "ADS1115 init failed — CP/voltage sensing unavailable");
     }
+    apply_factory_board_id();
     ESP_ERROR_CHECK(psu_driver_init());
     display_driver_init();   // non-fatal if OLED absent
     led_driver_init();

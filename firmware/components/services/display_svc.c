@@ -209,7 +209,9 @@ static void item_label(int item, char *buf, size_t bufsz)
     }
     case MENU_ITEM_BOARD: {
         const adc_board_t *hw = adc_driver_board();
-        if (hw->known)
+        if (hw->id_mismatch)   // 出廠紀錄和 AIN3 不同：版本照出廠紀錄，ID 電阻要檢查
+            snprintf(buf, bufsz, "Board: %s ID!", hw->name);
+        else if (hw->known)
             snprintf(buf, bufsz, "Board: %s", hw->name);
         else
             snprintf(buf, bufsz, "Board: ? %.2fV", (double)hw->id_volts);
