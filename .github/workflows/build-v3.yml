@@ -126,6 +126,7 @@ jobs:
           cp docs/index.html    _pages/
           cp docs/manifest.json _pages/
           cp docs/monitor.html  _pages/
+          cp docs/monitor-icon.png _pages/
           cp firmware/build/tes_charger_flash.bin _pages/tes_charger_flash.bin
           echo "--- Pages 內容 ---"; ls -lh _pages/
 

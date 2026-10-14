@@ -2,15 +2,18 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TES 遠端監控</title>
 <meta name="theme-color" content="#4a9eff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TES監控">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="apple-touch-icon" href="monitor-icon.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#ddd;padding:12px;max-width:500px;margin:0 auto}
+body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#ddd;padding:12px;max-width:500px;margin:0 auto;
+  padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.tip{font-size:.8em;color:#9ab;line-height:1.7;background:#0d1a26;border:1px solid #1d3a5e}
 h1{font-size:1.1em;color:#5af;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .card{background:#181818;border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid #222}
 .badge{text-align:center;padding:10px;border-radius:7px;font-weight:bold;font-size:1.15em;margin-bottom:12px;letter-spacing:2px}
@@ -39,7 +42,7 @@ button:disabled{opacity:.35;cursor:default}
 .b-cfg{background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;font-size:.9em}
 .b-connect{background:#1d3a5e;color:#fff;width:100%;margin-top:10px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px}
-input[type=text],input[type=number],input[type=url]{
+input[type=text],input[type=number],input[type=url],input[type=password]{
   width:100%;padding:9px 10px;margin-top:5px;
   background:#222;border:1px solid #3a3a3a;color:#ddd;border-radius:6px;font-size:.95em}
 input:focus{outline:none;border-color:#48f}
@@ -55,6 +58,12 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 <!-- 設定面板（未連線時顯示） -->
 <div id="cfg-panel">
   <h1>📡 TES 遠端監控設定</h1>
+  <!-- iPhone／iPad：主畫面上的網頁 App 和 Safari 是分開的儲存空間，在 Safari 填的設定帶不過去 -->
+  <div class="card tip" id="ios-tip" style="display:none">
+    <b>iPhone／iPad：先加入主畫面再設定</b><br>
+    Safari 下方「分享」→「加入主畫面」，之後從主畫面的圖示打開。<br>
+    主畫面的 App 和 Safari 各存各的：在 Safari 這裡填好的帳密，主畫面那個看不到，要在那邊再填一次。
+  </div>
   <div class="card">
     <section-title>⚙ MQTT 連線設定</section-title>
     <label class="lbl2">Broker Hostname</label>
@@ -131,7 +140,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
     <button class="b-stop"  id="btn-stop"  onclick="sendCmd('stop')">◼&nbsp;停止充電</button>
   </div>
 
-  <div style="font-size:.75em;color:#444;text-align:center;margin-top:4px">
+  <div style="font-size:.75em;color:#666;text-align:center;margin-top:4px;line-height:1.6" id="cmd-note">
     透過 MQTT 遠端控制充電器
   </div>
 </div>
@@ -141,8 +150,13 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 const SL={
   idle:'STANDBY',connecting:'CONNECTING',pre_charge:'PRE-CHARGE',
   charging:'CHARGING',ending:'ENDING',finalizing:'FINALIZING',
-  fault:'FAULT',emergency:'EMERGENCY',offline:'OFFLINE'
+  fault:'FAULT',emergency:'EMERGENCY',offline:'OFFLINE',unknown:'UNKNOWN'
 };
+const ACTIVE=['connecting','pre_charge','charging','ending'];
+let pendingCmd=null;   // 送出指令後等狀態變化
+let lastState=null;
+let linkOk=false;
+let remoteCmd;          // undefined = 韌體沒說（v3.6.2 以前）
 const SC={
   idle:'badge s-idle',connecting:'badge s-connecting',pre_charge:'badge s-connecting',
   charging:'badge s-charging',ending:'badge s-ending',finalizing:'badge s-ending',
@@ -245,26 +259,63 @@ function showCfg(){
 }
 
 function sendCmd(cmd){
+  const sm=document.getElementById('status-msg');
   if(!client||!client.connected){
-    document.getElementById('status-msg').className='err';
-    document.getElementById('status-msg').textContent='✗ 尚未連線，無法發送指令';
+    sm.className='err';
+    sm.textContent='✗ 尚未連線，無法發送指令';
     return;
   }
-  client.publish(`${cfg.topic}/cmd`,JSON.stringify({cmd}),{qos:1});
+  // 人不在充電樁旁邊：開始前確認（和手機 App 一樣）。停止直接送
+  if(cmd==='start'&&!confirm('遠端開始充電？\n\n請確認充電槍已經插在車上——車子要完成交握才會真的送電。'))return;
+  // retain 一定是 false：保留的話 broker 會記住這則，充電樁每次重連都會再收到一次「開始」
+  client.publish(`${cfg.topic}/cmd`,JSON.stringify({cmd}),{qos:1,retain:false});
+  sm.className='ok';
+  sm.textContent=cmd==='start'?'已送出開始指令，等充電樁回報（約 10 秒內）…':'已送出停止指令，等充電樁回報…';
+  pendingCmd={cmd,at:Date.now()};
 }
 
 function setConnBadge(ok,text){
   const dot=ok?'#4d4':'#f55';
   document.getElementById('conn-badge').innerHTML=
     `<span class="dot" style="background:${dot}"></span>${text}`;
-  document.getElementById('btn-start').disabled=!ok;
-  document.getElementById('btn-stop').disabled=!ok;
+  linkOk=ok;
+  updateButtons();
+}
+
+function updateButtons(){
+  const st=lastState;
+  const off=!linkOk||st==='offline'||remoteCmd===false;
+  const active=ACTIVE.includes(st);
+  document.getElementById('btn-start').disabled=off||active||st==='fault'||st==='emergency';
+  document.getElementById('btn-stop').disabled=off||!active;
+  const note=document.getElementById('cmd-note');
+  if(remoteCmd===false){
+    note.innerHTML='充電樁沒有開「允許透過 MQTT 遠端啟停」。<br>在家裡 WiFi 下打開充電樁網頁的設定，打開後重新啟動。';
+  }else if(remoteCmd===undefined){
+    note.innerHTML='透過 MQTT 遠端控制充電器。<br>充電樁要開「允許透過 MQTT 遠端啟停」（改了要重新啟動），沒開的話按了不會有反應。';
+  }else{
+    note.textContent='透過 MQTT 遠端控制充電器';
+  }
 }
 
 function updateDisplay(d){
   document.getElementById('ts').textContent=new Date().toLocaleTimeString();
 
   const state=d.state||'idle';
+  lastState=state;
+  if(state!=='offline')remoteCmd=(typeof d.remote_cmd==='boolean')?d.remote_cmd:undefined;
+  // 送出指令後狀態有變 → 清掉「已送出」；20 秒都沒變 → 說可能沒收到
+  if(pendingCmd){
+    const sm=document.getElementById('status-msg');
+    const moved=pendingCmd.cmd==='start'?state!=='idle':!ACTIVE.includes(state);
+    if(moved){sm.textContent='';pendingCmd=null;}
+    else if(Date.now()-pendingCmd.at>20000){
+      sm.className='err';
+      sm.textContent='✗ 充電樁沒有反應。可能沒開「允許透過 MQTT 遠端啟停」，或開了還沒重新啟動';
+      pendingCmd=null;
+    }
+  }
+  updateButtons();
   const badge=document.getElementById('badge');
   badge.textContent=SL[state]||state.toUpperCase();
   badge.className=SC[state]||'badge s-idle';
@@ -291,8 +342,12 @@ function updateDisplay(d){
 
   // Clear any old status messages when data arrives
   const sm=document.getElementById('status-msg');
-  if(sm.textContent&&sm.className==='err')sm.textContent='';
+  if(sm.textContent&&sm.className==='err'&&!sm.textContent.startsWith('✗ 充電樁沒有反應'))sm.textContent='';
 }
+
+// ── iOS：還沒加入主畫面就提示 ────────────────────────────────────────────────
+const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(isIOS&&!navigator.standalone)document.getElementById('ios-tip').style.display='block';
 
 // ── Auto-connect if config exists ─────────────────────────────────────────────
 

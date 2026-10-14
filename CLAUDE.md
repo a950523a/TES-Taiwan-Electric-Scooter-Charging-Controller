@@ -1177,6 +1177,16 @@ the setting the two can disagree until a reboot. Uses ESP-IDF `esp-mqtt` compone
 
 **Cloud PWA** (`docs/monitor.html`): MQTT.js via WebSocket, config from URL fragment (`#b=host&p=wsport&t=prefix`); stored in `localStorage` after first use. GitHub Pages (HTTPS) → Service Worker works → offline caching valid.
 
+**It is the iPhone users' remote control** until the mobile app ships on iOS, so since 2026-10-14 it
+matches the app: start asks for confirmation; commands are published with `retain:false` explicitly (a
+retained start would fire on every reconnect of the charger); the buttons follow the state (start only
+when idle, stop only while a session runs, both off when the link or the charger is offline); and
+`remote_cmd` in the status disables them with an explanation when it is false — when absent (firmware
+before v3.6.2) a note says commands may be ignored. If the state has not moved 20 s after a command
+the page says the charger did not react. iOS gets `apple-touch-icon` (`docs/monitor-icon.png`, copied
+to Pages by the workflow) and, in Safari, a tip to add it to the home screen **before** entering the
+credentials — a home-screen web app has its own storage, separate from Safari's.
+
 **WebSocket must be wss, and cloud brokers need credentials (fixed 2026-10-14).** The PWA lives on
 GitHub Pages (HTTPS), where browsers block plaintext `ws://` as mixed content — yet it connected with
 `ws://` and `broker_ws_port()` returned plaintext ports (8000 / 8080 / 8083), so it could not connect
