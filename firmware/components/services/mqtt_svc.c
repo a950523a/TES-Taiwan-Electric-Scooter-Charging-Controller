@@ -66,7 +66,8 @@ static int build_status_json(char *buf, size_t len)
         "\"power_w\":%.1f,\"energy_wh\":%.2f,\"psu_connected\":%s,"
         "\"soc\":%d,\"target_soc\":%d,"
         "\"elapsed_seconds\":%lu,\"remaining_seconds\":%lu,"
-        "\"fault\":%s,\"charge_complete\":%s,\"timer_running\":%s}",
+        "\"fault\":%s,\"charge_complete\":%s,\"timer_running\":%s,"
+        "\"remote_cmd\":%s}",
         state_str(snap.state),
         snap.output_voltage, snap.output_current,
         snap.output_voltage * snap.output_current, snap.energy_wh,
@@ -76,7 +77,11 @@ static int build_status_json(char *buf, size_t len)
         (unsigned long)snap.remaining_seconds,
         snap.fault_latched   ? "true" : "false",
         snap.charge_complete ? "true" : "false",
-        snap.timer_running   ? "true" : "false");
+        snap.timer_running   ? "true" : "false",
+        // 有沒有訂閱 cmd：App 在外面讀不到 /config，靠這個決定要不要顯示遠端啟停。
+        // 以連線時的設定為準（訂閱只在 MQTT_EVENT_CONNECTED 做）——改了開關要重新啟動才生效，
+        // 這裡報的是 config 值，所以重開前可能和實際訂閱不一致
+        config_svc_get()->mqtt_cmd_enabled ? "true" : "false");
 }
 
 static void mqtt_event_handler(void *arg, esp_event_base_t base,

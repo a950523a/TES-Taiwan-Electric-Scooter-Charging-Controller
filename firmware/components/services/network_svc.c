@@ -2065,6 +2065,15 @@ static esp_err_t http_sock_open(httpd_handle_t hd, int sockfd)
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) != 0) {
         ESP_LOGW(TAG, "TCP_NODELAY failed on sock %d", sockfd);
     }
+    // 對方消失（手機出門從 WiFi 換到行動網路）時連線不會關，httpd 也沒有閒置逾時，
+    // 這條就永遠佔著一個名額。TCP keepalive：閒置 30 s 開始探測，每 10 s 一次、3 次沒回就關。
+    int idle = 30, intvl = 10, cnt = 3;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one)) != 0 ||
+        setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) != 0 ||
+        setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl)) != 0 ||
+        setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt)) != 0) {
+        ESP_LOGW(TAG, "TCP keepalive failed on sock %d", sockfd);
+    }
     return ESP_OK;
 }
 
@@ -2075,6 +2084,10 @@ static void start_http_server(void)
     cfg.max_uri_handlers  = 32;   // 目前註冊 28 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
+    // 名額滿了就關掉最久沒用的那條，而不是拒絕新的。沒開時（2026-10-14 前）幾支手機進出家門
+    // 留下的死連線就能把 7 個名額佔滿：之後每個新連線一 accept 就被關掉（curl: Empty reply），
+    // 網頁和 App 都連不上，MQTT 卻照常——只有重開機會好。keepalive（http_sock_open）是第二道。
+    cfg.lru_purge_enable  = true;
     s_httpd_max_sockets   = cfg.max_open_sockets;
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {

@@ -1170,7 +1170,10 @@ request overlaid as a dashed line; SOC is fixed 0–100 %. Hand-written SVG:
 **no CDN libraries**, since AP mode has no internet access.
 
 ### MQTT Remote Monitoring
-NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/status` every 10 s (CHARGING) or 30 s (other), immediately on state change. LWT: `{"state":"offline"}` retained. Subscribes `{prefix}/cmd` QoS 1 for `{"cmd":"start"/"stop"}` → `g_btn_event_queue`. Uses ESP-IDF `esp-mqtt` component. `GET /mqtt/link` returns Cloud PWA URL with broker/topic in fragment.
+NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/status` every 10 s (CHARGING) or 30 s (other), immediately on state change. LWT: `{"state":"offline"}` retained. Subscribes `{prefix}/cmd` QoS 1 for `{"cmd":"start"/"stop"}` → `g_btn_event_queue`. The status JSON
+carries `remote_cmd` (= `mqtt_cmd_enabled`, 2026-10-14) so the app can tell from outside the LAN
+whether commands will be heeded; the subscription itself only changes on reconnect, so after toggling
+the setting the two can disagree until a reboot. Uses ESP-IDF `esp-mqtt` component. `GET /mqtt/link` returns Cloud PWA URL with broker/topic in fragment.
 
 **Cloud PWA** (`docs/monitor.html`): MQTT.js via WebSocket, config from URL fragment (`#b=host&p=wsport&t=prefix`); stored in `localStorage` after first use. GitHub Pages (HTTPS) → Service Worker works → offline caching valid.
 
@@ -1199,8 +1202,10 @@ interfaces the app relies on stable:
   `X-TES-Request`. `POST /config` range checks must stay in step with the app's copy. The `/status`
   fault fields (`fault_source`, `fault_ctx_a/b`) are explained by a copy of the `FAULTS` table — add a
   fault source here, add its text there.
-- **Remote (read-only):** MQTT `{prefix}/status` and the LWT `{"state":"offline"}` — see MQTT Remote
-  Monitoring. The app does not send `{prefix}/cmd`; remote start/stop waits for authentication.
+- **Remote:** MQTT `{prefix}/status` and the LWT `{"state":"offline"}` — see MQTT Remote Monitoring.
+  Since app 0.4.0 (2026-10-14) the app also sends `{prefix}/cmd`, but only when its broker needs a
+  username/password and the status says `remote_cmd: true` — the broker's credentials are the only
+  authentication the command has.
 - **Push:** `POST /push` and the Expo send in `push_svc` — see Webhook / ntfy Push Notification.
 
 Renaming or removing a field in any of these breaks installed apps; add fields instead.
@@ -1449,6 +1454,15 @@ it feel broken:
 | `esp_wifi_set_ps(WIFI_PS_NONE)` | `network_svc_start()`, after `esp_wifi_start()` | The STA default `WIFI_PS_MIN_MODEM` wakes the radio only every ~307 ms (`li: 3`), so every TCP round trip stalls. Mains-powered device — the saving buys nothing. |
 | `cfg.open_fn = http_sock_open` → `TCP_NODELAY` | `start_http_server()` | httpd sends headers and body as separate `send()`s; Nagle holds the second small segment until the first is ACKed, and lwIP only flushes it on the slow timer (~1.4 s). Sub-MSS responses were the slow ones — `/status` at 1528 B was immune, which made "big fast, small slow" look impossible. |
 | `chunk_out_t` 1 KB buffering | `/trace`, `/tracelog` | One `httpd_resp_sendstr_chunk()` per record = one TCP segment per record. Hundreds of records = hundreds of round trips, all while holding httpd's **single** worker thread, which queues `/status` behind them. |
+
+**Dead connections (fixed 2026-10-14).** httpd has 7 sockets (`max_open_sockets`) and no idle
+timeout. A phone that leaves home switches from WiFi to mobile data without closing its keep-alive
+connections, so each one held a slot forever; once all 7 were taken, every new connection was
+accepted and closed at once (`curl: Empty reply from server`) — web UI and app dead, MQTT fine, only
+a reboot helped. Seen on a unit at home that morning. Two fixes: `cfg.lru_purge_enable = true`
+(a full server closes the least recently used socket instead of refusing the new one) and TCP
+keepalive in `http_sock_open()` (idle 30 s, 3 probes 10 s apart). This is a different problem from
+the `/control` throughput collapse below, where `/status` still answered.
 
 HTML is served `Cache-Control: no-cache` (`UI_CACHE_CONTROL`). It was `max-age=86400`,
 which left users on a stale UI for a day after each OTA with no way to notice. The page is
