@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# EasyEDA Pro 專案是 SQLite 二進位檔，diff 沒有意義。
+# 真正要看差異請用 hardware/<版本>/ 下由 tools/eda_export.py 產生的文字檔。
+*.eprj binary
+*.ipt  binary
+*.stl  binary

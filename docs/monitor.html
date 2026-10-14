@@ -58,16 +58,21 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
   <div class="card">
     <section-title>⚙ MQTT 連線設定</section-title>
     <label class="lbl2">Broker Hostname</label>
-    <input type="text" id="cfg-host" placeholder="broker.hivemq.com">
-    <label class="lbl2">WebSocket Port</label>
-    <input type="number" id="cfg-port" value="8083" min="1" max="65535">
+    <input type="text" id="cfg-host" placeholder="xxxx.ala.asia-southeast1.emqxsl.com">
+    <label class="lbl2">WebSocket Port（wss）</label>
+    <input type="number" id="cfg-port" value="8084" min="1" max="65535">
+    <label class="lbl2">帳號（broker 需要時）</label>
+    <input type="text" id="cfg-user" autocomplete="username">
+    <label class="lbl2">密碼</label>
+    <input type="password" id="cfg-pass" autocomplete="current-password">
     <label class="lbl2">Topic Prefix</label>
     <input type="text" id="cfg-topic" placeholder="tes/charger">
     <div style="font-size:.78em;color:#555;margin-top:8px;line-height:1.7">
-      常用 Broker WS Port：<br>
-      HiveMQ (<code style="color:#48f">broker.hivemq.com</code>) → <code style="color:#aaa">8000</code><br>
-      EMQX (<code style="color:#48f">broker.emqx.io</code>) → <code style="color:#aaa">8083</code><br>
-      Mosquitto (<code style="color:#48f">test.mosquitto.org</code>) → <code style="color:#aaa">8080</code>
+      這個頁面是 HTTPS，只能用加密的 WebSocket（wss）。常用埠：<br>
+      EMQX Cloud（<code style="color:#48f">*.emqxsl.com</code>）、<code style="color:#48f">broker.emqx.io</code> → <code style="color:#aaa">8084</code><br>
+      HiveMQ Cloud（<code style="color:#48f">*.hivemq.cloud</code>）、<code style="color:#48f">broker.hivemq.com</code> → <code style="color:#aaa">8884</code><br>
+      Mosquitto（<code style="color:#48f">test.mosquitto.org</code>）→ <code style="color:#aaa">8081</code><br>
+      帳號密碼只存在這個瀏覽器，不會放進分享連結。
     </div>
     <button class="b-connect" onclick="connect()">🔌 連接</button>
     <div id="cfg-err" class="err" style="font-size:.82em;margin-top:6px;min-height:1em"></div>
@@ -157,9 +162,14 @@ const saved=JSON.parse(localStorage.getItem('tes_mqtt_cfg')||'{}');
 
 const cfg={
   host: frag.get('b') || saved.host || '',
-  port: parseInt(frag.get('p')) || saved.port || 8083,
+  port: parseInt(frag.get('p')) || saved.port || 8084,
   topic: frag.get('t') || saved.topic || 'tes/charger',
+  // 帳密不在分享連結（#b=…&p=…&t=…）裡，只存在這個瀏覽器的 localStorage
+  user: saved.user || '',
+  pass: saved.pass || '',
 };
+// 連結帶來的 broker 換了，舊帳密不能沿用
+if (frag.get('b') && frag.get('b') !== saved.host) { cfg.user = ''; cfg.pass = ''; }
 
 // Clear fragment from URL bar after reading (keep it clean)
 if(location.hash) history.replaceState(null,'',location.pathname);
@@ -170,15 +180,17 @@ let client=null;
 
 function connect(){
   const host=document.getElementById('cfg-host').value.trim();
-  const port=parseInt(document.getElementById('cfg-port').value)||8083;
+  const port=parseInt(document.getElementById('cfg-port').value)||8084;
   const topic=document.getElementById('cfg-topic').value.trim();
+  const user=document.getElementById('cfg-user').value.trim();
+  const pass=document.getElementById('cfg-pass').value;
 
   if(!host||!topic){
     document.getElementById('cfg-err').textContent='請填寫 Broker 和 Topic';
     return;
   }
 
-  cfg.host=host; cfg.port=port; cfg.topic=topic;
+  cfg.host=host; cfg.port=port; cfg.topic=topic; cfg.user=user; cfg.pass=pass;
   localStorage.setItem('tes_mqtt_cfg',JSON.stringify(cfg));
 
   document.getElementById('cfg-err').textContent='';
@@ -186,7 +198,8 @@ function connect(){
 }
 
 function doConnect(){
-  const wsUrl=`ws://${cfg.host}:${cfg.port}/mqtt`;
+  // HTTPS 頁面只能連 wss（瀏覽器擋 mixed content）
+  const wsUrl=`wss://${cfg.host}:${cfg.port}/mqtt`;
 
   document.getElementById('cfg-panel').style.display='none';
   document.getElementById('mon-panel').style.display='block';
@@ -198,6 +211,8 @@ function doConnect(){
     reconnectPeriod:5000,
     connectTimeout:10000,
     keepalive:30,
+    username:cfg.user||undefined,
+    password:cfg.pass||undefined,
   });
 
   client.on('connect',()=>{
@@ -223,6 +238,8 @@ function showCfg(){
   document.getElementById('cfg-host').value=cfg.host;
   document.getElementById('cfg-port').value=cfg.port;
   document.getElementById('cfg-topic').value=cfg.topic;
+  document.getElementById('cfg-user').value=cfg.user||'';
+  document.getElementById('cfg-pass').value=cfg.pass||'';
   if(client){try{client.end(true);}catch(e){}}
   client=null;
 }
@@ -282,9 +299,15 @@ function updateDisplay(d){
 document.getElementById('cfg-host').value=cfg.host;
 document.getElementById('cfg-port').value=cfg.port;
 document.getElementById('cfg-topic').value=cfg.topic;
+document.getElementById('cfg-user').value=cfg.user;
+document.getElementById('cfg-pass').value=cfg.pass;
 
-if(cfg.host&&cfg.topic){
+// 雲端 broker（EMQX Cloud、HiveMQ Cloud）一定要帳密：還沒填就停在設定頁，不要先連一次失敗
+const needsAuth=/\.emqxsl\.(com|cn)$|\.hivemq\.cloud$/i.test(cfg.host);
+if(cfg.host&&cfg.topic&&!(needsAuth&&!cfg.user)){
   doConnect();
+}else if(needsAuth){
+  document.getElementById('cfg-err').textContent='這個 broker 需要帳號密碼，填好後按「連接」';
 }
 </script>
 </body>

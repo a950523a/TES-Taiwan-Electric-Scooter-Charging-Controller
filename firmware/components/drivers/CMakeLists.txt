@@ -11,6 +11,7 @@ idf_component_register(
         charger_hal
         platform
         tes_protocol
+        psu_link
         driver
         freertos
         u8g2_idf

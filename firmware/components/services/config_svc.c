@@ -31,6 +31,7 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_AUTO_START    "auto_s"
 #define NVS_KEY_PSU_TRANS     "psu_trans"
 #define NVS_KEY_PSU_MAC       "psu_mac"
+#define NVS_KEY_PSU_LTK       "psu_ltk"   // 32 B，配對的長期金鑰（不進 RAM 快取）
 #define NVS_KEY_DEV_NAME      "dev_name"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
@@ -305,6 +306,21 @@ esp_err_t config_svc_set_psu(uint8_t transport, const uint8_t *peer_mac_6, bool 
 
     esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_PSU_TRANS, transport);
     if (peer_mac_6) r |= hal_nvs_set_blob(NVS_NS, NVS_KEY_PSU_MAC, mac, 6);
+    return r;
+}
+
+bool config_svc_get_psu_ltk(uint8_t ltk_32[32])
+{
+    size_t len = 32;
+    return hal_nvs_get_blob(NVS_NS, NVS_KEY_PSU_LTK, ltk_32, &len) == ESP_OK && len == 32;
+}
+
+esp_err_t config_svc_set_psu_pairing(const uint8_t peer_mac_6[6], const uint8_t ltk_32[32])
+{
+    // 先寫金鑰再寫 MAC：中途斷電時最多留下「有金鑰沒 MAC」—— 視同未配對，
+    // 而不會變成「新 MAC 配上舊金鑰」。
+    esp_err_t r = hal_nvs_set_blob(NVS_NS, NVS_KEY_PSU_LTK, ltk_32, 32);
+    r |= config_svc_set_psu(1 /* ESP-NOW */, peer_mac_6, true);
     return r;
 }
 

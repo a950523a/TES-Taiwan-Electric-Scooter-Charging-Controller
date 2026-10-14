@@ -11,6 +11,8 @@
 volatile float    g_adc_cp_voltage     = 0.f;
 volatile float    g_adc_output_voltage = 0.f;
 volatile uint32_t g_adc_cp_seq         = 0;   // 每取得一次新的 CP 取樣就 +1
+volatile uint8_t  g_btn_stable         = 0;
+atomic_uint       g_btn_latch          = 0;
 
 // Timing constants (tick = 10 ms)
 #define DEBOUNCE_TICKS    3    // 30 ms
@@ -92,28 +94,41 @@ void task_hal_poll(void *arg)
         btn_evt_t ev_emerg = btn_update(&s_btn[2], raw_emergency);
         btn_evt_t ev_set   = btn_update(&s_btn[3], raw_setting);
 
+        uint8_t held = 0;
+        for (int i = 0; i < 4; i++) if (s_btn[i].stable) held |= (uint8_t)(1u << i);
+        g_btn_stable = held;
+        if (held) atomic_fetch_or(&g_btn_latch, held);
+
         // EMERGENCY: short press → atomic set (long press also counts)
         if (ev_emerg == BTN_SHORT || ev_emerg == BTN_LONG)
             atomic_store(&g_emergency_stop, true);
 
+        // ESP-NOW 配對中：START = 兩邊配對碼相同、STOP = 取消。這時候絕不能
+        // 照平常送進狀態機 —— 使用者看著配對碼按 START，結果是開始充電。
+        bool pairing = psu_driver_pair_wants_buttons();
+        if (pairing) {
+            if (ev_start == BTN_SHORT) psu_driver_pair_user(true);
+            if (ev_stop  == BTN_SHORT) psu_driver_pair_user(false);
+        }
+
         // START: short → SM or menu nav; long/repeat → menu edit coarse adjust only
-        if (ev_start == BTN_SHORT) {
+        if (!pairing && ev_start == BTN_SHORT) {
             if (g_menu_open)
                 send_btn(g_display_btn_queue, EVT_BUTTON_START);
             else
                 send_btn(g_btn_event_queue, EVT_BUTTON_START);
         }
-        if ((ev_start == BTN_LONG || ev_start == BTN_REPEAT) && g_menu_open)
+        if (!pairing && (ev_start == BTN_LONG || ev_start == BTN_REPEAT) && g_menu_open)
             send_btn(g_display_btn_queue, EVT_BUTTON_START_LONG);
 
         // STOP: same pattern as START
-        if (ev_stop == BTN_SHORT) {
+        if (!pairing && ev_stop == BTN_SHORT) {
             if (g_menu_open)
                 send_btn(g_display_btn_queue, EVT_BUTTON_STOP);
             else
                 send_btn(g_btn_event_queue, EVT_BUTTON_STOP);
         }
-        if ((ev_stop == BTN_LONG || ev_stop == BTN_REPEAT) && g_menu_open)
+        if (!pairing && (ev_stop == BTN_LONG || ev_stop == BTN_REPEAT) && g_menu_open)
             send_btn(g_display_btn_queue, EVT_BUTTON_STOP_LONG);
 
         // SETTING: short → quick SOC cycle (status) / confirm (menu)

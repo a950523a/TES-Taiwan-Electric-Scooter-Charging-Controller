@@ -63,10 +63,14 @@ idf.py -p <PORT> flash monitor
 | otadata | 8 KB | OTA slot selector |
 | app0 | **7.94 MB** | active firmware (~17% used) |
 | app1 | **7.94 MB** | OTA update slot |
+| tes_factory | 64 KB | signed factory record (2026-10-05) — **only on boards flashed fresh**, see below |
 
-Only 64 KB of the 16 MB is unallocated (app1 ends at `0xFF0000`). That is not an
-oversight — see **Deployment constraints** above for why the app partitions stay this
-large and why repartitioning is off the table for deployed units.
+The app partitions end at `0xFF0000`; the last 64 KB, unallocated until 2026-10-05, now
+holds `tes_factory` (data, subtype `0x40`). That is the **Deployment constraints**
+pattern in practice: a board flashed over USB with this table gets the partition, a
+deployed unit updated by OTA keeps its old table, and `factory_svc` treats a missing
+partition as "no factory record" — nothing else depends on it. The app partitions did
+not shrink and must not.
 
 Changing the partition table requires a full reflash (bootloader + partition-table + app); OTA-only is not sufficient.
 
@@ -78,30 +82,13 @@ or neither.**
 Staying on 5.5.x rather than 6.x is a deliberate call, not inertia — see
 **Why not ESP-IDF 6.x** below.
 
-**Build environment (PowerShell, Windows).** Two machines, two layouts — **the paths
-below differ per machine and following the wrong set fails immediately.**
-
-| | 筆電 (laptop, user `user`) | 桌機 (desktop `Kaino-PC`, user `a9505`) |
-|---|---|---|
-| Checkout 路徑 | `C:\Users\user\Documents\GitHub\...` ✅ ASCII | `D:\文件\GitHub\...` ⚠ **非 ASCII，無法建置** |
-| `IDF_PATH` | `C:\Users\user\esp\v5.5.5\esp-idf` | `C:\Espressif\frameworks\esp-idf-v5.5.5` |
-| `IDF_TOOLS_PATH` | `C:\Users\user\.espressif` | `C:\Espressif` |
-| venv python | `...\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` | `C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` |
-| 安裝方式 | git checkout + `idf_tools.py install` | Espressif 線上安裝程式 |
-
-Both are ESP-IDF **v5.5.5** at the same tag, so sources are identical; only the
-locations differ. Upgrading a git checkout = `git checkout <tag>` + `git submodule
-update --init --recursive` + `idf_tools.py install`.
-
-> ⚠️ **桌機目前無法建置** — the checkout sits on `D:\文件\...`. See the non-ASCII
-> section below; this is not fixable with env vars. Build on the laptop, or re-clone
-> the desktop copy to an ASCII path (e.g. `D:\GitHub\TES-Charger`).
+**Build environment (PowerShell, Windows):** ESP-IDF is a git checkout at
+`C:\Users\user\esp\v5.5.5\esp-idf` (upgrade = `git checkout <tag>` + `git submodule
+update --init --recursive` + `idf_tools.py install`), tools in `C:\Users\user\.espressif`.
 
 ```powershell
-# 依機器挑一組 —— 下面是桌機 (Kaino-PC) 的值
-$env:IDF_PATH       = "C:\Espressif\frameworks\esp-idf-v5.5.5"
-$env:IDF_TOOLS_PATH = "C:\Espressif"
-$py = "C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
+$env:IDF_PATH = "C:\Users\user\esp\v5.5.5\esp-idf"
+$py = "C:\Users\user\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
 # 動態取得工具鏈 PATH —— 不要寫死版本號，換 IDF 版本時工具鏈目錄也會變
 # （v5.5.1 用 xtensa-esp-elf/esp-14.2.0_20241119，v5.5.5 用 esp-14.2.0_20260121）
 foreach ($line in (& $py "$env:IDF_PATH\tools\idf_tools.py" export --format key-value)) {
@@ -113,53 +100,30 @@ Set-Location "<repo>\firmware"
 & $py "$env:IDF_PATH\tools\idf.py" build
 ```
 
-**Never mix the two sets.** A build with `IDF_PATH` from one install and the toolchain
-from the other dies during CMake configure with no useful message — `build/config.env`
-names one tree while `build/CMakeCache.txt` names the other. If a build fails in a way
-that makes no sense, check those two files agree before anything else. (The desktop
-carried a second, *toolchain-less* checkout at `C:\esp\v5.5.5\esp-idf` for exactly this
-reason; it has been removed, leaving `C:\Espressif` as the only install there.)
-
 Changing `IDF_PATH` invalidates the CMake cache — delete `firmware/build` and re-run
 `set-target esp32s3` after any IDF version change, otherwise the stale cache points at
 the previous compiler.
 
 `export.ps1` / `Initialize-Idf.ps1` are best avoided: they define `idf.py` as a
 *PowerShell function*, so they must be dot-sourced and used in the same scope —
-`& export.ps1` silently loses it. `Initialize-Idf.ps1` additionally resolves Python
-through `idf-env`, which reads `%USERPROFILE%\.espressif\esp_idf.json` — on the desktop
-that file listed no installs and the script failed with a null interpreter.
+`& export.ps1` silently loses it.
 
-**Building from Git Bash / MSYS2 does not work.** `idf_tools.py` aborts with
-`MSys/Mingw is not supported` whenever `MSYSTEM` is in the environment, and Git Bash
-re-injects it into every Windows child process, so `env -u MSYSTEM` from the bash side
-is not enough. Drop it inside PowerShell instead:
-`Remove-Item Env:MSYSTEM -ErrorAction SilentlyContinue`.
-
-> ### ⚠️ Non-ASCII checkout paths break the build (this is why the desktop cannot build)
+> ### ⚠️ Non-ASCII checkout paths break the build (not an issue on the current machine)
 >
-> The laptop checkout is on an ASCII path and is fine. The **desktop checkout is at
-> `D:\文件\GitHub\...`** on a cp950 (Traditional Chinese) Windows locale, and that
-> breaks the build in four separate places:
+> The current checkout is on an ASCII path, so this does not apply — but a checkout under
+> e.g. `D:\文件\GitHub\...` on a cp950 (Traditional Chinese) Windows locale fails in three
+> separate tools:
 >
 > | Stage | Failure | Workaround |
 > |-------|---------|-----------|
 > | `kconfgen` | `UnicodeDecodeError: 'cp950' codec can't decode` reading `build/config.env` | `PYTHONUTF8=1` |
 > | `ccache` | `filesystem error: Cannot convert character sequence` | `idf.py --no-ccache` |
-> | **`ldgen` batch wrapper** | `Batch file failed at line 2 with errorcode 1` — CMake writes `CMakeFiles\sections.ld-*.bat` as UTF-8, cmd.exe reads it as cp950, so `cd /D D:\文件\...` cannot find the directory | **no workaround** |
 > | `objdump` (link step) | `xtensa-esp32s3-elf-objdump -h .../libxtensa.a` exits 1 | **no workaround** |
 >
-> The first two are fixable with env vars. The last two are not — cmd.exe and GNU
-> binutils both resolve paths through the ANSI codepage, and a directory junction does
-> not help (CMake canonicalises it back to the physical path).
->
-> **Measured 2026-10-01 on the desktop:** all 1396 compile steps succeed; the build dies
-> at step 1397 generating `sections.ld`, i.e. the ldgen wrapper above — `ldgen.py` is
-> never even reached. Copying the same tree to `C:\Users\a9505\tesascii` and rebuilding
-> gives `BUILD EXIT=0`, so **the source is fine; only the path is wrong.**
->
-> Fix properly by re-cloning the desktop copy somewhere ASCII (e.g. `D:\GitHub\TES-Charger`)
-> rather than copying per build. GitHub Actions is unaffected (Linux runner).
+> The first two are fixable with env vars; the **objdump failure at the link stage is
+> not** — GNU binutils resolves filenames through the ANSI codepage, and a directory
+> junction does not help (CMake canonicalises it back to the physical path). The source
+> must sit on an ASCII-only path. GitHub Actions is unaffected (Linux runner).
 
 ### Why not ESP-IDF 6.x
 
@@ -182,22 +146,29 @@ IDF version is invisible to users, so it is not a reason for V4 on its own):
 3. **The next hardware revision** — that already requires full re-validation, so folding
    the migration in costs one validation cycle instead of two
 
-**Git submodules —— 有兩個，不是只有 u8g2:**
+**Git submodules —— 有三個，不是只有 u8g2:**
 
 | Path | Upstream | Notes |
 |------|----------|-------|
 | `firmware/components/u8g2/` | `olikraus/u8g2` | third-party, never edited here |
-| `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_types.h`, `tes_codec.c/.h` live here |
+| `firmware/components/tes_protocol/` | `a950523a/TES-Protocol` | **our own repo** — `tes_wire.h` (CAN frames + bit macros), `tes_types.h` (application types; includes `tes_wire.h`), `tes_codec.c/.h` live here |
+| `firmware/components/psu_link/` | `a950523a/PSU-Link` | **our own repo** — the controller ↔ power-node link (`psu_link.h/.c`), shared with the LianMing PSU Controller |
 
 On a fresh clone:
 ```bash
 git submodule update --init
 ```
 
-⚠️ Editing `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
+⚠️ Editing `tes_wire.h`, `tes_types.h` or `tes_codec.c` changes the **submodule**, not this repo.
 Those changes must be committed and pushed in `firmware/components/tes_protocol/`
 first, then the updated pointer committed here — otherwise CI checks out the old
-`tes_protocol` and the build breaks on missing symbols.
+`tes_protocol` and the build breaks on missing symbols. The same applies to
+`psu_link/`, which has **two** consumers: bump the pointer here *and* in the LianMing
+PSU Controller.
+
+**Why two protocol repos, not one:** TES-Protocol holds only the TES-0D-02-01
+vehicle ↔ charger CAN protocol. The power-node link never touches the vehicle, so it
+lives in PSU-Link (decided 2026-09-24) — do not move it into TES-Protocol.
 
 ---
 
@@ -206,6 +177,26 @@ first, then the updated pointer committed here — otherwise CI checks out the o
 ### Guiding Principle
 
 `tes_protocol/` is **zero-dependency C99** -- no ESP-IDF, no FreeRTOS, no OS calls. It can be compiled on any platform (STM32, PC unit tests, etc.) by swapping `charger_hal/` and `platform/`. All time, GPIO, and CAN operations are injected by the caller.
+
+**Data in, data out — on purpose.** The state machine never calls hardware; it gets an
+`inputs` snapshot and returns the `outputs` the hardware should hold. The LianMing PSU
+Controller solves the same portability problem the other way — C++ code calling hardware
+through a virtual `IHardwareHAL` — and both are right for what they do (compared
+2026-09-24):
+
+| | Data in / data out (this SM) | Virtual interface (PSU controller) |
+|---|---|---|
+| Testing | Build `inputs`, check `outputs`; time is injected, so runs are exactly repeatable | Needs a fake HAL recording calls; tests assert call sequences, not state |
+| What will the hardware do? | All of it is in `outputs`, one place | Scattered through the logic |
+| Cost | Boilerplate: a new interaction means new struct fields plus glue in `task_tes_sm` | Call it where you need it |
+| Fits | Decisions — relays, contactor, what to tell the BMS | I/O — streams, polling, display |
+| Latency | One tick (10 ms) between snapshot and action | Immediate |
+
+This code decides whether a relay closes onto a vehicle's HV battery, so testability and
+being able to see every hardware action in one struct outweigh the boilerplate. **Do not
+"simplify" the SM into calling drivers directly.** A third pattern lives in PSU-Link:
+pure encode/decode functions with no I/O and no decisions, which is why the same C file
+serves this C firmware and the C++ PSU controller.
 
 ### Component Layers
 
@@ -254,15 +245,15 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 |------|----------|-------|--------|------|
 | `task_can_rx` | 15 | **4 KB** | event | TWAI receive -> raw queue + `can_driver_service()` |
 | `task_tes_sm` | 12 | **8 KB** | 10 ms | SM tick + output execution + snapshot update |
-| `task_hal_poll` | 10 | 4 KB | 10 ms | button debounce + ADC + PSU UART poll |
+| `task_hal_poll` | 10 | **6 KB** | 10 ms | button debounce + ADC + PSU poll (incl. ESP-NOW pairing crypto) |
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
 | `task_ota` | 2 | 16 KB | event | esp_https_ota |
-| `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) |
+| `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) and to the mobile app (Expo) |
 | `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
 | `task_scheduler` | 2 | 4 KB | 30 s | NTP sync (pool.ntp.org, UTC+8) + charging window edge detection → g_btn_event_queue (v3.4.0) |
 | `task_monitor` | 1 | 4 KB | 10 s | heap + stack watermark logging |
-| `task_log` | 1 | 3 KB | event | charge session history to NVS (v3.1.0) |
+| `task_log` | 1 | 4 KB | event | charge session history to NVS (v3.1.0); was 3 KB until 2026-10-08 (896 B left mid-charge on hardware) |
 
 Charge-curve sampling and the value-change log run inline in `task_tes_sm` (no extra
 task) — see `trace_svc` below.
@@ -340,7 +331,7 @@ Fields that were missing before and are now present: `v501_soc`, `v5f0` bit1 熔
 
 ### 0x500 bit definitions (TES-0D-02-01 表 16)
 
-Named macros live in `tes_types.h` (`V500_FAULT_*`, `V500_ST_*`) — do not use bare hex.
+Named macros live in `tes_wire.h` (`V500_FAULT_*`, `V500_ST_*`; reached through `tes_types.h`) — do not use bare hex.
 
 **byte 0 — 故障旗標** (all 0=正常, 1=異常; bit 6-7 預備固定 0)
 
@@ -415,21 +406,157 @@ opposite polarity (1 = stopped). Labels fixed; the transmitted values are unchan
 | 0x509 | Charger -> Vehicle | Actual output voltage/current, remaining time |
 | 0x5F8 | Charger -> Vehicle | Emergency stop |
 
-**V2 Hardware GPIO (for reference):** buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/15), PSU UART (43/44). ADS1115 at 0x48. Voltage divider: 348 kΩ / 12 kΩ (120 V range). CP divider: 150 Ω / 51 Ω.
+**V2 Hardware GPIO (for reference):** buttons (39-42), LEDs (5-7), relays (9-11), CAN (17/18), I2C SDA/SCL (16/15), PSU UART (43/44). ADS1115 at 0x48. CP divider: 150 Ω / 51 Ω.
 
 ---
 
-## Hardware — design is private
+## Hardware — design is private; what the firmware needs is here
 
-**The board design lives in a private repository**,
+**The board design lives in a private repository** —
 [`a950523a/TES-Controller-Hardware`](https://github.com/a950523a/TES-Controller-Hardware),
-checked out next to this one (decided 2026-10-04: hardware is 海龜電能's product, the
-firmware stays public). It holds the EasyEDA and KiCad projects, Gerbers, JLCPCB
-BOM/CPL, enclosure CAD and the scripts, with their history. **This repo publishes the
-schematic only:** `docs/schematic/TES_Controller_V1.3_schematic.pdf`. Do not add layout,
-Gerbers, BOM/CPL, enclosure files or brand assets here again; `.gitignore` blocks the
-old paths. Files committed before the split stay in history — deliberately not
-rewritten — and remain CC BY-NC-SA for anyone who obtained them.
+checked out next to this one as `Documents/GitHub/TES-Controller-Hardware` (decided
+2026-10-04: hardware is 海龜電能's product, firmware stays public). It holds the KiCad and
+EasyEDA projects, Gerbers, JLCPCB BOM/CPL, the enclosure CAD, the logo source and every
+`tools/` script, with their history and their own CLAUDE.md (everything that used to be
+in this chapter). **This repo publishes the schematic only:**
+`docs/schematic/TES_Controller_V1.3_schematic.pdf`, exported from the KiCad project
+(`kicad-cli sch export pdf`). Do not add layout, Gerbers, BOM/CPL, enclosure files or
+brand assets here again.
+
+Files committed before the split stay in this repo's history — deliberately not
+rewritten. They remain CC BY-NC-SA for anyone who obtained them.
+
+Two things here are still generated from the private repo: the board drawing in
+`firmware/components/services/web/hw.html` (`tools/make_hw_board_svg.py` writes into
+this checkout) and the schematic PDF.
+
+### Board identification on ADS1115 AIN3 (V1.3 onwards)
+
+V1.3 changes the voltage-divider coefficient (30.000 → 38.954), so one firmware binary
+tells the boards apart by the voltage on AIN3 — grounded on V1.1/V1.2, the midpoint of
+R36/R37 from V1.3 on. The level a future revision uses is chosen in the private repo
+(`tools/changes_v13.py`, R36).
+
+| AIN3 reading | Meaning | Divider coefficient |
+|---|---|---|
+| < 0.9625 V (pin grounded — levels 0–3) | V1.1 / V1.2 — **every unit in the field** | 30.000 |
+| level k = round(V / 0.275 V), k = 4…11 | a board revision; **V1.3 = k 6 (R36 = R37 = 10 k)** | per revision |
+| > 3.162 V (AIN3 tied straight to VDD33) | extension code: "this board has an EEPROM at 0x50, read it" | from EEPROM |
+| between levels | unknown revision | 30.000 + warning |
+
+**Levels 1–3 are reserved — a new revision must not use them.** A V1.2 in the field (2026-10-08)
+read 0.431 V on its "grounded" AIN3 (level 2) when booted with the gun in a vehicle, and was shown as
+an unknown board with a "voltage readings untrustworthy" warning. CP on the same ADS1115 read 0.00 V,
+so it is that pin's ground joint, not the whole ground. Anything under 3.5 levels is now V1.1/V1.2
+(with a log warning). That is not a guess: V1.3 sits at 1.65 V, and the unknown-board fallback used
+the V1.1/V1.2 coefficient anyway — only the false warning and the missing `/hw` drawing go away.
+
+**A valid factory record overrides AIN3 (2026-10-12).** AIN3 can be misread (a bad joint, as above),
+and the dangerous direction is a V1.3 read as an old board: ×30 instead of ×38.954, 77 % of the real
+voltage, Stop Mode = Volt overcharges. The factory record is signed and bound to the chip's MAC, so
+when `factory_svc` says `FACTORY_VALID`, its `hw_level` decides the board and the coefficient
+(`adc_driver_apply_factory_level()`). `main.c` verifies it right after `adc_driver_init()`, **before**
+Auto Volt and the SM read any voltage, in a short-lived 8 KB task (ECDSA does not fit `app_main`'s
+3.5 KB; on a 5 s timeout it stays with AIN3 and never verifies on the main stack). No record (every
+unit in the field), or an invalid one → AIN3 as before. If the record and AIN3 disagree,
+`id_mismatch` is set: `/status` `hw_id_mismatch`, `/hw.json` `adc.hw_id_mismatch`, the web UI and the
+app say "check R36/R37", `/hw` marks them red, the OLED Board row shows `ID!`. `/status` also carries
+`hw_source` (`factory`/`ain3`) and `hw_ain3_level`; `hw_id_level` is the level actually used.
+
+AIN3 itself is now read as the **median of 16 samples**; if the interquartile spread exceeds 50 mV it
+retries (3 tries, 50 ms apart; the last try's median is used, with a log warning per unsteady try). First V1.3 (TP-0001, 2026-10-12, USB power
+only): AIN3 1.638 V → level 6, factory record valid, no mismatch.
+
+### Firmware side of V1.3
+
+The divider coefficient goes 30.000 → 38.954 and the constant cannot simply be
+edited, because deployed units run the old divider and one binary serves both.
+The board identifies itself through the AIN3 divider (see **Board
+identification** above) and the firmware now reads it — see the next section.
+
+### What V1.3 needs from the firmware — board ID written 2026-09-29, not yet tested on a board
+
+Firmware older than the board-ID change applies a coefficient of 30.000 to a
+divider that is 38.954, so **a V1.3 board would report 92 V for a pack sitting at
+120 V** (×30.000/38.954 = 77 %).
+
+| | shipped hardware (V1.1 / V1.2) | V1.3 |
+|---|---|---|
+| ADS1115 supply | 3.3 V | 3.3 V (unchanged) |
+| upper arm | 348 kΩ, one 0603 | **115k × 3 = 345 kΩ** |
+| lower arm | 12 kΩ | **9.09 kΩ** |
+| coefficient | 30.000 | **38.954** |
+| reading at 120 V | 4.000 V — **over the input limit** | 3.081 V |
+| measurement ceiling | ~108 V, clipped (see 3 below) | 140.2 V |
+
+**1–2. Coefficient lookup and board ID — done in firmware (2026-09-29).**
+`ADC_VOLT_R1_KOHM` / `ADC_VOLT_R2_KOHM` are gone. `adc_driver.c` now:
+
+- reads CP as **AIN2 single-ended** (`ADS_CFG_MUX_2G`, MUX 110) instead of
+  AIN2−AIN3 — identical on old boards, where AIN3 is ground;
+- in `adc_driver_init()`, reads **AIN3 single-ended** (`ADS_CFG_MUX_3G`, MUX 111)
+  8 times, averages, classifies with `classify_hw_id()`, and looks the level up in
+  `BOARD_REVS[]` (level 0 = V1.1/V1.2 348k/12k, level 6 = V1.3 345k/9.09k).
+  **A new board revision = one new row in `BOARD_REVS[]`**, at the level chosen in
+  `changes_v13.py`;
+- falls back to **30.000** and marks the board unknown for a read failure, a level
+  between bands, a level not in the table, or the EEPROM extension code (not
+  supported yet). Missing ADS1115 keeps the default too.
+
+Exposed as `adc_driver_board()`: `/status` carries `hw_rev`, `hw_known`,
+`hw_id_level`, `hw_id_v`; the web UI prints the board next to the firmware
+version (and says the voltage cannot be trusted when `hw_known` is false); the
+OLED settings menu has a read-only `Board: V1.3` row under `tes-<id>` (unknown
+shows `Board: ? 1.23V`). The classifier was host-tested with every level's
+worst-case voltages (two 1 % resistors, 3.3 V ±2 %) — all 13 codes classify
+correctly, and a voltage between bands is rejected.
+
+**Not tested on hardware yet.** On a V1.1/V1.2 board: the boot log must say
+`level 0 = V1.1/V1.2`, and CP must read exactly as before. On the first V1.3:
+`level 6 = V1.3`, `AIN3 ≈ 1.65 V`, and the output voltage must match a meter.
+
+⚠ **Release order matters.** v3.5.0 and older never read AIN3, so a V1.3 board
+running them applies 30.000 and **reports 77 % of the real voltage** — and in
+Stop Mode = Volt it keeps charging past the target, leaving only the vehicle's BMS
+to stop it. The ID-aware firmware must be the **latest GitHub Release before the
+first V1.3 ships**, so OTA and the first-flash tool can only give a V1.3 board
+firmware that knows it. Only a deliberate manual upload of an old `.bin` can still
+downgrade one; ESP-IDF anti-rollback would prevent even that, but it burns eFuses
+irreversibly and is not worth it here.
+
+**3. Field units cannot read near 120 V today, and firmware cannot fix it.**
+The ADS1115's analog input is limited to VDD + 0.3 V = 3.6 V. At a coefficient
+of 30.000, 120 V produces 4.000 V at the pin — past the limit, so the reading
+clips. The datasheet limit works out to ~108 V; a V1.2 board measured 114 V.
+The discrepancy has never been explained, and it does not need to be: either
+way, **readings near full charge on shipped hardware are not trustworthy**, and
+raising the coefficient on V1.3 is what fixes it (120 V → 3.081 V, ceiling
+140.2 V). Worth remembering when a field unit reports a voltage that stops
+rising.
+
+**4. CP's ceiling is 14.2 V and V1.3 did not change it.** R9 = 150 Ω / R8 =
+51 Ω and the 3.3 V supply are all untouched, so the limit is 3.6 V × 3.941 =
+14.2 V on both revisions. (An earlier note here said it "drops from 20.9 V" —
+that was comparing against a 5 V draft of V1.3 that was abandoned, not against
+anything that was ever built.) Charging measured 8.99 V, about 1.6× margin;
+confirm against a real vehicle before relying on it.
+
+**5. The PGA does not need touching.** ±4.096 V covers 3.081 V with room to
+spare, and on both revisions the pin limit binds before the PGA does.
+
+#### Why the hardware changed at all
+
+Two defects, both explained with their reasoning in `tools/changes_v13.py` (private hardware repo):
+
+1. **A single 0603 cannot hold off 120 V.** Its rated working voltage is
+   75 V and the upper arm sees 116 V. Three in series drop 39 V each.
+   All three are the same value, which is one fewer part number and one
+   fewer per-part setup fee at JLCPCB.
+2. **The ADS1115 could not read the I2C bus.** V_IH is 0.7 × VDD, so a 5 V
+   part needs 3.50 V while the pull-ups only reach 3.3 V. Keeping it at
+   3.3 V is what forces the lower arm to 9.09 kΩ, and *that* is what moves
+   the coefficient.
+
 
 ---
 
@@ -468,29 +595,136 @@ field. No migration was written.
 
 **Confirmed TES-0D-02-01 protocol timing (commit 5bb8887):** `VP ON → CP ON → CAN 0x500 bit0=1 → charging → CAN ends → CP OFF`. CP appears before CAN; CP OFF→ON edge is the primary auto-start trigger, CAN rising edge is backup.
 
-**ESP-NOW PSU transport implemented (2026-05-16):** `psu_driver` now supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. LianMing PSU Controller side not yet updated. **Not yet tested.**
+**ESP-NOW PSU transport (implemented 2026-05-16, ✅ hardware-tested 2026-09-15):** `psu_driver` supports dual transport (UART + ESP-NOW). `POST /psu/pair` added to REST API. The LianMing PSU Controller side has been updated to match, and the pair → publish → command path has been exercised on real hardware.
 
 **PSU disconnect fault fix (commit bb1735e, 2026-05-22):** `run_monitoring()` no longer faults on PSU disconnect unconditionally. `psu_session_connected` snapshot taken at `PRECHARGE_STEP_COMPLETE` — mid-charge disconnect only faults if PSU was present at session start; PSU-absent-at-start = ADC-only mode, charging continues uninterrupted. Fixes auto-start + PSU-less testing.
+
+**Hardware V1.3 (2026-09-15):** the EasyEDA → KiCad migration is finished and the
+board passes every check it has — netlist zero-difference, ERC clean, DRC 0 errors
+and 0 unconnected. Gerbers are the only step left, and nothing has been ordered.
+Details, and what is deliberately left undone, in the private hardware repo's CLAUDE.md.
+Note that V1.3 is **not compatible with the shipped firmware constant**: its divider
+reads 38.954, deployed units read 30.000.
+
+**⚠️ On `main`, in no release yet.** Eight commits from 2026-09-11 to 09-13 sit on
+`main` above the v3.5.0 tag. Three of them change how the device behaves, so anything
+built from `main` is **not** what a deployed unit is running:
+
+| | Consequence |
+|---|---|
+| CSRF protection on the seven state-changing endpoints | `curl` and scripts must send `X-TES-Request: 1` or get 403 — including `POST /ota/upload` |
+| MQTT TLS + `mqtt_cmd` opt-out | new NVS key, defaults to true (see **Security**) |
+| ESP-IDF v5.5.5 | CI and the dev machine; v3.5.0 itself was built with v5.5.1 |
+
+Pushing `main` deploys GitHub Pages, which republishes `tes_charger_flash.bin` on the
+public first-flash tool — so a push is what actually puts these in front of users, tag
+or no tag. (It did, on 2026-09-15: main now builds green and the published binary
+carries the CSRF header requirement. The Releases the OTA button pulls from are still
+v3.5.0, which does not — only re-flashed units have it.)
+
+**`main` carries firmware only; the V1.3 hardware work stayed on `dev`** (decided
+2026-09-15) — and since 2026-10-04 the hardware is not in this repo at all (see
+**Hardware** above). Do **not** fast-forward `main` to `dev` — pick the firmware commits across
+deliberately, as was done for the eight above and for the CI fix (`ff3a831`, a
+cherry-pick of `0794ad3`). That cherry-pick means the branches have diverged, so bringing
+`dev` over later needs a merge commit rather than a fast-forward; the workflow file is
+already identical on both sides, so it will not conflict.
+
+**Git history was rewritten on 2026-09-29 — every commit hash before that date
+changed.** The twelve prototype photos in `docs/images/` (added 2025-08-04) carried
+the phone's GPS position of the author's home. `git filter-repo` replaced each
+original in history with its resized, EXIF-free version, then `main`, `dev` and all
+32 tags were force-pushed. Trees at the branch tips are byte-identical to before;
+the repo went from 67 MB to 29 MB. The original commits were GPG-signed and
+filter-repo drops signatures, so **all 355 commits got new hashes**, not only those
+after the photos. Hash references in this file and in commit messages were
+translated through filter-repo's commit map; a hash quoted anywhere else points at a
+commit that no longer exists on `main`/`dev`. A clone made before that date must be
+re-cloned, not pulled. One fork (2025-08-14) predates the rewrite and still holds the
+originals — the author has decided not to pursue it. Any new photo goes in with EXIF
+stripped.
+
+**Development resumed on 2026-09-23** — firmware and the V1.3 hardware both.
+It had been paused since 2026-09-15 over a patent question (below). The pause
+notice is gone from README.md; the top of README now points to the ready-made
+products instead.
+
+**Publication status — decided 2026-09-23: no patent; the repository stays
+public** (it has been public since 2025-06-19). The TES market is too small for a
+patent to be worth pursuing. README.md's licence section was cut down to the
+licence itself: CC BY-NC-SA 4.0 licenses copyright only — its own §2(b)(2) says
+patent and trademark rights are not licensed — so publishing under it grants
+nobody a patent licence. The "reserving the right to file" wording and the
+not-yet-filed disclaimer were removed along with the plan. Do not reintroduce
+"Patent Pending" or similar wording; if the question ever reopens, it is one
+for a patent attorney, not for this file.
+
+**PSU link protocol v2 (2026-09-24) — on `dev` only, not hardware-tested.** The
+power-node link was rewritten end to end: codec in the new
+[PSU-Link](https://github.com/a950523a/PSU-Link) repo (70 host tests), `psu_driver` here
+(`ed99d3b`), `SerialCmd` in the LianMing PSU Controller (`9c2e6f8`). Both firmwares
+build under IDF 5.5.5 and CI is green, but **no frame has crossed a real wire yet**.
+Deliberately **not** cherry-picked to `main`: that would republish the public flash
+binary. Pick `ed99d3b` across after this checklist passes on real boards:
+
+1. UART: TES receives `$CAP` → `psu_status_t.caps_known` true, `node_type` 1
+2. `$ST` every 1 s idle / 100 ms outputting; V/I match the PSU's own display
+3. `$SET` from TES → `$ACK,<seq>,0` → the output actually changes
+4. Repeat 1–3 over ESP-NOW (re-pair first — see the PSU repo's partition note)
+5. `rx_crc_errors` stays 0; a rising count means wiring or baud rate
+
+**Next: a measurement-only node for knob power supplies** (the ones with no digital
+interface — the iE125 retrofit and the 15 A charger). Decided 2026-09-24:
+
+- It talks over the **existing UART / ESP-NOW link**, not I2C — the board design is
+  fixed, and ESP-NOW gives galvanic isolation for free. It declares
+  `PSU_CAP_REPORT_V | PSU_CAP_REPORT_I` and no set capability, so `SET` never reaches it.
+- It measures voltage too, with its own divider — which also sidesteps the V1.1/V1.2
+  ADS1115 ceiling (~108–114 V, see **What V1.3 needs from the firmware**).
+
+Why it matters — **today, with no PSU link, the controller does not know the output
+current at all.** `tes_sm.c` fills 0x509 `actual_current`, the live display and the
+energy estimate with the **`max_current` setting** (`tes_sm.c` ADC-only branches, and
+0x508 `available_current` from the same setting). That is why users have to set Max
+Current to match the knob by hand. The SM changes, in priority order (none written yet):
+
+1. **Over-current stop** — actual current above the BMS request by more than a tolerance
+   for a sustained time → stop. A knob PSU cannot be commanded, so when the BMS tapers
+   its request the PSU keeps pushing; today nothing notices. This is the reason to do it.
+2. **0x509 reports the measured current** instead of the setting.
+3. **0x508 available current follows the knob** (BMS asks for more than is measured,
+   sustained → the PSU is current-limited; available = measured). Needs a vehicle test:
+   it is unknown whether the vehicle re-reads 0x508 during CHARGING, or faults when the
+   delivered current stays below its request.
+
+Open, not decided: sensor type (Hall recommended — isolated, retrofit by passing the wire
+through; whatever it is, its output must stay under the ADC pin limit, the same trap as
+V1.2); where the node gets power; whether it reuses the LianMing ESP32 board; and what
+happens if the node drops mid-charge (recommended: stop, matching the
+`psu_session_connected` rule). **Hard constraint:** with no node present, behaviour must
+stay exactly as today — including reporting the setting as current — because that is
+every unit in the field.
 
 **In progress:** React Native mobile app (Expo + EAS Build, Android APK sideload). Will support multiple controllers, local HTTP + MQTT remote, guided onboarding. Not yet started.
 
 **✅ Vehicle-verified as of v3.5.0:** manual START → full charge sequence; CP transition
 0 V → 8.99 V; `trace_svc` session start; web UI latency (measured with curl, see above).
 
-**⚠️ Still not vehicle-tested:** notify_svc, PWA offline caching, log_svc, WiFi scan,
-mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge
-timer stop, scheduler, beta auto-start, ESP-NOW PSU transport.
+**✅ Confirmed on hardware 2026-09-15** — everything v3.5.0 shipped without having been
+exercised has since been checked, and the ESP-NOW PSU transport with it:
+- **Fault display persistence** (OLED / LED / web) — the reason now holds instead of the
+  screen reverting to Standby when FAULT auto-recovers.
+- **Fault reason in charge history** — `/history` renders through the same `FAULTS[]`
+  table as the live panel, so a fault stop reads "充電槍鬆脫" rather than a bare "故障".
+- **`Reset Fault` in IDLE** — the menu item does something in that state now.
+- **ESP-NOW PSU transport**, against the updated LianMing PSU Controller.
 
-**⚠️ Shipped in v3.5.0 but never exercised on hardware** — verify these before trusting them:
-- **Fault display persistence** (OLED / LED / web). Needs a real fault to confirm the
-  screen holds instead of reverting to Standby. Easiest repro: start charging, reach
-  CHARGING, unplug the connector (manual mode auto-recovers in 1 s, so the old build
-  showed nothing).
-- **Fault reason in charge history.** `/history` was emptied by the struct change, so
-  no record with `fault_source` has ever been rendered. Expect "充電槍鬆脫" rather than
-  a bare "故障".
-- **`Reset Fault` in IDLE.** Newly wired up; previously the menu item did nothing in
-  that state.
+The pass/fail was recorded, the procedure was not. If any of these is ever suspected
+again, the repro steps have to be rebuilt from scratch — worth writing down next time.
+
+**⚠️ Still not vehicle-tested:** notify_svc, push_svc (mobile-app push), PWA offline caching, log_svc, WiFi scan,
+mDNS AP mode, MQTT, Cloud PWA, power/energy tracking, CAN diagnostics panel, charge
+timer stop, scheduler, beta auto-start.
 
 **⚠️ Beta auto-start bug (still unconfirmed as of v3.5.0):** the v3.5.0 vehicle test used
 **manual START only**, so this remains untested. Vehicle sends `fault_flags=0x01` in 0x500
@@ -521,7 +755,9 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | Scheduler | ON / OFF | toggle | toggle |
 | [Beta] Auto | ON / OFF | toggle | toggle |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
+| Restart | 重新啟動：**按兩次**（第一次顯示 `Restart? press again`，3 秒內再按才執行，移動游標就取消）；充電流程中顯示 `Restart (stop first)`、不可用。未儲存的設定變更會丟掉 | confirm ×2 | — |
 | About | 韌體版本 + 作者（唯讀） | — | — |
+| Board（位於 `tes-<id>` 下一行） | 硬體版本（唯讀，開機時由 AIN3 辨識；不認得顯示 `? 1.23V`） | — | — |
 | Save & Exit | writes to NVS | — | — |
 | Cancel | discard changes | — | — |
 
@@ -536,15 +772,54 @@ Web UI voltage/SOC display mirrors OLED: Volt mode shows `voltage / stop_voltage
 
 ## PSU Protocol
 
-Text protocol shared by both transports:
-- RX: `V=xx.x,I=xx.x\n` -- actual output (PSU actively outputting, ~100ms interval)
-- RX: `HB\n` -- heartbeat (PSU standby, ~1s interval; **ESP-NOW only**)
-- RX: `CMD_ACK:SET_V:xx.x\n` / `CMD_ACK:SET_I:xx.x\n` -- command ack (standby)
-- TX: `SET:V=xx.x\n` / `SET:I=xx.x\n` -- setpoint commands
+**Link protocol v2 (2026-09-24), defined in the `psu_link` submodule**
+([PSU-Link](https://github.com/a950523a/PSU-Link)) — `include/psu_link/psu_link.h` +
+`psu_link.c`, with host tests in `test/`. The LianMing PSU Controller pulls in the
+**same submodule**, so the wire format has exactly one definition: change it in PSU-Link,
+then bump the submodule pointer in **both** repos. Same bytes over UART and ESP-NOW:
 
-`HB\n` is parsed in `parse_frame()`; it updates `s_last_valid_ticks` and sets `connected=true` without changing voltage/current. This is the primary liveness signal for ESP-NOW idle state.
+```
+$<TYPE>,<field>,...*<CRC16>\n     CRC-16/CCITT over the bytes between '$' and '*'
+```
 
-When `psu_voltage == 0` (PSU standby), SM falls back to ADC voltage for OLED display and 0x509 CAN output — prevents vehicle from seeing 0V/0A and aborting.
+| Direction | Message | Notes |
+|---|---|---|
+| TES → node | `$HELO,<ver>` | sent every 1 s while connected but `caps_known == false` |
+| node → TES | `$CAP,<ver>,<type>,<caps>,<vmax>,<imax>,<fw>` | at node boot and on `HELO` |
+| node → TES | `$ST,<seq>,<v>,<i>,<mode>,<flags>` | 100 ms outputting / 1 s idle — **also the heartbeat** (no `HB` any more) |
+| TES → node | `$SET,<seq>,<v>,<i>` | either field may be empty = unchanged; throttled as before |
+| node → TES | `$ACK,<seq>,<result>` | `PSU_ACK_RANGE` / `UNSUPPORTED` are logged |
+
+Integers only, 0.01 V / 0.01 A. Lines not starting with `$` (the node's boot banner,
+replies to human text commands) are ignored; CRC failures and unusable frames are
+counted in `psu_status_t.rx_crc_errors` / `rx_bad_frames` — a rising CRC count is a
+wiring or baud-rate problem.
+
+**Node types.** The protocol describes a *power node* by what it declares in `CAP`, not
+by brand: a controllable rectifier (LianMing: report V/I + set V/I) or a
+**measurement-only node** for power supplies with no digital interface (report V/I, no
+set). `psu_driver_can_set_voltage/current()` stop `SET` going to a node that cannot take
+it; before `CAP` arrives they return true and an unsupported node answers `ACK 2`.
+**The state machine does not use node type or capabilities yet** — that is the next
+step (measured current in 0x509, following a manual current knob, over-current stop).
+
+**`psu_status_t` kept its first five fields** (`voltage`, `current`, `connected`, `rssi`,
+`fail_streak`) with the same meaning, so `task_tes_sm`, `display_svc` and `network_svc`
+did not change. Everything after them (node identity, last `ST`, `SET`/`ACK` sequence,
+link counters) is new. Node identity is cleared on disconnect — the next node may be a
+different one.
+
+**Invalid readings are reported as 0.** `ST` flags voltage/current invalid when the node
+is not outputting (LianMing: below 1 V, the old `V=`/`HB` boundary), and the driver
+turns that into 0. That matters: when `psu_voltage == 0` (PSU standby), SM falls back to
+ADC voltage for OLED display and 0x509 CAN output — prevents vehicle from seeing 0V/0A
+and aborting. A node that reported its idle noise as a valid 0.3 V would silently break
+that fallback.
+
+**Units in the field never see any of this.** They run knob power supplies with nothing
+on the PSU UART, so no frame ever arrives, `connected` stays false and the SM stays on
+the ADC-only path exactly as before. The driver only sends `HELO` once something is
+talking, so an empty UART stays silent.
 
 **ESP-NOW safety constraints (`psu_driver.c`):**
 
@@ -561,12 +836,46 @@ When `psu_voltage == 0` (PSU standby), SM falls back to ADC voltage for OLED dis
 - `PSU_TRANSPORT_UART=0`: UART pins 43/44, always available
 - `PSU_TRANSPORT_ESPNOW=1`: wireless, PSU also uses ESP32; init after `network_svc_init()`
 
-**ESP-NOW pairing flow:**
-1. PSU enters pairing mode → broadcasts `"PSU_HELLO\n"` every 500 ms
-2. TES enters pairing mode (`POST /psu/pair` or button combo)
-3. TES receives `PSU_HELLO` → saves sender MAC to NVS (`psu_mac` blob) → adds as peer
-4. Both sides use stored MAC for all subsequent communication
-5. Pairing window = 10 s; timeout logs warning and clears pairing flag
+**ESP-NOW pairing and link authentication (2026-09-30, on `dev`, not hardware-tested).**
+The old flow — TES saved the MAC of the first `PSU_HELLO` it heard, nobody confirmed
+anything — could pair with the wrong unit, and nothing stopped a forged `$SET`. Both
+halves now live in the PSU-Link submodule (`psu_pair`, `psu_sess`; design and attack
+tests there), shared with the LianMing PSU Controller:
+
+1. **Pairing = Bluetooth-style numeric comparison.** `POST /psu/pair` (IDLE only — X25519
+   runs in `task_hal_poll` for tens of ms, and START/STOP are repurposed) starts it; the
+   PSU broadcasts its X25519 key, TES replies, the PSU commits to its nonce before seeing
+   TES's, and both derive the same **6-digit code**. OLED shows it large (`render_pair()`
+   in `display_svc`, overriding even the settings menu) and `/control` pops a dialog.
+   The user confirms on **both** devices: TES by START (STOP = cancel) or the dialog's
+   button (`POST /psu/pair/confirm`), the PSU on its own buttons. Only then do both
+   store the peer MAC and a 32-byte long-term key. A wrong unit or a man in the middle
+   shows a different number; the commitment keeps an attacker's odds at 10⁻⁶.
+2. **Every ESP-NOW frame is authenticated.** ESP-NOW's own LMK encryption does not stop
+   forgery — broadcast and unencrypted unicast are always delivered and the callback
+   cannot tell them apart — so it is not used. Instead a 3-message handshake derives a
+   fresh connection key from the LTK each time either side starts, and every line
+   carries `~<counter><HMAC tag>`. `handle_espnow_line()` in `psu_driver.c` passes only
+   verified lines on; without a tag it accepts only pairing and handshake messages.
+   Forged, altered, reflected and replayed frames are dropped and counted
+   (`psu_status_t.auth_rejects`). UART is a wire and is not authenticated.
+
+`s_sess` is shared between `task_hal_poll` (receive, handshake) and `task_tes_sm` (SET),
+so it sits behind a mutex; sending happens inside the lock so counters leave in order.
+`task_hal_poll`'s stack went 4 → 6 KB for mbedTLS ECP.
+
+**Breaking change, by decision:** a TES on this firmware only pairs with a LianMing
+running the matching firmware, and an existing pairing (MAC only, no key) becomes
+`needs_repair` — the UI says so and asks for a re-pair. Acceptable because ESP-NOW has
+not shipped on `main`; nobody in the field depends on the old flow. A legacy
+`PSU_HELLO` seen during pairing is reported as "PSU firmware too old".
+
+**To verify on hardware:** both screens show the same code; confirming on one side
+alone times out after 60 s with nothing stored; the MAC the PSU sees for TES matches
+`esp_wifi_get_mac(WIFI_IF_STA)` (otherwise key confirmation fails — safe, but pairing
+never completes); after pairing, `auth_rejects` stays 0 and `link_auth` is true;
+rebooting either side re-establishes the link within ~2 s; `hal_poll` stack headroom
+during pairing.
 
 **ESP-NOW init constraint:** `psu_driver_set_transport()` must be called after `network_svc_init()` (ESP-NOW needs WiFi driver started). In `main.c`, called immediately after `network_svc_init()`.
 
@@ -583,6 +892,8 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `stop_v` | uint32 | 1000 | Stop voltage × 10 (i.e. 100.0 V) |
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
+| `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
+| `chg_mark` | u32 | 0 | Charging-in-progress mark for the post-reboot notice: `0x100 \| start SOC`, 0 = not charging |
 | `mqtt_url` | str[128] | "" | MQTT broker URL; empty = disabled |
 | `mqtt_topic` | str[64] | "" | MQTT topic prefix |
 | `sched_en` | uint8 | 0 | Scheduler master switch |
@@ -593,6 +904,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `psu_trans` | uint32 | 0 | PSU transport: 0=UART, 1=ESP-NOW |
 | `mqtt_cmd` | bool | **true** | 允許透過 MQTT 遠端啟停。false = 只發佈狀態、不訂閱 cmd。預設 true 是相容考量，見 Security 一節 |
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
+| `psu_ltk` | blob[32] | — | ESP-NOW 配對的長期金鑰。**秘密**：不進 `charger_config_t`（那個結構會被 `GET /config` 整包送出），只經 `config_svc_get_psu_ltk()` 讀。有 `psu_mac` 沒有 `psu_ltk` = 舊版配對，需重新配對 |
 | `sta_en` | bool | **true** | false = 固定 AP 模式但保留 SSID／密碼。預設必須為 true，否則 OTA 上來的舊機器會全部掉進 AP 模式 |
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
@@ -604,7 +916,24 @@ Charge history: namespace `"tes_hist"`, blob key `"log"` (**484 bytes**, 20 × `
 ## Feature Summaries
 
 ### Auto-Voltage
-NVS key `auto_v`. At boot: waits 1 s, reads ADC once, if 40–120 V overrides `max_voltage` in RAM (NVS not written). Boot logo shows "Auto Setting Voltage..." on OLED.
+NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40–120 V. Logic in
+`services/auto_volt.c` — pure, data in / data out (2026-10-06; it used to wait 1 s and read once):
+
+- **Boot** (`main.c`, boot logo "Auto Setting Voltage..." on the OLED): sample every 100 ms, use
+  1-second averages, stop when the average rose < 0.3 V over 2 s, take the highest average;
+  at most 10 s. The controller is powered by the PSU itself, so the PSU is often still ramping
+  when it boots — a single read caught a low value.
+- **IDLE** (`task_tes_sm`): keeps sampling while there is no load and raises `max_voltage`
+  when the 1-second average is ≥ 0.2 V above it. Only ever up; samples are dropped on leaving
+  IDLE so charging voltage never gets in.
+- **Never changes during a charging session** (decided 2026-10-06). The step runs *after*
+  `tes_sm_tick()` and checks the post-tick state: the override only reaches the SM on the next
+  tick, so running it before the tick let a value computed on the START tick land in the first
+  PARAM_EXCHANGE tick — VLIM2 moving mid-handshake. This covers Auto Volt only; a Max Voltage
+  typed by the user is still applied immediately, as before.
+- **Why averages, not the raw maximum:** the value goes out as VLIM2 in 0x508, the vehicle's
+  own over-voltage threshold. A spike read as the maximum would loosen that protection; a
+  low value is the safe direction (worst case a "voltage too low" fault).
 
 ### Stop Mode
 Three mutually exclusive termination conditions (NVS key `stop_m`). SM checks in `run_monitoring()`:
@@ -652,6 +981,41 @@ NVS keys: `sched_en`, `sched_start` (minutes from midnight 0-1439), `sched_stop_
 
 ### Webhook / ntfy Push Notification
 NVS key `notify_url` (empty = disabled). `notify_svc` subscribes to event bus, POSTs `{"title":"...", "message":"...", "priority":3}` on: CHARGING entered, IDLE with charge_complete, FAULT, EMERGENCY. Checks `network_svc_is_connected()` before every send. `POST /notify/test` sends a test notification.
+
+**Mobile app push (`push_svc`).** Every event above goes through `notify_svc_broadcast()`, which sends to
+`notify_url` *and* to every phone registered by the mobile app. The app registers its Expo push token
+with `POST /push {"op":"add","token":"ExponentPushToken[...]","name":"<phone>"}` (CSRF header required; at
+most `PUSH_MAX_TOKENS` = 4 phones, the 5th gets 409). Each entry stores the token, a phone name and the
+registration time (Unix seconds, 0 if NTP had not synced) in one NVS blob `push_v2`, **not** in
+`charger_config_t` — that struct is serialised by `GET /config`, which only reports `push_tokens` (a count).
+The older token-only blob `push_toks` is migrated on boot. **Managing the phones:** `GET /push` lists
+`{slot,name,added,tail}` — `tail` is the last 6 characters inside the brackets, so the app can recognise
+"this phone" without the firmware ever returning a full token; `{"op":"remove_slot","slot":n}` removes
+another phone, `{"op":"remove","token":...}` this one. Names are sanitised on the way in (no `"`, `\`
+or control characters, cut on a UTF-8 boundary) so they can go into JSON unescaped.
+Sending is one HTTPS POST per phone to `https://exp.host/--/api/v2/push/send` with
+`channelId: "charging"` (the app creates that Android channel; keep both sides in sync). A response
+containing `DeviceNotRegistered` removes that token. Buffers are heap-allocated because `task_notify`
+has 6 KB of stack — check its `stack free` in `task_monitor` after the first real push.
+A token can only push to the phone it came from, so it is not treated as a secret.
+
+**Notice after a reboot (`boot_notice.c`, host-tested).** A panic, watchdog, brownout or power cut gives the
+firmware no chance to say that charging stopped. So `task_notify` writes NVS `chg_mark` (`0x100 | start SOC`)
+when charging starts and clears it when charging ends normally — one write each per session. On boot
+`notify_svc_init()` reads the mark and `esp_reset_reason()`: mark set → "充電中斷" with the reason (any
+reason, including power loss) plus a `live_end` so the app drops its stale Now Bar progress; no mark but
+panic/watchdog/brownout → "控制器異常重啟"; otherwise nothing. It is sent once the network is up (retried
+every 5 s), then the mark is cleared — unless a new session has already started and written its own.
+
+**Live charging progress for the app (Android Now Bar / Live Updates).** While CHARGING, `task_notify`
+wakes every 5 s (`LIVE_POLL_MS`) even without events and sends a *data-only* push (no title/body,
+`ttl` 300 s) to registered phones — `{"k":"live","id","m","p","soc","tsoc","v","sv","el","tm","rem","w"}`,
+voltages in 0.1 V, all integers so no `%f` on the 6 KB stack. `p` is the progress the user asked for,
+**by stop mode**: SOC → soc ÷ target, voltage → from the voltage at charge start to the stop voltage,
+timer → elapsed ÷ set time (`live_progress.c`, pure C, host-tested). A push goes out when `p` changes,
+at most once per 30 s (`live_should_send`); leaving CHARGING sends `{"k":"live_end","id","r"}` so the
+app clears its ongoing notification. The app builds the notification itself in a background task — the
+firmware never sends display text for it, and `notify_url` does not get these.
 
 ### Charge Session History
 `task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (**24 bytes**). `log_svc` stores last 20 sessions as NVS blob (`session_log_t` = 4 + 20×24 = **484 bytes**).
@@ -810,30 +1174,36 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 **Cloud PWA** (`docs/monitor.html`): MQTT.js via WebSocket, config from URL fragment (`#b=host&p=wsport&t=prefix`); stored in `localStorage` after first use. GitHub Pages (HTTPS) → Service Worker works → offline caching valid.
 
+**WebSocket must be wss, and cloud brokers need credentials (fixed 2026-10-14).** The PWA lives on
+GitHub Pages (HTTPS), where browsers block plaintext `ws://` as mixed content — yet it connected with
+`ws://` and `broker_ws_port()` returned plaintext ports (8000 / 8080 / 8083), so it could not connect
+to anything. It now always uses `wss://`; `broker_ws_port()` returns 8884 for HiveMQ, 8081 for
+test.mosquitto.org and 8084 otherwise (EMQX Cloud `*.emqxsl.com`, broker.emqx.io). The page has
+username/password fields, kept in that browser's `localStorage` and **never** put in the shared
+`#b=…&p=…&t=…` link; for `*.emqxsl.com` / `*.hivemq.cloud` it stays on the settings panel until they
+are filled. Context: HiveMQ Cloud stopped accepting new free Serverless clusters (retired
+2026-12-31); the mobile app's remote wizard now recommends EMQX Cloud Serverless (TLS 8883, wss 8084).
+
 ---
 
-## Mobile App (In Progress)
+## Mobile App
 
-**技術：** React Native + Expo（Managed Workflow）+ EAS Build → Android APK（側載）
+**The app itself is developed in a separate, non-public repo** (Expo / React Native, Android and iOS).
+**It has every feature of the web UI** (`index.html`, `hw.html`, `devices.html`) — the author's rule — so
+**a feature added to the web UI should be added to the app too**, and this firmware has to keep the
+interfaces the app relies on stable:
 
-**目標：** 非技術使用者也能輕鬆使用，支援多台控制器管理。
+- **LAN:** every endpoint in the REST table below is used, including `/trace`, `/tracelog`, `/hw.json`,
+  `/hw/board.svg`, `/hw/test`, `/wifi/scan`, `/ota/upload` and the PSU pairing pair. `GET /devices` matters
+  in particular: the app has no mDNS of its own and uses it to find other units. All POSTs carry
+  `X-TES-Request`. `POST /config` range checks must stay in step with the app's copy. The `/status`
+  fault fields (`fault_source`, `fault_ctx_a/b`) are explained by a copy of the `FAULTS` table — add a
+  fault source here, add its text there.
+- **Remote (read-only):** MQTT `{prefix}/status` and the LWT `{"state":"offline"}` — see MQTT Remote
+  Monitoring. The app does not send `{prefix}/cmd`; remote start/stop waits for authentication.
+- **Push:** `POST /push` and the Expo send in `push_svc` — see Webhook / ntfy Push Notification.
 
-**連線方式：**
-- 本地（同 WiFi）：HTTP REST API，`http://<ip>/`
-- 遠端：MQTT WebSocket（透過 broker）
-
-**控制器配對（首次新增）：**
-- 掃描區域網路子網路，對每個 IP 嘗試 `GET /status`，回應含充電器特徵欄位者視為 TES 控制器
-- 使用者點選後命名，MAC/IP 儲存至 AsyncStorage
-
-**主要畫面：**
-1. 引導流程（首次開啟）：歡迎 → 連線說明 → 自動掃描 → 命名 → 完成
-2. 控制器列表：每台狀態卡片（在線/充電中/離線）
-3. 儀表板：大字電壓/電流/SOC + 開始/停止
-4. 設定：對應現有 REST `/config` API
-5. 充電歷史：對應 `GET /history`
-
-**開發狀態：** 尚未開始，ESP-NOW 韌體完成後進行。
+Renaming or removing a field in any of these breaks installed apps; add fields instead.
 
 ---
 
@@ -884,12 +1254,55 @@ Neither is a leak — it recovers on its own.
 plus every task's stack watermark every 10 s. Reading that over USB *while provoking the
 collapse* should settle it immediately. Do not start tuning without it.
 
+**The `/hw` page now carries that data without USB (2026-09-30).** Its 系統 card shows
+internal RAM free / minimum / largest block, and the TCP card lists every lwIP PCB —
+state, peer, send-queue length, writable buffer, cwnd, retransmit count, RTO and idle
+time — plus TIME_WAIT count against `MEMP_NUM_TCP_PCB` and httpd's open sockets against
+`max_open_sockets`. `/hw.json` is small, so it should keep updating through a collapse.
+Procedure: open `/hw` in one tab, reload `/control` in another until it collapses, and
+watch. Hypothesis 1 shows as the bulk connection's retransmits and RTO climbing while
+internal RAM dips; hypothesis 2 as TIME_WAIT filling the pool. The PCB lists are read in
+the tcpip thread via `tcpip_api_call()` — `LWIP_TCPIP_CORE_LOCKING` is off, so walking
+them from httpd directly would race lwIP.
+
 > ⚠️ **Do not "fix" this with gzip.** Compressing the 94 KB page to ~20 KB would raise the
 > number of loads before collapse from ~2 to ~8 and look like a fix while the underlying
 > resource problem remains. (This was nearly done — the first measurements were taken
 > during an unrelated transient RF fault, 13 % packet loss, which produced a plausible but
 > wrong "the page is too big" conclusion. Re-measure link quality before trusting any
 > throughput number here.)
+
+### 🟡 To evaluate: the ESP32 module is rated to 65 °C; PSRAM ECC raises it to 85 °C
+
+Recorded 2026-09-28, **nothing changed yet.** U1 is `ESP32-S3-WROOM-1-N16R8`
+(the V1.3 BOM, in the private hardware repo). The **R8 variants (octal PSRAM) are rated
+−40 to 65 °C ambient**, not the 85 °C of the plain modules. The
+[datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
+states that enabling PSRAM ECC raises that to **85 °C**, at the cost of 1/16 of the
+PSRAM, i.e. 8 MB → 7.5 MB.
+
+Why it matters: the module, not the enclosure, is the part with the lowest
+temperature rating in the unit. A controller left in a parked vehicle, or mounted on a
+warm PSU, can pass 65 °C inside its enclosure in a Taiwanese summer. This was found
+while choosing an enclosure material (PETG, ~70 °C) — the enclosure outlasts the module
+either way.
+
+The change is one line, `CONFIG_SPIRAM_ECC_ENABLE=y` in `sdkconfig.defaults` (it
+depends on `SPIRAM_MODE_OCT`, which is set). Things to check **before** shipping it:
+
+- **PSRAM is not only data here.** `CONFIG_SPIRAM_FETCH_INSTRUCTIONS` and
+  `CONFIG_SPIRAM_RODATA` are on, so code and rodata are copied into PSRAM at boot,
+  besides the ~656 KB of `trace_svc` buffers. Measured headroom was ~6.4 MB free, so
+  losing 512 KB is affordable — but confirm ECC works together with execute-from-PSRAM
+  on this IDF version, and read `task_monitor`'s `psram` figure afterwards.
+- **Throughput.** ECC adds overhead to every PSRAM access; code runs from PSRAM, so
+  measure the SM tick and the `/control` page load before and after.
+- **OTA path.** PSRAM is initialised by the app, so this should reach deployed units
+  by OTA with no partition-table or bootloader change — verify on a board that was
+  flashed with the current firmware, then updated by OTA, not flashed fresh.
+- The firmware requires 16 MB flash + octal PSRAM (`sdkconfig.defaults`), so every
+  unit running it carries an R8 module — the win would reach units already in the
+  field, not only V1.3.
 
 ### Other
 
@@ -914,8 +1327,9 @@ is deliberately not, and why.
 
 ### Implemented
 
-**CSRF protection.** The seven state-changing endpoints (`POST /config`, `/start`,
-`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`) require an
+**CSRF protection.** The ten state-changing endpoints (`POST /config`, `/start`,
+`/stop`, `/ota`, `/ota/upload`, `/notify/test`, `/psu/pair`, `/psu/pair/confirm`,
+`/hw/test`, `/reboot`) require an
 `X-TES-Request` header; `csrf_ok()` in `network_svc.c` rejects the rest with 403.
 
 Why a header works: a custom header forces the browser to send a CORS preflight, and
@@ -1072,12 +1486,102 @@ buttons on error (the user sees the failure but has no way to retry), and leavin
 `cfgBarLock` set after a failure (the bar then freezes on the old message and the pending
 count stops updating — `cfgSaving` distinguishes "mid-save" from "showing a result").
 
+### Hardware status page (`/hw`) and bench test mode — written 2026-09-30, not yet run on a board
+
+`/control` links to it under the firmware version. The page is a top view of the board
+drawn from the KiCad file, with each part at its real position; state is shown by
+colouring the parts themselves (outputs glow, pressed buttons turn blue, faults get a red
+outline) plus a few value tags (CP, output voltage at the 120 V sense pads, board ID on
+U5, chip temperature on U1, PSU link on H2, CAN on U12). Cards beside it carry the full
+numbers, including every task's stack high-water mark — the `task_monitor` line, without
+needing USB.
+
+**The production board's drawing is not in this firmware (2026-10-05).** The page asks
+the device for `GET /hw/board.svg`, which answers per board:
+
+| Board | Drawing |
+|---|---|
+| valid factory record (`factory_svc`: our signature, this chip's MAC, drawing hash) | the full production drawing, read gzip'd from the `tes_factory` partition |
+| V1.1 / V1.2 (AIN3 level 0) — every unit in the field, treated as genuine | `web/hw_board_base.svg`: the board minus the V1.3-only parts (D9, D10, R33–R37) and the V1.3 silk text. Their placement was already public in the EasyEDA projects, so this discloses nothing new |
+| anything else (V1.3+ without a valid record, unknown revision) | 404 — the page shows the numbers only |
+
+The factory record is written at production by `tools/provision_factory.py` in the
+private hardware repo: version, serial, MAC, AIN3 level and the gzip'd drawing, signed
+with ECDSA P-256. The **public key** is compiled into `factory_svc.c`; the private key
+lives only on the author's PC (`%USERPROFILE%/.tes/`). It writes flash only — no eFuse —
+so a mistake is fixed by writing again. A copied record fails the MAC check, a forged one
+the signature. A modified firmware can of course skip the check; this decides only what
+the official firmware shows, it is not a security boundary. `factory_svc` verifies
+lazily on the first `/hw` request, in the httpd worker (8 KB stack) — ECDSA does not fit
+`app_main`'s 3.5 KB. `/hw.json` reports the record's state and serial under `factory`.
+
+Both drawings are generated from the KiCad board by `tools/make_hw_board_svg.py` in the
+private hardware repo; it writes `hw_board_base.svg` here and the full drawing there.
+Each footprint is a `<g id="fp-<ref>">` and the page's JS only depends on those ids.
+Back-side footprints are drawn too, with only their
+through-hole pads and a dashed outline — H2, the PSU UART header, is mounted on the back
+and was missing until that was added.
+
+**The OLED is not in the KiCad file** — it is a 0.96″ SSD1306 module on the H1 header,
+stacked over the ESP32-S3 module. Its glass is drawn from the enclosure lid's display
+window (the lid STEP in the private hardware repo, a 26.50 × 19.59 mm cut-out). Lid
+coordinates map onto the board as **`x_pcb = x_lid + 152.07`, `y_pcb = 104.66 − y_lid`**:
+fitted on the four mounting holes, then checked against every button, LED and the
+BOOT/EN pin-holes in the lid — all within 0.1 mm. Worth reusing for enclosure work.
+
+`/hw.json` is separate from `/status` on purpose: small, and independent of `/control`'s
+unresolved throughput collapse. It reports what was **actually written to the pins**
+(`hal_gpio_outputs_get()`), not what the SM wants — the two differ while LEDs blink and
+during a bench test. Buttons come as held (`g_btn_stable`) plus pressed-since-last-read
+(`g_btn_latch`, cleared by `atomic_exchange`), because a short press falls between two
+500 ms polls. Chip temperature is the ESP32-S3 die sensor (20–100 °C range), typically
+10–20 °C above ambient — see the 65 °C module rating item under Known Technical Debt.
+
+**Bench test mode** lets the page switch the DC relay, coupler lock, VP and the three
+LEDs by hand, to check a board. The rules, and where they live:
+
+| | |
+|---|---|
+| Allowed only when | SM in IDLE, no emergency latch, CP < 1.9 V, no 0x500 for 3 s — i.e. no vehicle |
+| Checked | every 10 ms tick in `task_tes_sm.c` `bench_test_override()`, between `tes_sm_tick()` and `execute_outputs()` |
+| Ends | the same tick any condition fails (START, vehicle plugged in, emergency), or after a 10 s lease without keepalive (page sends one every 2 s; closing it sends `stop`) |
+| After it ends | outputs are the SM's own again; it does **not** re-enter by itself — otherwise vehicle → end → VP off → CP drops → re-enter would oscillate |
+| Starts from | everything off; one owner at a time (a random id per page — a second page takes over, the first one's keepalives are refused) |
+| Not touched | PSU setpoints and CAN transmission — only GPIO outputs are overridden |
+
+`hwtest_svc` holds the request and lease only; the conditions sit next to the SM because
+they read the SM's own inputs. The SM itself is untouched and keeps ticking — the
+override is applied to its outputs struct, so the "data in, data out" rule still holds.
+Closing the DC relay puts PSU voltage on the gun's DC pins; the page asks for
+confirmation and points out that the 120 V sense reading then shows the PSU voltage,
+which is the way to check a board's divider coefficient against a meter.
+
+This is **not** authentication: like every other POST it only has the CSRF header, so
+anyone on the LAN could drive the outputs while no vehicle is connected. That is the
+same exposure as `/start` and `/ota/upload` (see Security → Known gaps), not a new one.
+
+**The OLED says so.** While a bench test runs, `display_svc` replaces the status screen
+with an inverted `BENCH TEST` screen showing the pins as actually driven (RELAY / LOCK /
+VP, LED Y/G/R) and how to exit; after it ends, `TEST ENDED` plus the reason stays for 3 s
+(`hwtest_status_t.ended_ago_ms`). Someone standing at the unit would otherwise hear a
+relay click in standby with nothing to explain it. The settings menu still opens as usual.
+
+**To verify on hardware:** every button lights up on the drawing; each output toggles
+and clicks; plugging in a vehicle (or a CP test plug) ends the test within one tick; the
+lease ends it ~10 s after pulling WiFi; `task_tes_sm` and `network` stack headroom after
+a few minutes on the page.
+
 ### Device list page
 
 `/` serves **`web/devices.html`** — a list of every TES controller on the LAN; the control
 UI moved to **`/control`**. `GET /devices` does the discovery **on the device** via
 `mdns_query_ptr("_http","_tcp", 2000ms, 20)`, because browsers have no mDNS-browse API and
 subnet-scanning from JS is slow and often blocked.
+
+**Only one controller found → straight to `/control`** (2026-10-06): on the page's first,
+automatic scan, if the list holds just this unit, `location.replace('/control')` — a list of
+one has nothing to choose. A manual rescan, or `/?list` (what the control page's ‹ link now
+points at), stays on the list; otherwise ‹ would bounce straight back.
 
 Results are filtered on the TXT record `dev=tes-charger` so other `_http._tcp` services
 (NAS, printers) are excluded. Most mDNS stacks do not answer their own queries, so the
@@ -1091,7 +1595,7 @@ shows 離線 without affecting the others.
 | GET | `/` | Device list page (mDNS discovery) |
 | GET | `/control` | Embedded control web UI |
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
-| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid |
+| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
 | POST | `/config` | Partial update (any subset); WiFi changes require reboot |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
@@ -1105,14 +1609,21 @@ shows 離線 without affecting the others.
 | GET | `/sw.js` | Service Worker |
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
-| POST | `/notify/test` | Send test push notification |
-| POST | `/psu/pair` | Start 10 s ESP-NOW pairing window (requires psu_transport=1) |
+| POST | `/notify/test` | Send a test notification to `notify_url` and every registered phone |
+| GET | `/push` | Registered phones: `{"max":4,"phones":[{"slot","name","added","tail"}]}` — never the full token |
+| POST | `/push` | Mobile app: `{"op":"add","token","name"}` / `{"op":"remove","token"}` / `{"op":"remove_slot","slot"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
+| POST | `/reboot` | Restart after 500 ms. **409** while charging (PARAM_EXCHANGE … ENDING) — `restart_svc`, same reason as the OTA check; an unreadable state counts as busy. The web UI button confirms first, then waits for the unit to come back and reloads |
+| POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
+| POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
 | GET | `/mqtt/link` | Cloud PWA URL with broker/topic fragment |
+| GET | `/hw` | Hardware status page (board drawing + live pin/ADC/PSU/CAN/system state) |
+| GET | `/hw.json` | Data for `/hw`, polled every 500 ms |
+| POST | `/hw/test` | Bench test mode: `{"cmd":"start"/"set"/"keepalive"/"stop","owner":n,"mask":n}` |
 
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 24`; currently 20 handlers registered
+- `max_uri_handlers = 32`; currently 28 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
@@ -1156,6 +1667,8 @@ firmware/
 |   |   +-- web/manifest.json   PWA manifest
 |   |   +-- web/sw.js           service worker
 |   |   +-- web/icon.svg        app icon
+|   |   +-- web/hw.html         hardware status page, served at /hw (board SVG generated in the private hardware repo)
+|   |   +-- hwtest_svc.c/.h     bench test mode: request + lease (conditions live in task_tes_sm.c)
 |   |   +-- notify_svc.c/.h     push notification service (v3.1.0)
 |   |   +-- log_svc.c/.h        charge session history (v3.1.0)
 |   |   +-- mqtt_svc.c/.h       MQTT remote monitoring (v3.2.0)
@@ -1176,4 +1689,5 @@ docs/
 +-- index.html              GitHub Pages 首次燒錄工具 (ESP Web Tools)
 +-- manifest.json           燒錄工具 manifest（相對路徑 ./tes_charger_flash.bin）
 +-- monitor.html            Cloud PWA 遠端監控（MQTT.js WebSocket，v3.2.0）
++-- schematic/              V1.3 原理圖 PDF（唯一公開的硬體檔；layout、BOM、生產檔在私有 repo）
 ```

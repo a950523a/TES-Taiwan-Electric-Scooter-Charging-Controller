@@ -9,8 +9,14 @@
 #include "drivers/display_driver.h"
 #include "drivers/led_driver.h"
 #include "drivers/psu_driver.h"
+#include "drivers/adc_driver.h"
 #include "tes_protocol/tes_sm.h"
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
+#include "services/hwtest_svc.h"
+#include "services/restart_svc.h"
+#include "psu_link/psu_pair.h"
+#include "hal/hal_gpio.h"
+#include "platform/platform.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -43,10 +49,12 @@ typedef enum {
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
+    MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
     MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
+    MENU_ITEM_RESTART,       // 重新啟動：按兩次確認；充電流程中不可用（restart_svc）
     MENU_ITEM_ABOUT,         // 韌體版本 + 作者（唯讀）
     MENU_ITEM_SAVE,
     MENU_ITEM_CANCEL,
@@ -74,6 +82,12 @@ static bool        s_edit_beacon;
 static bool        s_edit_sched_enabled;
 static bool        s_edit_auto_start;
 
+// 重新啟動要按兩次：第一次只是「武裝」，3 秒內再按 SETTING 才執行；移動游標就取消。
+// 選單裡捲動時一不小心按到 SETTING 不該讓機器重開。
+#define RESTART_CONFIRM_MS 3000u
+static bool     s_restart_armed;
+static uint32_t s_restart_armed_ms;
+
 static int s_visible_items[MENU_ITEM_COUNT];
 static int s_visible_count = 0;
 
@@ -89,6 +103,7 @@ static void build_visible_list(void);  // forward declaration
 static void menu_open(void)
 {
     const charger_config_t *cfg = config_svc_get();
+    s_restart_armed       = false;
     s_edit_auto_voltage   = cfg->auto_voltage;
     s_edit_voltage        = cfg->max_voltage_01v;
     s_edit_current        = cfg->max_current_01a;
@@ -192,6 +207,16 @@ static void item_label(int item, char *buf, size_t bufsz)
         snprintf(buf, bufsz, "%s", host[0] ? host : "tes-?");
         break;
     }
+    case MENU_ITEM_BOARD: {
+        const adc_board_t *hw = adc_driver_board();
+        if (hw->id_mismatch)   // 出廠紀錄和 AIN3 不同：版本照出廠紀錄，ID 電阻要檢查
+            snprintf(buf, bufsz, "Board: %s ID!", hw->name);
+        else if (hw->known)
+            snprintf(buf, bufsz, "Board: %s", hw->name);
+        else
+            snprintf(buf, bufsz, "Board: ? %.2fV", (double)hw->id_volts);
+        break;
+    }
     case MENU_ITEM_PSU_STATUS: {
         const charger_config_t *cfg = config_svc_get();
         psu_status_t pst = psu_driver_get_status();
@@ -218,6 +243,14 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_RESET_FAULT:
         snprintf(buf, bufsz, "Reset Fault");
+        break;
+    case MENU_ITEM_RESTART:
+        if (!restart_svc_allowed())
+            snprintf(buf, bufsz, "Restart (stop first)");
+        else if (s_restart_armed)
+            snprintf(buf, bufsz, "Restart? press again");
+        else
+            snprintf(buf, bufsz, "Restart");
         break;
     case MENU_ITEM_ABOUT: {
         const esp_app_desc_t *app = esp_app_get_description();
@@ -568,6 +601,165 @@ static void render_status(const tes_snapshot_t *snap)
     display_driver_flush();
 }
 
+// ── ESP-NOW 配對畫面 ───────────────────────────────────────────────────────────
+//
+// 跟藍牙一樣：兩邊螢幕顯示同一組 6 位數，使用者比對後在兩邊都按確認。
+// 配對中這個畫面蓋過一切（包括設定選單）—— 因為 task_hal_poll 此時把
+// START/STOP 當成確認/取消，畫面必須說清楚按鈕現在的意思。
+// 結束後留幾秒顯示結果。狀態值見 psu_link/psu_pair.h。
+#define PAIR_DONE_SHOW_MS  3000u
+#define PAIR_FAIL_SHOW_MS  5000u
+
+static bool render_pair(void)
+{
+    psu_pair_info_t p = psu_driver_pair_info();
+    bool busy = p.state == PSU_PAIR_SEARCHING || p.state == PSU_PAIR_EXCHANGING ||
+                p.state == PSU_PAIR_CONFIRM;
+    bool show_done = p.state == PSU_PAIR_DONE   && p.age_ms < PAIR_DONE_SHOW_MS;
+    bool show_fail = p.state == PSU_PAIR_FAILED && p.age_ms < PAIR_FAIL_SHOW_MS;
+    if (!busy && !show_done && !show_fail && !psu_driver_is_pairing()) return false;
+
+    char buf[28];
+    display_driver_clear();
+    display_driver_set_color(1);
+    display_driver_font_bold();
+
+    if (p.state == PSU_PAIR_CONFIRM) {
+        display_driver_draw_str(0, 12, "PSU PAIRING");
+        display_driver_draw_hline(0, 15, 128);
+        // 大號配對碼，分兩半畫（字型只有數字，不依賴空白字元）
+        char a[8], b[8];
+        snprintf(a, sizeof a, "%03lu", (unsigned long)((p.code / 1000u) % 1000u));
+        snprintf(b, sizeof b, "%03lu", (unsigned long)(p.code % 1000u));
+        display_driver_font_digits();
+        int wa = display_driver_str_width(a), wb = display_driver_str_width(b);
+        int x = (128 - (wa + 10 + wb)) / 2;
+        display_driver_draw_str(x, 40, a);
+        display_driver_draw_str(x + wa + 10, 40, b);
+        display_driver_font_small();
+        if (p.local_ok) {
+            display_driver_draw_str(0, 52, "Waiting for the PSU...");
+            display_driver_draw_str(0, 62, "STOP = cancel");
+        } else {
+            display_driver_draw_str(0, 52, "Same code on the PSU?");
+            display_driver_draw_str(0, 62, "START = yes   STOP = no");
+        }
+    } else if (busy || psu_driver_is_pairing()) {
+        display_driver_draw_str(0, 12, "PSU PAIRING");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 29, p.state == PSU_PAIR_EXCHANGING ? "PSU found..." : "Searching...");
+        display_driver_font_small();
+        if (p.legacy_seen) {
+            // 收到舊版 LianMing 的純文字配對：它不會做新流程，一定配不起來
+            display_driver_draw_str(0, 41, "PSU firmware too old!");
+            display_driver_draw_str(0, 51, "Update the PSU first");
+        } else {
+            display_driver_draw_str(0, 41, "Start pairing on PSU");
+        }
+        display_driver_draw_str(0, 62, "STOP = cancel");
+    } else if (show_done) {
+        display_driver_draw_str(0, 12, "PAIRED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, "PSU linked securely");
+        display_driver_font_small();
+        snprintf(buf, sizeof buf, "PSU %02X:%02X:%02X:%02X:%02X:%02X",
+                 p.peer_mac[0], p.peer_mac[1], p.peer_mac[2],
+                 p.peer_mac[3], p.peer_mac[4], p.peer_mac[5]);
+        display_driver_draw_str(0, 44, buf);
+    } else {
+        const char *why;
+        switch (p.fail) {
+        case PSU_PAIR_FAIL_TIMEOUT:     why = "Timed out";            break;
+        case PSU_PAIR_FAIL_USER_REJECT: why = "Cancelled";            break;
+        case PSU_PAIR_FAIL_PEER_REJECT: why = "Cancelled on PSU";     break;
+        case PSU_PAIR_FAIL_COMMIT:
+        case PSU_PAIR_FAIL_CONFIRM:     why = "Security check fail";  break;
+        default:                        why = "Error";                break;
+        }
+        display_driver_draw_str(0, 12, "PAIRING FAILED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, why);
+        display_driver_font_small();
+        display_driver_draw_str(0, 44, "Nothing was saved");
+        if (p.fail == PSU_PAIR_FAIL_COMMIT || p.fail == PSU_PAIR_FAIL_CONFIRM)
+            display_driver_draw_str(0, 54, "Retry away from others");
+    }
+    display_driver_flush();
+    return true;
+}
+
+// ── 工作台測試模式畫面 ─────────────────────────────────────────────────────────
+//
+// 測試中，繼電器與 LED 由網頁 /hw 手動控制 —— 站在機器前的人必須看得出來，
+// 否則會以為「待機中怎麼繼電器在響」。所以測試中整個狀態畫面換掉；結束後
+// 再留 BENCH_END_SHOW_MS 顯示原因，讓人知道控制權回來了、為什麼回來。
+// 選單不受影響：測試中照樣能長按 SETTING 打開。
+#define BENCH_END_SHOW_MS 3000u
+
+static const char *bench_end_text(hwtest_block_t b)
+{
+    switch (b) {
+    case HWTEST_BLOCK_NOT_IDLE:    return "Charger left standby";
+    case HWTEST_BLOCK_EMERGENCY:   return "Emergency stop";
+    case HWTEST_BLOCK_CP_PRESENT:  return "Vehicle found (CP)";
+    case HWTEST_BLOCK_VEHICLE_CAN: return "Vehicle found (CAN)";
+    case HWTEST_END_LEASE:         return "Web page closed/lost";
+    case HWTEST_END_USER:          return "Stopped from web page";
+    default:                       return "";
+    }
+}
+
+// 有畫東西就回傳 true（呼叫端就不畫一般狀態畫面）
+static bool render_bench(void)
+{
+    hwtest_status_t t = hwtest_svc_status(platform_tick_ms());
+    bool ended = !t.active && t.ended_ago_ms < BENCH_END_SHOW_MS;
+    if (!t.active && !ended) return false;
+
+    // 字寬：small 5 px（一行 25 字）、medium 6 px（21 字）、bold 7 px
+    char buf[28];
+    display_driver_clear();
+    display_driver_set_color(1);
+    display_driver_font_bold();
+
+    if (t.active) {
+        // 反白標題：一眼就看得出不是平常的畫面
+        display_driver_draw_box(0, 0, 128, 15);
+        display_driver_set_color(0);
+        display_driver_draw_str(4, 12, "BENCH TEST");
+        display_driver_set_color(1);
+
+        // 顯示腳位實際電位，不是網頁要求的值
+        uint8_t o = hal_gpio_outputs_get();
+        display_driver_font_small();
+        display_driver_draw_str(0, 25, "Outputs set from web /hw");
+        snprintf(buf, sizeof(buf), "RELAY:%s LOCK:%s VP:%s",
+                 (o & HAL_OUT_RELAY) ? "ON" : "--",
+                 (o & HAL_OUT_LOCK)  ? "ON" : "--",
+                 (o & HAL_OUT_VP)    ? "ON" : "--");
+        display_driver_draw_str(0, 37, buf);
+        snprintf(buf, sizeof(buf), "LED  Y:%s  G:%s  R:%s",
+                 (o & HAL_OUT_LED_STANDBY)  ? "ON" : "--",
+                 (o & HAL_OUT_LED_CHARGING) ? "ON" : "--",
+                 (o & HAL_OUT_LED_ERROR)    ? "ON" : "--");
+        display_driver_draw_str(0, 47, buf);
+        display_driver_draw_hline(0, 51, 128);
+        display_driver_draw_str(0, 61, "START/plug/E-STOP = exit");
+    } else {
+        display_driver_draw_str(0, 12, "TEST ENDED");
+        display_driver_draw_hline(0, 15, 128);
+        display_driver_font_medium();
+        display_driver_draw_str(0, 30, bench_end_text(t.last_end));
+        display_driver_font_small();
+        display_driver_draw_str(0, 46, "Outputs back to normal");
+    }
+    display_driver_flush();
+    return true;
+}
+
 // ── Menu screen render ────────────────────────────────────────────────────────
 
 static void render_menu(void)
@@ -647,6 +839,7 @@ void display_svc_button(uint8_t evt)
     if (s_mode == MENU_MODE_NAV) {
         switch (evt) {
         case EVT_BUTTON_START:   // scroll UP
+            s_restart_armed = false;
             if (s_cursor > 0) {
                 s_cursor--;
                 if (s_cursor < s_scroll_top)
@@ -655,6 +848,7 @@ void display_svc_button(uint8_t evt)
             break;
 
         case EVT_BUTTON_STOP:    // scroll DOWN
+            s_restart_armed = false;
             if (s_cursor < s_visible_count - 1) {
                 s_cursor++;
                 if (s_cursor >= s_scroll_top + MAX_VISIBLE_ROWS)
@@ -670,6 +864,16 @@ void display_svc_button(uint8_t evt)
                     menu_close();
                 } else if (actual == MENU_ITEM_CANCEL) {
                     menu_close();
+                } else if (actual == MENU_ITEM_RESTART) {
+                    uint32_t now = platform_tick_ms();
+                    if (s_restart_armed && now - s_restart_armed_ms < RESTART_CONFIRM_MS) {
+                        // 未儲存的設定變更會被丟掉 —— 和 Cancel 一樣
+                        if (restart_svc_request(500, "oled")) menu_close();
+                        s_restart_armed = false;
+                    } else if (restart_svc_allowed()) {
+                        s_restart_armed    = true;
+                        s_restart_armed_ms = now;
+                    }
                 } else if (actual == MENU_ITEM_RESET_FAULT) {
                     uint8_t evt = (uint8_t)EVT_FAULT_CLEAR;
                     xQueueSend(g_btn_event_queue, &evt, 0);
@@ -727,9 +931,23 @@ void display_svc_tick(void)
 
     if (!display_driver_is_ok()) return;
 
+    if (restart_svc_pending()) {   // 網頁或選單要求重新啟動：剩不到一秒，說清楚螢幕為什麼要黑掉
+        display_driver_clear();
+        display_driver_set_color(1);
+        display_driver_font_bold();
+        display_driver_draw_str(0, 36, "Restarting...");
+        display_driver_flush();
+        return;
+    }
+    if (s_restart_armed && platform_tick_ms() - s_restart_armed_ms >= RESTART_CONFIRM_MS) {
+        s_restart_armed = false;   // 逾時沒按第二次，標籤變回 Restart
+    }
+
+    if (render_pair()) return;   // 配對中蓋過選單：按鈕此時是確認／取消
+
     switch (s_screen) {
     case DISP_SCREEN_STATUS:
-        render_status(&snap);
+        if (!render_bench()) render_status(&snap);
         break;
     case DISP_SCREEN_MENU:
         render_menu();

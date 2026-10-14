@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 #include <driver/gpio.h>
 
 // GPIO 腳位配置（對應 V2 Config.h）
@@ -38,3 +39,13 @@ bool hal_gpio_relay_get       (void);
 void hal_gpio_led_standby_set (bool on);
 void hal_gpio_led_charging_set(bool on);
 void hal_gpio_led_error_set   (bool on);
+
+// 各輸出腳最後寫入的電位（位元遮罩）。給硬體狀態頁看「實際寫到腳位的值」，
+// 不是狀態機想要的值 —— 兩者在工作台測試模式或 LED 閃爍時會不同。
+#define HAL_OUT_RELAY         0x01
+#define HAL_OUT_LOCK          0x02
+#define HAL_OUT_VP            0x04
+#define HAL_OUT_LED_STANDBY   0x08
+#define HAL_OUT_LED_CHARGING  0x10
+#define HAL_OUT_LED_ERROR     0x20
+uint8_t hal_gpio_outputs_get(void);

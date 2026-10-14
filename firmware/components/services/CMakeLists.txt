@@ -6,10 +6,17 @@ idf_component_register(
         "network_svc.c"
         "ota_svc.c"
         "notify_svc.c"
+        "push_svc.c"
+        "live_progress.c"
+        "boot_notice.c"
         "log_svc.c"
         "trace_svc.c"
         "mqtt_svc.c"
         "scheduler_svc.c"
+        "hwtest_svc.c"
+        "factory_svc.c"
+        "auto_volt.c"
+        "restart_svc.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
@@ -18,9 +25,12 @@ idf_component_register(
         "web/manifest.json"
         "web/sw.js"
         "web/icon.svg"
+        "web/hw.html"
+        "web/hw_board_base.svg"
     REQUIRES
         tes_protocol
         tes_sm
+        platform
         charger_hal
         drivers
         nvs_flash
@@ -35,4 +45,7 @@ idf_component_register(
         mqtt
         esp_netif
         freertos
+        esp_timer
+        esp_driver_tsens
+        esp_partition
 )

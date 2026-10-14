@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111">
+<title>硬體狀態 — TES</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}
+body{margin:0 auto;background:#111;color:#ddd;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+  padding:14px 14px 40px;max-width:1080px;-webkit-font-smoothing:antialiased}
+a{color:#8ab}
+h1{font-size:1.1em;margin:0;font-weight:600;flex:1}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.sub{color:#667;font-size:.74em;margin-bottom:12px;font-variant-numeric:tabular-nums}
+.live{font-size:.72em;color:#6a6}.live.dead{color:#f66}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+@media(min-width:800px){.wrap{grid-template-columns:minmax(0,430px) minmax(0,1fr)}
+  .bd{position:sticky;top:10px;align-self:start}}
+.bd{background:#0b0d0c;border:1px solid #222;border-radius:10px;padding:8px}
+#board{display:block;width:100%;height:auto;max-height:86vh;touch-action:manipulation}
+.hint{color:#555;font-size:.7em;margin:6px 4px 0;line-height:1.5}
+#info{min-height:1.4em;color:#9bb;font-size:.78em;margin:6px 4px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-content:start}
+.card{background:#181818;border:1px solid #242424;border-radius:10px;padding:11px 13px}
+.card h2{font-size:.8em;color:#8a9;margin:0 0 8px;font-weight:600;letter-spacing:.03em}
+.card.wide{grid-column:1/-1}
+.r{display:flex;justify-content:space-between;gap:8px;font-size:.8em;padding:2px 0;
+  border-bottom:1px solid #1f1f1f;font-variant-numeric:tabular-nums}
+.r:last-child{border-bottom:0}
+.r span:first-child{color:#888}
+.r b{font-weight:600;color:#ddd;text-align:right}
+.g{color:#4dd97a!important}.y{color:#e8b040!important}.e{color:#f66!important}.m{color:#666!important}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#333;margin-right:5px;vertical-align:0}
+.dot.on{background:#4dd97a;box-shadow:0 0 6px #4dd97a}.dot.oy{background:#ffb020;box-shadow:0 0 6px #ffb020}
+.dot.og{background:#4dd97a;box-shadow:0 0 6px #4dd97a}.dot.or{background:#ff4646;box-shadow:0 0 6px #ff4646}
+.dot.pr{background:#5aa0ff;box-shadow:0 0 6px #5aa0ff}
+.tk{display:grid;grid-template-columns:1fr auto;gap:0 10px;font-size:.74em;font-family:ui-monospace,Consolas,monospace}
+.tk span:nth-child(even){text-align:right}
+.tt{display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;gap:1px 10px;font-size:.72em;
+  font-family:ui-monospace,Consolas,monospace;margin-top:6px;overflow-x:auto}
+.tt span{white-space:nowrap}.tt .hd{color:#667}.tt span.n{text-align:right}
+button{font-family:inherit;font-size:.8em;border-radius:6px;padding:6px 11px;cursor:pointer;
+  background:#1e1e1e;color:#cdd;border:1px solid #333}
+button:hover{background:#262626}button:disabled{opacity:.45;cursor:default}
+button.warn{border-color:#6a4a20;color:#e8b040}
+button.act{background:#1d3a26;border-color:#4dd97a;color:#bfe}
+.tb{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+#test-msg{font-size:.76em;line-height:1.55;color:#aaa;margin:4px 0 6px}
+#test.on{border-color:#6a4a20;background:#1c1810}
+/* 電路板 */
+#board .pcb{fill:#0e2619;stroke:#2c5a3c;stroke-width:.35}
+#board .silk text{fill:#d7e0d8;opacity:.5;font-family:system-ui,sans-serif}
+#board .silk text:not([text-anchor]){text-anchor:middle}
+#board .silk .so,#board .silk line{fill:none;stroke:#d7e0d8;stroke-width:.15;opacity:.35}
+#board .fp rect,#board .fp circle{fill:#b3903f;opacity:.85}
+#board .fp .cy{fill:rgba(0,0,0,.28);stroke:#35584a;stroke-width:.12;opacity:1}
+#board .fp .h{fill:#050706;opacity:1}
+#board .fp .cyb{fill:none;stroke-dasharray:.7 .45}
+#board .fp g.k{cursor:pointer}
+#board .fp g.k .cy{stroke:#5f8a73;stroke-width:.2}
+#board .fp g.sel .cy{stroke:#fff;stroke-width:.45}
+#board .fp g.on .cy{fill:rgba(77,217,122,.5);stroke:#4dd97a;stroke-width:.4}
+#board .fp g.ly .cy{fill:rgba(255,176,32,.9);stroke:#ffd070;stroke-width:.4}
+#board .fp g.lg .cy{fill:rgba(77,217,122,.9);stroke:#b0ffc8;stroke-width:.4}
+#board .fp g.lr .cy{fill:rgba(255,70,70,.9);stroke:#ffb0b0;stroke-width:.4}
+#board .fp g.pr .cy{fill:rgba(90,160,255,.75);stroke:#aaccff;stroke-width:.4}
+#board .fp g.ok .cy{stroke:#4dd97a;stroke-width:.35}
+#board .fp g.bad .cy{fill:rgba(255,80,80,.3);stroke:#ff5a5a;stroke-width:.45}
+#board .fp g.ctl .cy{stroke-dasharray:.8 .5;stroke:#e8b040;stroke-width:.35}
+#board #oled .om{fill:rgba(18,34,58,.45);stroke:#4f6f96;stroke-width:.2;stroke-dasharray:1 .6}
+#board #oled .og{fill:rgba(3,6,12,.78);stroke:#7d9cc4;stroke-width:.25}
+#board #oled text{fill:#7d9cc4;font-size:1.6px;text-anchor:middle;font-family:system-ui,sans-serif}
+#board #oled{cursor:pointer}
+#board #oled.bad .og{stroke:#ff5a5a;stroke-width:.45}
+#board #oled.sel .og{stroke:#fff;stroke-width:.45}
+#board #tags rect{fill:rgba(8,12,10,.88);stroke:#4a6a55;stroke-width:.14}
+#board #tags text{fill:#eef5f0;font-size:2.05px;font-family:ui-monospace,Consolas,monospace;
+  font-weight:600;text-anchor:middle;pointer-events:none}
+#board #tags .lb text{fill:#bcd;font-size:1.45px;font-weight:500}
+#board #tags .lb rect{fill:rgba(8,12,10,.6);stroke:none}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🔧 硬體狀態 <span id="nm" style="color:#8a9;font-weight:400"></span></h1>
+  <span class="live" id="live">連線中…</span>
+</div>
+<div class="sub"><span id="ver"></span> · <a href="/control">← 控制介面</a></div>
+
+<div class="wrap">
+  <div class="bd">
+<div id="board-wrap"></div>
+    <div id="info">點電路板上的零件看說明。</div>
+    <div class="hint" id="board-hint">依電路板的實際位置繪製。虛線框＝裝在背面。
+      亮綠＝輸出導通，藍＝按鈕按下，紅框＝異常。</div>
+  </div>
+
+  <div class="cards">
+    <div class="card wide" id="test">
+      <h2>工作台測試模式</h2>
+      <div id="test-msg"></div>
+      <div id="test-ctl" style="display:none">
+        <div class="tb">
+          <button data-b="1" class="warn">DC 繼電器</button>
+          <button data-b="2">電子鎖</button>
+          <button data-b="4">VP 12V</button>
+          <button data-b="8">橘燈</button>
+          <button data-b="16">綠燈</button>
+          <button data-b="32">紅燈</button>
+        </div>
+      </div>
+      <button id="test-btn">進入測試模式</button>
+    </div>
+
+    <div class="card"><h2>輸出（腳位實際電位）</h2><div id="c-out"></div></div>
+    <div class="card"><h2>按鈕</h2><div id="c-btn"></div></div>
+    <div class="card"><h2>類比量測（ADS1115）</h2><div id="c-adc"></div></div>
+    <div class="card"><h2>PSU 連線</h2><div id="c-psu"></div></div>
+    <div class="card"><h2>CAN 控制器</h2><div id="c-can"></div></div>
+    <div class="card"><h2>系統</h2><div id="c-sys"></div></div>
+    <div class="card"><h2>任務堆疊餘裕（歷史最低）</h2><div class="tk" id="c-tk"></div></div>
+    <div class="card wide"><h2>TCP 連線（lwIP）</h2><div id="c-tcp"></div>
+      <div class="tt" id="c-tcpl"></div>
+      <div class="hint" style="margin:6px 0 0">查「/control 載入一兩次後變慢」用：崩的時候看大傳輸那條的重傳次數與逾時是否一直漲（送不出去），
+        還是 TIME_WAIT 堆滿、新連線開不起來（TCP 資源）。</div></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'X-TES-Request':'1','Content-Type':'application/json'},
+  body:JSON.stringify(b),keepalive:true});
+const OWNER=1+Math.floor(Math.random()*2147483646);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const row=(k,v,c)=>'<div class="r"><span>'+k+'</span><b'+(c?' class="'+c+'"':'')+'>'+v+'</b></div>';
+const dot=(on,c)=>'<span class="dot'+(on?' '+(c||'on'):'')+'"></span>';
+const age=ms=>ms>=4294967295?'從未':ms<1000?ms+' ms 前':(ms/1000).toFixed(1)+' s 前';
+const kb=b=>(b/1024).toFixed(1)+' KB';
+const dur=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+'天 ':'')+(d||h?h+'時 ':'')+m+'分 '+(s%60)+'秒'};
+
+// 板上零件：說明、腳位、測試模式可控制的輸出位元
+const OUT={RELAY:1,LOCK:2,VP:4,LS:8,LC:16,LE:32};
+const PARTS={
+  START1:['START 按鈕','IO42'],STOP1:['STOP 按鈕','IO39'],SETTING1:['SETTING 按鈕','IO41'],
+  EMERGENCY1:['緊急停止按鈕','IO40 — 按下即鎖存，需在選單 Reset Fault'],
+  BOOT1:['BOOT 按鈕','IO0 — 按住上電進入燒錄模式'],EN1:['EN 重置按鈕','按下 ESP32 重開機'],
+  D6:['橘燈（待機）','IO5',OUT.LS],D7:['綠燈（充電）','IO6',OUT.LC],D8:['紅燈（故障）','IO7',OUT.LE],
+  Q1:['DC 主繼電器驅動 MOSFET','IO11 → RELAY_GATE',OUT.RELAY],
+  CN3:['DC 主繼電器線圈接頭','12V / DC_RELAY',OUT.RELAY],CN5:['DC 主繼電器線圈接頭','12V / DC_RELAY',OUT.RELAY],
+  D1:['DC 繼電器飛輪二極體','',OUT.RELAY],
+  Q3:['電子鎖驅動 MOSFET','IO10 → COUPLER_GATE',OUT.LOCK],CN6:['電子鎖接頭','12V / COUPLER',OUT.LOCK],
+  D4:['電子鎖飛輪二極體','',OUT.LOCK],
+  Q2:['VP 驅動（N-MOS）','IO9 → VP_NGATE',OUT.VP],Q4:['VP 開關（P-MOS）','12V → VP',OUT.VP],
+  CN1:['VP 輸出接頭','送到車端的 12V',OUT.VP],
+  CN2:['CAN / CP 接頭','CANH、CANL、CP'],R21:['CAN 終端電阻',''],U12:['CAN 收發器','IO17/IO18'],
+  R9:['CP 分壓上臂','150 Ω'],R8:['CP 分壓下臂','51 Ω'],
+  U5:['ADS1115 ADC','AIN0-1 輸出電壓、AIN2 CP、AIN3 硬體 ID'],
+  R36:['硬體 ID 分壓（上）','V1.3 起'],R37:['硬體 ID 分壓（下）','V1.3 起'],
+  R10:['輸出電壓分壓上臂','115 kΩ ×3（V1.3）'],R33:['輸出電壓分壓上臂',''],R34:['輸出電壓分壓上臂',''],
+  R11:['輸出電壓分壓下臂','9.09 kΩ（V1.3）'],W1:['120V 量測端','接充電輸出 +'],W3:['GND_BACK','接充電輸出 −'],
+  U1:['ESP32-S3 模組','N16R8'],H2:['PSU UART 排針','GND / TXD0 / RXD0 — 裝在板子背面（虛線框）'],H1:['OLED 排針','I²C（SDA / SCL / 3.3V）→ 疊在 ESP32 上方的 0.96″ SSD1306'],
+  USB1:['USB-C','燒錄與序列埠'],U6:['3.3V 穩壓',''],U8:['5V 穩壓',''],U14:['5V 降壓',''],L1:['降壓電感',''],
+};
+// 狀態 → 板上零件
+const G_RELAY=['Q1','CN3','CN5','D1'],G_LOCK=['Q3','CN6','D4'],G_VP=['Q2','Q4','CN1'];
+const BTN=['START1','STOP1','EMERGENCY1','SETTING1'];   // 韌體位元順序
+const fp=r=>document.getElementById('fp-'+r);
+const cls=(refs,c,on)=>refs.forEach(r=>{const e=fp(r);if(e)e.classList.toggle(c,!!on)});
+
+// ── 板上標籤 ──
+const NS='http://www.w3.org/2000/svg',TAG={};
+function tag(id,x,y,lb){
+  if(!$('tags'))return null;
+  const g=document.createElementNS(NS,'g'),r=document.createElementNS(NS,'rect'),t=document.createElementNS(NS,'text');
+  if(lb)g.setAttribute('class','lb');
+  g.append(r,t);$('tags').append(g);TAG[id]={g,r,t,x,y,lb};return TAG[id];
+}
+function setTag(id,s){
+  const T=TAG[id];if(!T)return;
+  T.g.style.display=s?'':'none';if(!s||T.t.textContent===s)return;
+  T.t.textContent=s;
+  const h=T.lb?1.9:2.8,w=[...s].reduce((a,c)=>a+(c.charCodeAt(0)>255?1:.62),0)*(T.lb?1.45:2.05)+1.2;
+  T.t.setAttribute('x',T.x);T.t.setAttribute('y',T.y+h*.28);
+  T.r.setAttribute('x',T.x-w/2);T.r.setAttribute('y',T.y-h/2);
+  T.r.setAttribute('width',w);T.r.setAttribute('height',h);T.r.setAttribute('rx',.5);
+}
+// 電路板圖由裝置提供（/hw/board.svg）：原廠出廠的板子給完整圖，V1.1／V1.2 給舊版
+// 底圖，其他硬體沒有圖 —— 生產板的圖不在公開韌體裡。沒有圖時頁面只顯示數值。
+async function loadBoard(){
+  try{
+    const r=await fetch('/hw/board.svg',{cache:'no-store'});
+    if(!r.ok)throw 0;
+    $('board-wrap').innerHTML=await r.text();
+    initBoard();
+  }catch(e){
+    $('info').textContent='';
+    $('board-hint').innerHTML='電路板圖只在原廠硬體上顯示；這台的數值照常列在右側。';
+    $('board-wrap').innerHTML='';
+  }
+}
+function initBoard(){
+  Object.keys(PARTS).forEach(r=>{const e=fp(r);if(e)e.classList.add('k')});
+  [['START1','START'],['STOP1','STOP'],['SETTING1','SET'],['EMERGENCY1','E-STOP'],
+   ['BOOT1','BOOT'],['EN1','EN']].forEach(([r,s])=>{
+    const e=fp(r);if(!e)return;const b=e.getBBox();
+    tag('l'+r,b.x+b.width/2,b.y+b.height+1.1,true);setTag('l'+r,s);});
+  tag('cp',138.8,133.4);tag('can',138.6,92.6);tag('vout',124.2,115.2);
+  tag('id',129,83.8);tag('temp',146.5,76.8);tag('psu',172.6,66.2);
+  document.querySelectorAll('#board .fp g.k').forEach(g=>g.addEventListener('click',()=>pick(g.id.slice(3))));
+  if($('oled'))$('oled').addEventListener('click',()=>{
+    document.querySelectorAll('#board .sel').forEach(g=>g.classList.remove('sel'));
+    $('oled').classList.add('sel');
+    $('info').innerHTML='<b>OLED</b>　0.96″ SSD1306 128×64　<span style="color:#678">經 H1 排針接 I²C（0x3C），'
+      +'疊在 ESP32-S3 模組上方；位置取自外殼上蓋的顯示窗</span>';});
+}
+let selRef=null;
+function pick(ref){
+  document.querySelectorAll('#board .sel').forEach(g=>g.classList.remove('sel'));
+  const p=PARTS[ref];if(!p)return;
+  fp(ref).classList.add('sel');selRef=ref;
+  let s='<b>'+ref+'</b>　'+esc(p[0])+(p[1]?'　<span style="color:#678">'+esc(p[1])+'</span>':'');
+  if(p[2]&&!testMine())s+='　<span style="color:#567">進入測試模式後點這裡可以切換</span>';
+  $('info').innerHTML=s;
+  if(p[2]&&testMine())toggleOut(p[2]);
+}
+
+// ── 測試模式 ──
+let T={active:false,mask:0,owner:0,block:'not_idle',last_end:'ok'},want=0;
+const WHY={ok:'',not_idle:'狀態機不在待機（充電流程進行中、故障或緊急停止）',
+  emergency:'緊急停止鎖存中 —— 先在設定選單 Reset Fault',
+  cp_present:'CP 有電壓 —— 有車接著',vehicle_can:'3 秒內收到車端 CAN —— 有車接著',
+  lease:'這個頁面超過 10 秒沒有回應（關閉、鎖屏或斷線）',user:'手動結束',
+  replaced:'另一個頁面進入了測試模式',not_active:'測試模式已經結束'};
+const testMine=()=>T.active&&T.owner===OWNER;
+function renderTest(){
+  const mine=testMine(),other=T.active&&!mine;
+  $('test').classList.toggle('on',mine);
+  $('test-ctl').style.display=mine?'':'none';
+  let m;
+  if(mine)m='<span class="y">● 手動控制中</span> —— 狀態機的輸出暫停。按 START、接上車、按緊急停止或關掉這頁，輸出都會立刻交回狀態機。';
+  else if(other)m='<span class="y">另一個頁面正在測試模式中。</span>';
+  else if(T.block!=='ok')m='<span class="m">現在不能進入：'+WHY[T.block]+'</span>';
+  else m='只在沒接車、待機時可用。進入後可手動切換下面的輸出，用來驗板子。';
+  if(!T.active&&T.last_end!=='ok'&&T.last_end!=='user')m+='<br><span class="m">上次結束原因：'+(WHY[T.last_end]||T.last_end)+'</span>';
+  $('test-msg').innerHTML=m;
+  const b=$('test-btn');
+  b.textContent=mine?'結束測試模式':other?'改由這個頁面接管':'進入測試模式';
+  b.disabled=!mine&&T.block!=='ok';
+  document.querySelectorAll('#test-ctl button').forEach(x=>x.classList.toggle('act',!!(T.mask&+x.dataset.b)));
+  const ctl=mine?[...G_RELAY,...G_LOCK,...G_VP,'D6','D7','D8']:[];   // 虛線框＝可以點來切換
+  document.querySelectorAll('#board g.ctl').forEach(g=>g.classList.remove('ctl'));
+  cls(ctl,'ctl',true);
+}
+async function testCmd(cmd,mask){
+  try{
+    const r=await post('/hw/test',{cmd,owner:OWNER,mask});
+    const j=await r.json();if(j.test)T=j.test;
+    if(!j.ok&&j.error)$('info').innerHTML='<span class="e">'+(WHY[j.error]||j.error)+'</span>';
+  }catch(e){$('info').innerHTML='<span class="e">送出失敗：'+esc(e.message)+'</span>'}
+  renderTest();
+}
+function toggleOut(bit){
+  want=T.mask^bit;
+  if(bit===OUT.RELAY&&(want&bit)&&!confirm('DC 主繼電器閉合後，充電槍的 DC+／DC− 端子會直接帶 PSU 的輸出電壓。\n\n'+
+    '確認 PSU 已關閉，或槍頭沒有外露、沒有人碰得到，再繼續。\n\n'+
+    '（閉合時「120V 量測端」讀到的就是 PSU 電壓，可以拿三用電表對照分壓係數。）'))return;
+  testCmd('set',want);
+}
+$('test-btn').onclick=()=>{
+  if(testMine())return testCmd('stop',0);
+  if(!confirm('測試模式會暫時由這個頁面控制繼電器、電子鎖、VP 與三顆 LED，全部從「關」開始。\n\n'+
+    '以下任一情況會立即結束，輸出交還給狀態機：\n・按下 START（或遠端啟動）\n・接上車輛（CP 有電壓或收到 CAN）\n'+
+    '・按下緊急停止\n・這個頁面 10 秒沒有回應\n\n要進入嗎？'))return;
+  testCmd('start',0);
+};
+document.querySelectorAll('#test-ctl button').forEach(b=>b.onclick=()=>toggleOut(+b.dataset.b));
+setInterval(()=>{if(testMine())post('/hw/test',{cmd:'keepalive',owner:OWNER}).catch(()=>{})},2000);
+addEventListener('pagehide',()=>{if(testMine())post('/hw/test',{cmd:'stop',owner:OWNER}).catch(()=>{})});
+
+// ── 輪詢 ──
+const CP=['未知','OFF（無車）','ON（車端就緒）','異常電壓'],CANST=['停止','運作中','BUS-OFF','復原中'];
+const NODE=['未知','可控整流器','量測節點'];
+const TCPST=['CLOSED','LISTEN','SYN_SENT','SYN_RCVD','ESTAB','FIN_WAIT1','FIN_WAIT2','CLOSE_WAIT','CLOSING','LAST_ACK','TIME_WAIT'];
+let seenBtn=0,seenAt=0,lastOk=0,busy=false,prevFails=null,failGrow=0;
+function render(d){
+  const o=d.out,a=d.adc,p=d.psu,c=d.can,s=d.sys;
+  T=d.test;renderTest();
+  // 輸出
+  cls(G_RELAY,'on',o&1);cls(G_LOCK,'on',o&2);cls(G_VP,'on',o&4);
+  cls(['D6'],'ly',o&8);cls(['D7'],'lg',o&16);cls(['D8'],'lr',o&32);
+  $('c-out').innerHTML=row(dot(o&1)+'DC 主繼電器',o&1?'閉合':'斷開',o&1?'g':'')+row(dot(o&2)+'電子鎖',o&2?'鎖上':'解除',o&2?'g':'')
+    +row(dot(o&4)+'VP 12V',o&4?'輸出':'關',o&4?'g':'')+row(dot(o&8,'oy')+'橘燈（待機）',o&8?'亮':'滅')
+    +row(dot(o&16,'og')+'綠燈（充電）',o&16?'亮':'滅')+row(dot(o&32,'or')+'紅燈（故障）',o&32?'亮':'滅');
+  // 按鈕：按著的 + 輪詢之間按過的（保留 0.6 秒讓短按看得到）
+  if(d.btn_seen){seenBtn=d.btn_seen;seenAt=Date.now()}
+  const held=d.btn|(Date.now()-seenAt<600?seenBtn:0);
+  BTN.forEach((r,i)=>cls([r],'pr',held&(1<<i)));
+  cls(['EMERGENCY1'],'bad',d.estop);
+  $('c-btn').innerHTML=['START','STOP','EMERGENCY','SETTING'].map((n,i)=>row(dot(held&(1<<i),'pr')+n,held&(1<<i)?'按下':'—',held&(1<<i)?'g':'m')).join('')
+    +row('緊急停止鎖存',d.estop?'鎖存中':'無',d.estop?'e':'');
+  // 類比
+  if(prevFails!==null&&a.fails>prevFails)failGrow=Date.now();prevFails=a.fails;
+  const adcBad=Date.now()-failGrow<5000;
+  cls(['U5'],'bad',adcBad);cls(['U5'],'ok',!adcBad);
+  cls(['R36','R37'],'bad',!a.hw_known||a.hw_id_mismatch);
+  setTag('cp','CP '+a.cp_v.toFixed(2)+'V');
+  setTag('vout',a.vout_v.toFixed(1)+' V');
+  setTag('id',a.hw_known?a.hw_rev:'? '+a.hw_id_v.toFixed(2)+'V');
+  $('c-adc').innerHTML=row('CP 電壓',a.cp_v.toFixed(2)+' V')+row('CP 判定',CP[a.cp_state]||a.cp_state,a.cp_state===2?'g':a.cp_state===3?'e':'')
+    +row('輸出電壓（ADC）',a.vout_v.toFixed(2)+' V')+row('輸出電壓（PSU 回報）',p.connected?p.v.toFixed(2)+' V':'—',p.connected?'':'m')
+    +row('硬體版本',a.hw_known?a.hw_rev:'不認得',a.hw_known?'':'e')+row('版本來源',a.hw_source==='factory'?'出廠紀錄':'AIN3 硬體 ID')
+    +row('AIN3 硬體 ID',a.hw_id_v.toFixed(3)+' V（級 '+(a.ain3_level!==undefined?a.ain3_level:a.hw_level)+'）'
+      +(a.hw_id_mismatch?'，與出廠紀錄不符 → 檢查 R36／R37':''),a.hw_id_mismatch?'e':'')
+    +row('分壓係數','×'+a.ratio.toFixed(3))+row('I²C 讀取失敗',a.fails+(adcBad?'（增加中）':''),adcBad?'e':a.fails?'y':'');
+  // PSU
+  const uart=p.transport===0;
+  cls(['H2'],'ok',uart&&p.connected);
+  setTag('psu',p.connected?(uart?'PSU UART ●':'PSU ESP-NOW ●'):'');
+  $('c-psu').innerHTML=row('傳輸',uart?'UART（H2 排針）':'ESP-NOW')+row('連線',p.connected?'已連線':'未連線',p.connected?'g':'m')
+    +(p.connected?row('節點',p.caps_known?(NODE[p.node_type]||p.node_type)+' fw '+p.fw:'尚未收到 CAP')
+      +row('電壓 / 電流',p.v.toFixed(2)+' V / '+p.i.toFixed(2)+' A')+row('最後 ST',age(p.st_age_ms)):'')
+    +row('收到訊框',p.rx)+row('CRC 錯誤',p.crc_err,p.crc_err?'e':'')+row('無法辨識',p.bad,p.bad?'y':'')
+    +(uart?'':row('RSSI',p.rssi+' dBm',p.rssi<-80?'y':''));
+  // CAN
+  const run=c.state===1,rxRecent=c.rx500_age<1000;
+  cls(['U12','CN2'],'ok',run&&rxRecent);cls(['U12'],'bad',c.state===2||c.tec>=128||c.rec>=128);
+  setTag('can',run?(rxRecent?'CAN ● 收到車端':'CAN 無車端訊號'):'CAN '+CANST[c.state]);
+  $('c-can').innerHTML=row('控制器',CANST[c.state]||c.state,run?'g':c.state===2?'e':'y')
+    +row('TX / RX 錯誤計數',c.tec+' / '+c.rec,(c.tec>=128||c.rec>=128)?'e':'')
+    +row('匯流排錯誤',c.bus_err,c.bus_err?'y':'')+row('最後 0x500',age(c.rx500_age),rxRecent?'g':'m')
+    +row('收 / 送',c.rx+' / '+c.tx)+row('送出失敗',c.tx_fail,c.tx_fail?'y':'');
+  // 系統
+  const tc=s.temp_c;
+  cls(['U1'],'bad',tc!==null&&tc>=75);
+  setTag('temp',tc===null?'':'ESP32 '+tc.toFixed(1)+'°C');
+  if($('oled'))$('oled').classList.toggle('bad',d.oled===false);
+  $('c-sys').innerHTML=row('狀態機',d.state)+row('開機時間',dur(d.up_s))
+    +row('上次重開原因',d.reset,/panic|wdt|brownout/.test(d.reset)?'e':'')
+    +row('出廠認證',d.factory?(d.factory.state==='valid'?'原廠 '+esc(d.factory.serial):d.factory.state==='invalid'?'無效（'+esc(d.factory.reason)+'）':'無'):'—',
+         d.factory&&d.factory.state==='valid'?'g':d.factory&&d.factory.state==='invalid'?'e':'m')
+    +row('OLED',d.oled===false?'無回應（I²C 0x3C）':'正常',d.oled===false?'e':'')
+    +row('晶片溫度',tc===null?'—':tc.toFixed(1)+' °C',tc>=75?'e':tc>=65?'y':'')
+    +row('內部 RAM 可用',kb(s.heap))+row('內部 RAM 歷史最低',kb(s.heap_min),s.heap_min<20480?'y':'')
+    +row('最大連續區塊',kb(s.heap_blk))+row('PSRAM 可用',kb(s.psram))
+    +row('WiFi 訊號',s.rssi===null?'未連線（AP 模式？）':s.rssi+' dBm',s.rssi<-75?'y':'');
+  if(d.tcp){
+    const t=d.tcp,used=t.active+t.tw;
+    $('c-tcp').innerHTML=row('使用中 / TIME_WAIT / 上限',t.active+' / '+t.tw+' / '+t.max,used>=t.max?'e':used>=t.max-3?'y':'')
+      +row('監聽中',t.listen)+row('網頁伺服器 socket',(t.httpd??'?')+' / '+t.httpd_max,t.httpd>=t.httpd_max?'e':'');
+    const H=['狀態','對方','佇列','可寫','cwnd','重傳','RTO / 閒置'];
+    $('c-tcpl').innerHTML=H.map(h=>'<span class="hd">'+h+'</span>').join('')
+      +t.conns.map(([st,ip,rp,lp,q,sb,cw,nr,rto,idle])=>{
+        const tw=st===10;
+        return '<span class="'+(st===4?'g':tw?'m':'y')+'">'+(TCPST[st]||st)+'</span>'
+          +'<span>'+esc(ip)+':'+rp+(lp!==80?' →'+lp:'')+'</span>'
+          +'<span class="n'+(q>8?' y':'')+'">'+(tw?'':q)+'</span><span class="n">'+(tw?'':sb)+'</span>'
+          +'<span class="n">'+(tw?'':cw)+'</span><span class="n'+(nr>3?' e':nr?' y':'')+'">'+(tw?'':nr)+'</span>'
+          +'<span class="n">'+(tw?'— / ':(rto/1000).toFixed(1)+'s / ')+(idle/1000).toFixed(1)+'s</span>';
+      }).join('');
+  }
+  $('c-tk').innerHTML=s.tasks.map(([n,f])=>'<span>'+esc(n)+'</span><span class="'+(f<0?'m':f<512?'e':f<1024?'y':'')+'">'
+    +(f<0?'已結束':f+' B')+'</span>').join('');
+}
+async function poll(){
+  if(busy)return;busy=true;
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),3000);
+  try{
+    const d=await (await fetch('/hw.json',{signal:ac.signal,cache:'no-store'})).json();
+    render(d);lastOk=Date.now();
+  }catch(e){}
+  clearTimeout(to);busy=false;
+  const dead=Date.now()-lastOk>2500;
+  $('live').textContent=dead?'● 連線中斷':'● 即時';$('live').classList.toggle('dead',dead);
+}
+fetch('/status').then(r=>r.json()).then(d=>{
+  $('nm').textContent=d.display_name||'';document.title='硬體狀態 — '+(d.display_name||'TES');
+  $('ver').textContent='韌體 '+d.firmware_version+'　'+(d.hostname?d.hostname+'.local':'');
+}).catch(()=>{});
+loadBoard();renderTest();poll();setInterval(poll,500);
+</script>
+</body>
+</html>

@@ -17,16 +17,27 @@
 // tes-charger.local 繼續能用；兩台都掛時會由其中一台回應，但兩台各自的
 // tes-<id>.local 一定準確，所以不影響。
 
+#include "services/restart_svc.h"
 #include "services/network_svc.h"
 #include "services/config_svc.h"
 #include "drivers/psu_driver.h"
+#include "drivers/adc_driver.h"
 #include "services/event_bus.h"
 #include "services/ota_svc.h"
 #include "services/notify_svc.h"
+#include "services/push_svc.h"
 #include "services/log_svc.h"
 #include "services/trace_svc.h"
 #include "services/scheduler_svc.h"
+#include "services/hwtest_svc.h"
+#include "services/factory_svc.h"
+#include "drivers/display_driver.h"
+#include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
+#include "driver/temperature_sensor.h"
+#include "esp_heap_caps.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
@@ -35,11 +46,15 @@
 #include "nvs_flash.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/sockets.h"
+#include "lwip/tcpip.h"
+#include "lwip/priv/tcpip_priv.h"   // tcpip_api_call
+#include "lwip/priv/tcp_priv.h"     // tcp_active_pcbs / tcp_tw_pcbs / tcp_ticks
 #include "mdns.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
+#include <stdatomic.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -51,6 +66,7 @@ extern SemaphoreHandle_t g_snapshot_mutex;
 extern QueueHandle_t     g_btn_event_queue;
 
 static httpd_handle_t s_server    = NULL;
+static int            s_httpd_max_sockets;   // /hw.json 回報用
 static bool           s_connected = false;
 static bool           s_ap_mode   = false;
 static bool           s_mdns_ok   = false;
@@ -147,6 +163,8 @@ static bool csrf_ok(httpd_req_t *req)
 // 充電流程進行中（含 ENDING 收尾）→ true。
 // OTA 會直接 esp_restart()，在這些狀態下重開機會讓繼電器/電磁鎖失去控制，
 // 而且 PSU 仍保持最後的 setpoint 繼續輸出。
+static void psu_pair_json(cJSON *root);
+
 static bool charger_is_busy(void)
 {
     tes_state_t st = TES_STATE_IDLE;
@@ -170,6 +188,10 @@ extern const uint8_t s_sw_js_start[]        asm("_binary_sw_js_start");
 extern const uint8_t s_sw_js_end[]          asm("_binary_sw_js_end");
 extern const uint8_t s_icon_svg_start[]     asm("_binary_icon_svg_start");
 extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
+extern const uint8_t s_hw_html_start[]      asm("_binary_hw_html_start");
+extern const uint8_t s_hw_html_end[]        asm("_binary_hw_html_end");
+extern const uint8_t s_hw_board_base_svg_start[] asm("_binary_hw_board_base_svg_start");
+extern const uint8_t s_hw_board_base_svg_end[]   asm("_binary_hw_board_base_svg_end");
 
 // "/"        → 裝置列表（先看到有哪幾台，再點進去）
 // "/control" → 原本的控制介面
@@ -266,6 +288,7 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
         cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
     }
+    psu_pair_json(root);   // 配對進度與配對碼：/control 的配對畫面靠它
 
     // OTA 狀態
     ota_state_t ota_st = ota_svc_get_state();
@@ -336,6 +359,21 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     const esp_app_desc_t *app = esp_app_get_description();
     cJSON_AddStringToObject(root, "firmware_version", app->version);
 
+    // 硬體版本（開機時由 AIN3 的分壓 ID 辨識）。hw_known=false 表示這份韌體
+    // 不認得這塊板、已退回舊板的分壓係數 —— 電壓讀值不可信，要更新韌體。
+    {
+        const adc_board_t *hw = adc_driver_board();
+        cJSON_AddStringToObject(root, "hw_rev",      hw->name);
+        cJSON_AddBoolToObject  (root, "hw_known",    hw->known);
+        cJSON_AddNumberToObject(root, "hw_id_level", hw->level);
+        cJSON_AddNumberToObject(root, "hw_id_v",     (double)((int)(hw->id_volts * 1000.0f + 0.5f)) / 1000.0);
+        // 版本取自哪裡：factory = 已驗證的出廠紀錄（優先），ain3 = 分壓 ID。
+        // hw_id_mismatch = 出廠紀錄和 AIN3 不同 —— 係數照出廠紀錄，但 R36／R37／AIN3 焊點該檢查
+        cJSON_AddStringToObject(root, "hw_source",      hw->from_factory ? "factory" : "ain3");
+        cJSON_AddNumberToObject(root, "hw_ain3_level",  hw->ain3_level);
+        cJSON_AddBoolToObject  (root, "hw_id_mismatch", hw->id_mismatch);
+    }
+
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
 
@@ -377,6 +415,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddBoolToObject  (root, "sta_enabled",    cfg->sta_enabled);
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
+    cJSON_AddNumberToObject(root, "push_tokens",       push_svc_count());   // 只給數量，不給 token
     cJSON_AddStringToObject(root, "mqtt_broker_url",   cfg->mqtt_broker_url);
     cJSON_AddStringToObject(root, "mqtt_topic_prefix", cfg->mqtt_topic_prefix);
     cJSON_AddBoolToObject  (root, "mqtt_cmd_enabled",  cfg->mqtt_cmd_enabled);
@@ -1229,24 +1268,137 @@ static const httpd_uri_t s_uri_get_tracelog = {
 static esp_err_t handle_post_notify_test(httpd_req_t *req)
 {
     if (!csrf_ok(req)) return ESP_FAIL;
-    const char *url = config_svc_get()->notify_url;
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
-    if (url[0] == '\0') {
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"notify_url not configured\"}");
+    if (config_svc_get()->notify_url[0] == '\0' && push_svc_count() == 0) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"notify_url not configured and no app registered\"}");
         return ESP_OK;
     }
     if (!s_connected) {
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no internet (AP mode or disconnected)\"}");
         return ESP_OK;
     }
-    esp_err_t err = notify_svc_send(url, "TES 充電控制器", "推播通知測試成功 ✓", 3);
+    // notify_url 與 App 推播都送，跟真正的事件走同一條路
+    esp_err_t err = notify_svc_broadcast("TES 充電控制器", "推播通知測試成功 ✓", 3);
     httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"send failed\"}");
     return ESP_OK;
 }
 
 static const httpd_uri_t s_uri_post_notify_test = {
     .uri = "/notify/test", .method = HTTP_POST, .handler = handle_post_notify_test
+};
+
+// ── POST /push、GET /push ─────────────────────────────────────────────────────
+// 手機 App 管理推播：
+//   {"op":"add","token":"ExponentPushToken[...]","name":"Galaxy S26 Ultra"}  登記這支（已登記就只更新名稱）
+//   {"op":"remove","token":"..."}                                           取消這支
+//   {"op":"remove_slot","slot":2}                                           移除別支（App 不知道別人的完整 token）
+// 最多 PUSH_MAX_TOKENS 支手機。GET /push 列出名稱、登記時間、token 最後 6 碼，不給完整 token。
+
+static esp_err_t handle_post_push(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char buf[192];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *op  = in ? cJSON_GetObjectItem(in, "op") : NULL;
+    const cJSON *tok = in ? cJSON_GetObjectItem(in, "token") : NULL;
+    const cJSON *nm  = in ? cJSON_GetObjectItem(in, "name") : NULL;
+    const cJSON *sl  = in ? cJSON_GetObjectItem(in, "slot") : NULL;
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    if (cJSON_IsString(op)) {
+        if (strcmp(op->valuestring, "add") == 0 && cJSON_IsString(tok)) {
+            err = push_svc_add(tok->valuestring, cJSON_IsString(nm) ? nm->valuestring : NULL);
+        } else if (strcmp(op->valuestring, "remove") == 0 && cJSON_IsString(tok)) {
+            err = push_svc_remove(tok->valuestring);
+        } else if (strcmp(op->valuestring, "remove_slot") == 0 && cJSON_IsNumber(sl)) {
+            err = push_svc_remove_slot(sl->valueint);
+        }
+    }
+    cJSON_Delete(in);
+
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    // 取消一個本來就沒登記的 token 也算成功：App 只想確定「之後不會再收到」
+    if (err == ESP_OK || err == ESP_ERR_NOT_FOUND) {
+        char out[32];
+        snprintf(out, sizeof out, "{\"ok\":true,\"count\":%d}", push_svc_count());
+        httpd_resp_sendstr(req, out);
+    } else if (err == ESP_ERR_NO_MEM) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"too many phones registered\"}");
+    } else {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"need op add|remove with an Expo push token, or remove_slot with slot\"}");
+    }
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_push = {
+    .uri = "/push", .method = HTTP_POST, .handler = handle_post_push
+};
+
+static esp_err_t handle_get_push(httpd_req_t *req)
+{
+    push_phone_info_t list[PUSH_MAX_TOKENS];
+    int n = push_svc_list(list);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "max", PUSH_MAX_TOKENS);
+    cJSON *arr = cJSON_AddArrayToObject(root, "phones");
+    for (int i = 0; i < n; i++) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "slot",  list[i].slot);
+        cJSON_AddStringToObject(o, "name",  list[i].name);
+        cJSON_AddNumberToObject(o, "added", list[i].added);
+        cJSON_AddStringToObject(o, "tail",  list[i].tail);
+        cJSON_AddItemToArray(arr, o);
+    }
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    set_cors(req);
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json alloc");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_push = {
+    .uri = "/push", .method = HTTP_GET, .handler = handle_get_push
+};
+
+// ── POST /reboot ──────────────────────────────────────────────────────────────
+// 使用者在網頁按「重新啟動」。充電流程中拒絕（409），理由見 restart_svc.h。
+// 延遲 500 ms 才重啟，讓這個回應送得出去。
+
+static esp_err_t handle_post_reboot(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    if (!restart_svc_request(500, "web")) {
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"charging — stop first\"}");
+        return ESP_OK;
+    }
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_reboot = {
+    .uri = "/reboot", .method = HTTP_POST, .handler = handle_post_reboot
 };
 
 // ── POST /psu/pair ────────────────────────────────────────────────────────────
@@ -1260,14 +1412,73 @@ static esp_err_t handle_post_psu_pair(httpd_req_t *req)
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"psu_transport is not ESP-NOW\"}");
         return ESP_OK;
     }
+    // 充電流程中不配對：X25519 在 task_hal_poll 裡要算幾十 ms，而且配對期間
+    // START/STOP 被拿去當確認／取消
+    if (charger_is_busy()) {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"charging — stop first\"}");
+        return ESP_OK;
+    }
     psu_driver_start_pairing(NULL);   // callback 在 psu_driver_set_transport() 時已由 main.c 登錄
-    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"pairing window open (10s)\"}");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"pairing started — put the PSU in pairing mode\"}");
     return ESP_OK;
 }
 
 static const httpd_uri_t s_uri_post_psu_pair = {
     .uri = "/psu/pair", .method = HTTP_POST, .handler = handle_post_psu_pair
 };
+
+// POST /psu/pair/confirm  {"accept":true|false}
+// 使用者看了兩邊的配對碼：相同就確認，不同（或想放棄）就取消。
+// 跟 OLED 上按 START／STOP 效果相同。
+static esp_err_t handle_post_psu_pair_confirm(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char buf[48];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *a = in ? cJSON_GetObjectItem(in, "accept") : NULL;
+    bool ok = cJSON_IsBool(a);
+    if (ok) psu_driver_pair_user(cJSON_IsTrue(a));
+    cJSON_Delete(in);
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"need accept:true|false\"}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_psu_pair_confirm = {
+    .uri = "/psu/pair/confirm", .method = HTTP_POST, .handler = handle_post_psu_pair_confirm
+};
+
+// 配對進度（/status 與 /hw.json 共用）
+static void psu_pair_json(cJSON *root)
+{
+    psu_pair_info_t p = psu_driver_pair_info();
+    psu_status_t    s = psu_driver_get_status();
+    cJSON *o = cJSON_AddObjectToObject(root, "psu_pair");
+    cJSON_AddNumberToObject(o, "state",    p.state);      // psu_pair_state_t
+    cJSON_AddNumberToObject(o, "fail",     p.fail);       // psu_pair_fail_t
+    cJSON_AddBoolToObject  (o, "busy",     psu_driver_is_pairing());
+    if (p.state == 3 /* CONFIRM */ || p.state == 4 /* DONE */) {
+        char code[8];
+        snprintf(code, sizeof code, "%06lu", (unsigned long)p.code);
+        cJSON_AddStringToObject(o, "code", code);
+    }
+    cJSON_AddBoolToObject  (o, "local_ok", p.local_ok);
+    cJSON_AddBoolToObject  (o, "peer_ok",  p.peer_ok);
+    cJSON_AddBoolToObject  (o, "legacy",   p.legacy_seen);
+    cJSON_AddNumberToObject(o, "age_ms",   p.age_ms);
+    cJSON_AddBoolToObject  (o, "link_auth",    s.link_auth);
+    cJSON_AddBoolToObject  (o, "needs_repair", s.needs_repair);
+    cJSON_AddNumberToObject(o, "auth_rejects", s.auth_rejects);
+}
 
 // ── GET /mqtt/link ────────────────────────────────────────────────────────────
 // Returns the Cloud PWA URL pre-filled with broker hostname, WS port, and topic.
@@ -1289,11 +1500,16 @@ static void extract_broker_host(const char *uri, char *host, size_t len)
     host[n] = '\0';
 }
 
+/*
+ * Cloud PWA 用的 WebSocket over TLS 埠。PWA 放在 GitHub Pages（HTTPS），瀏覽器擋 HTTPS 頁面裡的
+ * 明文 ws://，所以只能用 wss —— 以前回的 8000／8080／8083 都是明文埠，連公開 broker 也連不上。
+ * 2026-10-14：HiveMQ Cloud 的免費方案停止新申請，App 改推 EMQX Cloud Serverless（只開 8883／8084）。
+ */
 static uint16_t broker_ws_port(const char *host)
 {
-    if (strstr(host, "hivemq.com"))    return 8000;
-    if (strstr(host, "mosquitto.org")) return 8080;
-    return 8083;
+    if (strstr(host, "hivemq"))        return 8884;   /* HiveMQ Cloud、broker.hivemq.com */
+    if (strstr(host, "mosquitto.org")) return 8081;   /* test.mosquitto.org */
+    return 8084;                                      /* EMQX Cloud（*.emqxsl.com）、broker.emqx.io */
 }
 
 static esp_err_t handle_get_mqtt_link(httpd_req_t *req)
@@ -1340,6 +1556,421 @@ static esp_err_t handle_get_mqtt_link(httpd_req_t *req)
 
 static const httpd_uri_t s_uri_get_mqtt_link = {
     .uri = "/mqtt/link", .method = HTTP_GET, .handler = handle_get_mqtt_link
+};
+
+// ── 硬體狀態頁：GET /hw、GET /hw.json、POST /hw/test ───────────────────────────
+//
+// /hw.json 是給 /hw 每 0.5 秒輪詢的，刻意跟 /status 分開：/status 已經 1.5 KB 以上，
+// 這裡只放「腳位與硬體」—— 輸出腳實際電位、按鈕、ADC 原始讀值、PSU 連線、CAN
+// 控制器、系統資源。/control 有「載入一兩次後吞吐量崩掉」的未解問題（CLAUDE.md
+// Known Technical Debt），所以這頁要小、要能獨立運作。
+
+// main 擁有這些（同 display_svc 的 extern 慣例）
+extern volatile float    g_adc_cp_voltage;
+extern volatile float    g_adc_output_voltage;
+extern volatile uint8_t  g_btn_stable;
+extern atomic_uint       g_btn_latch;
+extern atomic_bool       g_emergency_stop;
+extern bool g_task_stack_info(int i, const char **name, int *free_bytes);
+
+// ESP32-S3 內建溫度感測器量的是**晶片溫度**，不是外殼內的氣溫 —— 開著 WiFi 時
+// 通常比環境高 10–20 °C。用來看趨勢，也用來追 CLAUDE.md 記的「R8 模組只耐
+// 65 °C 環境溫度」問題。量測範圍選 20–100 °C（誤差 < 2 °C）：關心的是高溫端，
+// −10–80 °C 那一檔在晶片最熱時會飽和。
+static temperature_sensor_handle_t s_tsens;
+static bool s_tsens_ok;
+
+static void tsens_init_once(void)
+{
+    static bool tried;          // 只有 httpd 的單一 worker 會呼叫，不需要鎖
+    if (tried) return;
+    tried = true;
+    temperature_sensor_config_t c = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+    if (temperature_sensor_install(&c, &s_tsens) == ESP_OK &&
+        temperature_sensor_enable(s_tsens) == ESP_OK) {
+        s_tsens_ok = true;
+    } else {
+        ESP_LOGW(TAG, "temperature sensor unavailable");
+    }
+}
+
+static const char *reset_reason_name(esp_reset_reason_t r)
+{
+    switch (r) {
+    case ESP_RST_POWERON:   return "poweron";
+    case ESP_RST_EXT:       return "ext";
+    case ESP_RST_SW:        return "sw";        // esp_restart()：OTA、設定後重開
+    case ESP_RST_PANIC:     return "panic";     // 當機
+    case ESP_RST_INT_WDT:   return "int_wdt";
+    case ESP_RST_TASK_WDT:  return "task_wdt";
+    case ESP_RST_WDT:       return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_BROWNOUT:  return "brownout";  // 電源掉壓
+    case ESP_RST_SDIO:      return "sdio";
+    case ESP_RST_USB:       return "usb";
+    case ESP_RST_JTAG:      return "jtag";
+    default:                return "unknown";
+    }
+}
+
+static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
+
+// ── lwIP TCP 連線快照 ─────────────────────────────────────────────────────────
+// 為了查 CLAUDE.md「/control 載入一兩次後吞吐量崩掉」：兩個假設，一個是內部 RAM
+// 不足拖住 WiFi 傳送緩衝，一個是 TCP PCB 卡在 TIME_WAIT（TCP_MSL=60s 與「約 60 秒
+// 恢復」吻合）。這裡把每條連線的狀態、佇列、壅塞視窗、重傳次數攤開：
+//   - 崩的時候大傳輸那條 nrtx 一直漲、rto 拉長、cwnd 縮小 → 封包送不出去（假設 1）
+//   - TIME_WAIT 堆滿、新連線開不起來 → TCP 資源（假設 2）
+//
+// 本專案沒開 LWIP_TCPIP_CORE_LOCKING，PCB 串列只能在 tcpip 執行緒裡走訪，
+// 所以用 tcpip_api_call() 把 tcp_snap_fn 丟過去同步執行。只複製數字，
+// 字串格式化回到 httpd 執行緒再做。
+#define TCP_SNAP_MAX 20
+
+typedef struct {
+    uint8_t   state;       // enum tcp_state
+    uint8_t   nrtx;        // 目前這個分段的重傳次數
+    uint16_t  lport, rport;
+    ip_addr_t rip;
+    uint16_t  queuelen;    // 送出佇列的 pbuf 數（上限 TCP_SND_QUEUELEN）
+    uint16_t  snd_buf;     // 還能寫進去的位元組
+    uint32_t  cwnd;        // 壅塞視窗
+    uint32_t  rto_ms;      // 重傳逾時
+    uint32_t  idle_ms;     // 距離上次活動（TIME_WAIT 則為進入後經過多久）
+} tcp_conn_t;
+
+typedef struct {
+    struct tcpip_api_call_data call;   // 必須是第一個成員
+    int        n_active, n_tw, n_listen, n;
+    tcp_conn_t c[TCP_SNAP_MAX];
+} tcp_snap_t;
+
+static void tcp_snap_add(tcp_snap_t *s, const struct tcp_pcb *p)
+{
+    if (s->n >= TCP_SNAP_MAX) return;
+    tcp_conn_t *c = &s->c[s->n++];
+    c->state    = (uint8_t)p->state;
+    c->nrtx     = p->nrtx;
+    c->lport    = p->local_port;
+    c->rport    = p->remote_port;
+    ip_addr_copy(c->rip, p->remote_ip);
+    c->queuelen = p->snd_queuelen;
+    c->snd_buf  = p->snd_buf;
+    c->cwnd     = p->cwnd;
+    c->rto_ms   = (uint32_t)(p->rto > 0 ? p->rto : 0) * TCP_SLOW_INTERVAL;
+    c->idle_ms  = (tcp_ticks - p->tmr) * TCP_SLOW_INTERVAL;
+}
+
+static err_t tcp_snap_fn(struct tcpip_api_call_data *d)
+{
+    tcp_snap_t *s = (tcp_snap_t *)d;
+    for (struct tcp_pcb *p = tcp_active_pcbs; p; p = p->next) { s->n_active++; tcp_snap_add(s, p); }
+    for (struct tcp_pcb *p = tcp_tw_pcbs;     p; p = p->next) { s->n_tw++;     tcp_snap_add(s, p); }
+    for (struct tcp_pcb_listen *l = tcp_listen_pcbs.listen_pcbs; l; l = l->next) s->n_listen++;
+    return ERR_OK;
+}
+
+static void tcp_json(cJSON *root)
+{
+    // 約 800 bytes —— 放 static 免得吃 httpd 的堆疊；只有 httpd 單一 worker 會進來
+    static tcp_snap_t s;
+    memset(&s, 0, sizeof(s));
+    if (tcpip_api_call(tcp_snap_fn, &s.call) != ERR_OK) return;
+
+    cJSON *o = cJSON_AddObjectToObject(root, "tcp");
+    cJSON_AddNumberToObject(o, "active", s.n_active);
+    cJSON_AddNumberToObject(o, "tw",     s.n_tw);
+    cJSON_AddNumberToObject(o, "listen", s.n_listen);
+    cJSON_AddNumberToObject(o, "max",    MEMP_NUM_TCP_PCB);     // CONFIG_LWIP_MAX_ACTIVE_TCP
+    {
+        size_t n = CONFIG_LWIP_MAX_SOCKETS;
+        int    fds[CONFIG_LWIP_MAX_SOCKETS];
+        if (s_server && httpd_get_client_list(s_server, &n, fds) == ESP_OK)
+            cJSON_AddNumberToObject(o, "httpd", (double)n);
+        cJSON_AddNumberToObject(o, "httpd_max", s_httpd_max_sockets);
+    }
+    cJSON *arr = cJSON_AddArrayToObject(o, "conns");
+    for (int i = 0; i < s.n; i++) {
+        const tcp_conn_t *c = &s.c[i];
+        char ip[IPADDR_STRLEN_MAX];
+        ipaddr_ntoa_r(&c->rip, ip, sizeof(ip));
+        cJSON *r = cJSON_CreateArray();
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->state));
+        cJSON_AddItemToArray(r, cJSON_CreateString(ip));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->rport));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->lport));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->queuelen));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->snd_buf));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->cwnd));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->nrtx));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->rto_ms));
+        cJSON_AddItemToArray(r, cJSON_CreateNumber(c->idle_ms));
+        cJSON_AddItemToArray(arr, r);
+    }
+}
+
+static cJSON *hwtest_json(cJSON *parent, const char *key)
+{
+    hwtest_status_t t = hwtest_svc_status(now_ms());
+    cJSON *o = cJSON_AddObjectToObject(parent, key);
+    cJSON_AddBoolToObject  (o, "active",   t.active);
+    cJSON_AddNumberToObject(o, "mask",     t.mask);
+    cJSON_AddNumberToObject(o, "lease_ms", t.lease_left_ms);
+    cJSON_AddNumberToObject(o, "owner",    t.owner);
+    cJSON_AddStringToObject(o, "block",    hwtest_block_name(t.block));
+    cJSON_AddStringToObject(o, "last_end", hwtest_block_name(t.last_end));
+    return o;
+}
+
+static esp_err_t send_json(httpd_req_t *req, cJSON *root, const char *status)
+{
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (status) httpd_resp_set_status(req, status);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    set_cors(req);
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json alloc");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static esp_err_t handle_get_hw_page(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
+    httpd_resp_send(req, (const char *)s_hw_html_start, s_hw_html_end - s_hw_html_start);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_hw_page = {
+    .uri = "/hw", .method = HTTP_GET, .handler = handle_get_hw_page
+};
+
+// GET /hw/board.svg —— /hw 頁面的電路板圖，依硬體決定給哪一張（2026-10-05）：
+//   出廠資料有效（原廠生產的 V1.3 起）→ 完整的生產板圖，從出廠資料讀，不在公開韌體裡
+//   V1.1／V1.2（AIN3 接地，級數 0）   → 舊版底圖 hw_board_base.svg：這兩版的擺放
+//                                        早已公開，現場的都是原廠板，一律當原廠
+//   其他（V1.3 起但沒有有效出廠資料、或認不出版本）→ 404，頁面只顯示數值
+// 圖由私有硬體 repo 的 tools/make_hw_board_svg.py 產生。
+static esp_err_t handle_get_hw_board(httpd_req_t *req)
+{
+    const factory_info_t *fi = factory_svc_get();
+    httpd_resp_set_hdr(req, "Cache-Control", UI_CACHE_CONTROL);
+    if (fi->state == FACTORY_VALID) {
+        httpd_resp_set_type(req, "image/svg+xml");
+        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");   // 出廠時就是 gzip 存的
+        char buf[1024];
+        for (size_t off = 0; off < fi->drawing_len; ) {
+            size_t n = fi->drawing_len - off < sizeof buf ? fi->drawing_len - off : sizeof buf;
+            if (factory_svc_read_drawing(off, buf, n) != ESP_OK ||
+                httpd_resp_send_chunk(req, buf, n) != ESP_OK) {
+                httpd_resp_send_chunk(req, NULL, 0);
+                return ESP_FAIL;
+            }
+            off += n;
+        }
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+    if (adc_driver_board()->level == 0) {
+        httpd_resp_set_type(req, "image/svg+xml");
+        return httpd_resp_send(req, (const char *)s_hw_board_base_svg_start,
+                               s_hw_board_base_svg_end - s_hw_board_base_svg_start);
+    }
+    httpd_resp_set_status(req, "404 Not Found");
+    httpd_resp_set_type(req, "text/plain");
+    return httpd_resp_sendstr(req, "board drawing is shown on factory-provisioned hardware only");
+}
+
+static const httpd_uri_t s_uri_get_hw_board = {
+    .uri = "/hw/board.svg", .method = HTTP_GET, .handler = handle_get_hw_board
+};
+
+static esp_err_t handle_get_hw_json(httpd_req_t *req)
+{
+    tes_snapshot_t snap;
+    if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "snapshot busy");
+        return ESP_FAIL;
+    }
+    snap = g_snapshot;
+    xSemaphoreGive(g_snapshot_mutex);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "state",   state_name(snap.state));
+    cJSON_AddNumberToObject(root, "up_s",    (double)(esp_timer_get_time() / 1000000));
+    cJSON_AddStringToObject(root, "reset",   reset_reason_name(esp_reset_reason()));
+
+    // 輸出：實際寫到腳位的電位（HAL_OUT_* 位元），不是狀態機的期望
+    cJSON_AddNumberToObject(root, "out",     hal_gpio_outputs_get());
+    // 按鈕：目前按著的 + 上次讀取後按過的（讀走即清）
+    cJSON_AddNumberToObject(root, "btn",     g_btn_stable);
+    cJSON_AddNumberToObject(root, "btn_seen", atomic_exchange(&g_btn_latch, 0));
+    cJSON_AddBoolToObject  (root, "estop",   atomic_load(&g_emergency_stop));
+    cJSON_AddBoolToObject  (root, "oled",    display_driver_is_ok());   // 開機時 I²C 0x3C 有沒有回應
+
+    // 類比：ADS1115 原始換算值（與 PSU 回報分開看）
+    cJSON *a = cJSON_AddObjectToObject(root, "adc");
+    cJSON_AddNumberToObject(a, "cp_v",     (double)g_adc_cp_voltage);
+    cJSON_AddNumberToObject(a, "cp_state", snap.cp_state);        // cp_state_t
+    cJSON_AddNumberToObject(a, "vout_v",   (double)g_adc_output_voltage);
+    cJSON_AddNumberToObject(a, "fails",    adc_driver_fail_count());
+    {
+        const adc_board_t *hw = adc_driver_board();
+        cJSON_AddStringToObject(a, "hw_rev",   hw->name);
+        cJSON_AddBoolToObject  (a, "hw_known", hw->known);
+        cJSON_AddNumberToObject(a, "hw_level", hw->level);
+        cJSON_AddNumberToObject(a, "hw_id_v",  (double)hw->id_volts);
+        cJSON_AddNumberToObject(a, "ratio",    (double)hw->volt_ratio);
+        cJSON_AddStringToObject(a, "hw_source",  hw->from_factory ? "factory" : "ain3");
+        cJSON_AddNumberToObject(a, "ain3_level", hw->ain3_level);
+        cJSON_AddBoolToObject  (a, "hw_id_mismatch", hw->id_mismatch);
+    }
+
+    // PSU 連線
+    {
+        psu_status_t p = psu_driver_get_status();
+        const charger_config_t *cfg = config_svc_get();
+        cJSON *o = cJSON_AddObjectToObject(root, "psu");
+        cJSON_AddNumberToObject(o, "transport", (int)cfg->psu_transport);
+        cJSON_AddBoolToObject  (o, "connected", p.connected);
+        cJSON_AddNumberToObject(o, "v",         (double)p.voltage);
+        cJSON_AddNumberToObject(o, "i",         (double)p.current);
+        cJSON_AddBoolToObject  (o, "caps_known", p.caps_known);
+        cJSON_AddNumberToObject(o, "node_type", p.node_type);
+        cJSON_AddNumberToObject(o, "caps",      p.caps);
+        cJSON_AddNumberToObject(o, "fw",        p.fw_ver);
+        cJSON_AddNumberToObject(o, "st_age_ms", p.status_age_ms);
+        cJSON_AddNumberToObject(o, "rx",        p.rx_frames);
+        cJSON_AddNumberToObject(o, "crc_err",   p.rx_crc_errors);
+        cJSON_AddNumberToObject(o, "bad",       p.rx_bad_frames);
+        cJSON_AddNumberToObject(o, "rssi",      p.rssi);
+    }
+
+    // CAN 控制器與收發活性（細節在 /control 的 CAN 診斷面板）
+    {
+        cJSON *o = cJSON_AddObjectToObject(root, "can");
+        cJSON_AddNumberToObject(o, "state",    snap.can.bus_state);
+        cJSON_AddNumberToObject(o, "tec",      snap.can.bus_tx_err);
+        cJSON_AddNumberToObject(o, "rec",      snap.can.bus_rx_err);
+        cJSON_AddNumberToObject(o, "bus_err",  snap.can.bus_err_count);
+        cJSON_AddNumberToObject(o, "rx500_age", snap.can.rx_500_age_ms);
+        cJSON_AddNumberToObject(o, "rx",       snap.can.rx_500_count + snap.can.rx_501_count
+                                               + snap.can.rx_5f0_count);
+        cJSON_AddNumberToObject(o, "tx",       snap.can.tx_508_count + snap.can.tx_509_count
+                                               + snap.can.tx_5f8_count);
+        cJSON_AddNumberToObject(o, "tx_fail",  snap.can.tx_fail_count);
+    }
+
+    // 系統
+    {
+        tsens_init_once();
+        cJSON *o = cJSON_AddObjectToObject(root, "sys");
+        cJSON_AddNumberToObject(o, "heap",     heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "heap_min", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "heap_blk", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+        cJSON_AddNumberToObject(o, "psram",    heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        float tc;
+        if (s_tsens_ok && temperature_sensor_get_celsius(s_tsens, &tc) == ESP_OK)
+            cJSON_AddNumberToObject(o, "temp_c", (double)((int)(tc * 10.0f + 0.5f)) / 10.0);
+        else
+            cJSON_AddNullToObject(o, "temp_c");
+        wifi_ap_record_t ap;
+        if (s_connected && esp_wifi_sta_get_ap_info(&ap) == ESP_OK)
+            cJSON_AddNumberToObject(o, "rssi", ap.rssi);
+        else
+            cJSON_AddNullToObject(o, "rssi");
+        cJSON *tasks = cJSON_AddArrayToObject(o, "tasks");
+        const char *name;
+        int free_b;
+        for (int i = 0; g_task_stack_info(i, &name, &free_b); i++) {
+            cJSON *t = cJSON_CreateArray();
+            cJSON_AddItemToArray(t, cJSON_CreateString(name));
+            cJSON_AddItemToArray(t, cJSON_CreateNumber(free_b));
+            cJSON_AddItemToArray(tasks, t);
+        }
+    }
+
+    tcp_json(root);
+    psu_pair_json(root);
+    {
+        // 出廠資料：決定 /hw/board.svg 給哪張圖，也讓維修時看得到序號
+        const factory_info_t *fi = factory_svc_get();
+        cJSON *o = cJSON_AddObjectToObject(root, "factory");
+        cJSON_AddStringToObject(o, "state", fi->state == FACTORY_VALID ? "valid" :
+                                            fi->state == FACTORY_INVALID ? "invalid" : "none");
+        cJSON_AddStringToObject(o, "reason", fi->reason);
+        if (fi->state == FACTORY_VALID) {
+            cJSON_AddStringToObject(o, "serial", fi->serial);
+            cJSON_AddNumberToObject(o, "made", fi->made_unix);
+        }
+    }
+    hwtest_json(root, "test");
+    return send_json(req, root, NULL);
+}
+
+static const httpd_uri_t s_uri_get_hw_json = {
+    .uri = "/hw.json", .method = HTTP_GET, .handler = handle_get_hw_json
+};
+
+// POST /hw/test  {"cmd":"start"|"set"|"keepalive"|"stop", "owner":<u32>, "mask":<HWTEST_OUT_*>}
+// 能不能接管由 task_tes_sm 每 tick 判斷；這裡只把最近一次的判斷回給頁面。
+static esp_err_t handle_post_hw_test(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+
+    char buf[128];
+    int len = req->content_len < sizeof(buf) - 1 ? (int)req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < len) {
+        int r = httpd_req_recv(req, buf + got, len - got);
+        if (r <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body"); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+
+    cJSON *in = cJSON_Parse(buf);
+    const cJSON *jc = in ? cJSON_GetObjectItem(in, "cmd")   : NULL;
+    const cJSON *jo = in ? cJSON_GetObjectItem(in, "owner") : NULL;
+    const cJSON *jm = in ? cJSON_GetObjectItem(in, "mask")  : NULL;
+    if (!cJSON_IsString(jc) || !cJSON_IsNumber(jo) || jo->valuedouble < 1) {
+        cJSON_Delete(in);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "need cmd + owner");
+        return ESP_FAIL;
+    }
+    uint32_t owner = (uint32_t)jo->valuedouble;
+    uint32_t now   = now_ms();
+    const char *err = NULL;
+
+    if (strcmp(jc->valuestring, "start") == 0) {
+        hwtest_block_t b = hwtest_svc_start(owner, now);
+        if (b != HWTEST_OK) err = hwtest_block_name(b);
+        else ESP_LOGW(TAG, "bench test started from the web page — outputs under manual control");
+    } else if (strcmp(jc->valuestring, "set") == 0) {
+        if (!cJSON_IsNumber(jm) || !hwtest_svc_set(owner, (uint8_t)jm->valueint, now))
+            err = "not_active";
+    } else if (strcmp(jc->valuestring, "keepalive") == 0) {
+        if (!hwtest_svc_keepalive(owner, now)) err = "not_active";
+    } else if (strcmp(jc->valuestring, "stop") == 0) {
+        hwtest_svc_stop(owner);
+    } else {
+        err = "bad_cmd";
+    }
+    cJSON_Delete(in);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", err == NULL);
+    if (err) cJSON_AddStringToObject(root, "error", err);
+    hwtest_json(root, "test");
+    return send_json(req, root, err ? "409 Conflict" : NULL);
+}
+
+static const httpd_uri_t s_uri_post_hw_test = {
+    .uri = "/hw/test", .method = HTTP_POST, .handler = handle_post_hw_test
 };
 
 // ── WiFi event handler ────────────────────────────────────────────────────────
@@ -1441,9 +2072,10 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 24;   // 目前註冊 18 個，留餘裕
+    cfg.max_uri_handlers  = 32;   // 目前註冊 28 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
+    s_httpd_max_sockets   = cfg.max_open_sockets;
 
     if (httpd_start(&s_server, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "HTTP server start failed");
@@ -1468,8 +2100,16 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_trace);
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);
+    httpd_register_uri_handler(s_server, &s_uri_post_push);
+    httpd_register_uri_handler(s_server, &s_uri_get_push);
+    httpd_register_uri_handler(s_server, &s_uri_post_reboot);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
+    httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_page);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_board);
+    httpd_register_uri_handler(s_server, &s_uri_get_hw_json);
+    httpd_register_uri_handler(s_server, &s_uri_post_hw_test);
     ESP_LOGI(TAG, "HTTP server started on port 80");
 }
 

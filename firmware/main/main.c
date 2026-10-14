@@ -16,15 +16,15 @@
 #include "services/trace_svc.h"
 #include "services/mqtt_svc.h"
 #include "services/scheduler_svc.h"
+#include "services/auto_volt.h"
+#include "services/factory_svc.h"
+#include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdatomic.h>
 #include <string.h>
 
-#define AUTO_VOLT_SETTLE_MS  1000   // ADC 穩定等待時間
-#define AUTO_VOLT_MIN_V      40.0f
-#define AUTO_VOLT_MAX_V     120.0f
 
 // ── Boot logo (auto-voltage settle screen) ───────────────────────────────────
 // Turtle mark on left (cx=30, cy=36), "Auto Setting Voltage..." on right.
@@ -73,9 +73,9 @@ static void draw_auto_volt_screen(void)
 
 static const char *TAG = "main";
 
-static void on_psu_paired(const uint8_t peer_mac[6])
+static void on_psu_paired(const uint8_t peer_mac[6], const uint8_t ltk[32])
 {
-    config_svc_set_psu(PSU_TRANSPORT_ESPNOW, peer_mac, true);
+    config_svc_set_psu_pairing(peer_mac, ltk);
 }
 
 // ── Global definitions ───────────────────────────────────────────────────────
@@ -120,6 +120,21 @@ void g_task_unregister_self(void)
     taskEXIT_CRITICAL(&s_task_mux);
 }
 
+// 給硬體狀態頁（network_svc 以 extern 呼叫）：第 i 個任務的名字與堆疊歷史最低餘裕。
+// 讀水位時持有 s_task_mux —— 自我刪除的任務必須先通過 g_task_unregister_self()
+// 才會 vTaskDelete，所以鎖住期間 handle 一定還有效。已結束的任務 *free_bytes = -1。
+bool g_task_stack_info(int i, const char **name, int *free_bytes)
+{
+    if (i < 0 || i >= g_task_count) return false;
+    taskENTER_CRITICAL(&s_task_mux);
+    *name = g_tasks[i].name;
+    *free_bytes = g_tasks[i].handle
+        ? (int)(uxTaskGetStackHighWaterMark(g_tasks[i].handle) * sizeof(StackType_t))
+        : -1;
+    taskEXIT_CRITICAL(&s_task_mux);
+    return true;
+}
+
 // 建立任務並登記到 g_tasks，讓 task_monitor 能回報堆疊餘裕
 static void spawn(TaskFunction_t fn, const char *name, uint32_t stack, UBaseType_t prio)
 {
@@ -159,6 +174,34 @@ void task_mqtt      (void *arg);
 void task_scheduler (void *arg);
 void task_monitor   (void *arg);
 
+// ── 硬體版本：出廠紀錄優先於 AIN3 ─────────────────────────────────────────────
+// 出廠紀錄有簽章、綁這顆晶片的 MAC，登記的級數比 AIN3 讀值可靠（AIN3 會因接地不良而飄）。
+// V1.3 被誤判成舊板 = 電壓只讀到 77%，依電壓停止時充過頭 —— 所以開機就驗、在 Auto Volt
+// 與狀態機用到電壓之前套用。驗簽（ECDSA）要幾 KB 堆疊，app_main 只有 3.5 KB，
+// 所以開一個短命的任務來做；factory_svc 會把結果快取，之後 /hw 不必再驗一次。
+
+static void factory_check_task(void *arg)
+{
+    factory_svc_get();
+    xTaskNotifyGive((TaskHandle_t)arg);
+    vTaskDelete(NULL);
+}
+
+static void apply_factory_board_id(void)
+{
+    if (xTaskCreate(factory_check_task, "factory", 8192, xTaskGetCurrentTaskHandle(), 5, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "factory check task not created — board ID from AIN3 only");
+        return;
+    }
+    // 逾時就只用 AIN3。絕對不要在這裡自己呼叫 factory_svc_get() 補救：會在 3.5 KB 的堆疊上驗簽
+    if (!ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5000))) {
+        ESP_LOGW(TAG, "factory check timed out — board ID from AIN3 only");
+        return;
+    }
+    const factory_info_t *fi = factory_svc_get();   // 已驗過，只讀快取
+    if (fi->state == FACTORY_VALID) adc_driver_apply_factory_level(fi->hw_level);
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 void app_main(void)
@@ -178,6 +221,7 @@ void app_main(void)
     if (adc_driver_init() != ESP_OK) {
         ESP_LOGE(TAG, "ADS1115 init failed — CP/voltage sensing unavailable");
     }
+    apply_factory_board_id();
     ESP_ERROR_CHECK(psu_driver_init());
     display_driver_init();   // non-fatal if OLED absent
     led_driver_init();
@@ -194,16 +238,24 @@ void app_main(void)
     mqtt_svc_init();
     ESP_ERROR_CHECK(scheduler_svc_init());
 
-    // Auto-voltage: 等待 ADC 穩定後讀一次電壓，更新 max_voltage（僅 RAM）
+    // Auto-voltage：等電源電壓不再上升（最多 10 秒），取最高的 1 秒平均，更新 max_voltage
+    // （僅 RAM）。之後在 IDLE 由 task_tes_sm 持續往上追蹤 —— 演算法見 services/auto_volt.h
     if (config_svc_get()->auto_voltage) {
-        ESP_LOGI(TAG, "auto-voltage: waiting %dms for ADC to settle", AUTO_VOLT_SETTLE_MS);
         draw_auto_volt_screen();
-        vTaskDelay(pdMS_TO_TICKS(AUTO_VOLT_SETTLE_MS));
-        float v = adc_driver_read_voltage();
-        if (v >= AUTO_VOLT_MIN_V && v <= AUTO_VOLT_MAX_V) {
-            config_svc_override_voltage((uint16_t)(v * 10.0f + 0.5f));
+        auto_volt_t av;
+        uint16_t v01 = 0;
+        uint32_t t0 = platform_tick_ms();
+        auto_volt_init(&av, AUTO_VOLT_MIN_01V, AUTO_VOLT_MAX_01V, t0);
+        while (!auto_volt_boot_step(&av, (uint16_t)(adc_driver_read_voltage() * 10.0f + 0.5f),
+                                    platform_tick_ms(), &v01)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (v01) {
+            ESP_LOGI(TAG, "auto-voltage: settled after %lums", (unsigned long)(platform_tick_ms() - t0));
+            config_svc_override_voltage(v01);
         } else {
-            ESP_LOGW(TAG, "auto-voltage: ADC read %.1fV out of range, keeping NVS value", v);
+            ESP_LOGW(TAG, "auto-voltage: highest reading %u.%uV out of range, keeping NVS value",
+                     av.best_01v / 10, av.best_01v % 10);
         }
     }
 
@@ -225,14 +277,14 @@ void app_main(void)
     // vsnprintf("%f")，newlib 的浮點格式化本身就要好幾百 bytes。
     // 4KB 時按下 START 會堆疊溢位重開機。
     spawn(task_tes_sm,   "tes_sm",   8192,  12);
-    spawn(task_hal_poll, "hal_poll", 4096,  10);
+    spawn(task_hal_poll, "hal_poll", 6144,  10);   // 6 KB：ESP-NOW 配對的 X25519（mbedTLS ECP）在這裡跑
     spawn(task_display,  "display",  4096,   4);
     spawn(task_network,  "network",  12288,  3);
     spawn(task_ota,      "ota",      16384,  2);
     spawn(task_notify,   "notify",   6144,   2);
     spawn(task_mqtt,     "mqtt",     8192,   2);
     spawn(task_scheduler,"sched",    4096,   2);
-    spawn(task_log,      "task_log", 3072,   1);
+    spawn(task_log,      "task_log", 4096,   1);   // 3 KB 時實機剩 896 B（2026-10-08），結束充電寫 NVS 時更深
     spawn(task_monitor,  "monitor",  4096,   1);
 
     network_svc_start();   // 這裡才真正呼叫 esp_wifi_start()
@@ -242,11 +294,15 @@ void app_main(void)
     // psu_driver 會靜默 fallback 回 UART，ESP-NOW 永遠不會生效。
     {
         const charger_config_t *cfg = config_svc_get();
+        uint8_t ltk[32];
+        bool have_ltk = config_svc_get_psu_ltk(ltk);
         psu_driver_set_pair_callback(on_psu_paired);
         esp_err_t r = psu_driver_set_transport(
             (psu_transport_t)cfg->psu_transport,
-            cfg->psu_paired ? cfg->psu_peer_mac : NULL
+            cfg->psu_paired ? cfg->psu_peer_mac : NULL,
+            have_ltk ? ltk : NULL
         );
+        memset(ltk, 0, sizeof ltk);
         if (r != ESP_OK) {
             ESP_LOGE(TAG, "PSU transport init failed: %s — falling back to UART",
                      esp_err_to_name(r));

@@ -3,3 +3,9 @@ nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xE000,  0x2000,
 app0,     app,  ota_0,   0x10000, 0x7F0000,
 app1,     app,  ota_1,   0x800000,0x7F0000,
+# Factory record (since 2026-10-05): written and signed when a board is made, see
+# factory_svc.h. Only boards flashed fresh over USB get this partition; OTA leaves a
+# deployed unit's table untouched and the firmware treats a missing one as "no record".
+# It uses the last 64 KB that was free after app1 - the app partitions do not change.
+# (ASCII only: gen_esp32part reads this file with the system codepage on Windows.)
+tes_factory, data, 0x40,  0xFF0000,0x10000,

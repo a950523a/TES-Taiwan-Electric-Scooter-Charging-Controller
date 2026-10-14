@@ -7,6 +7,10 @@
 #define CP_ON_MAX_V         13.7f
 #define CP_HYSTERESIS       0.3f
 #define CP_ERROR_THRESHOLD  2
+// OFF 的下限。ADS1115 單端量 AIN2，0 V 附近的零點偏移與雜訊會讀出極小的負數
+// （畫面四捨五入成 0.00 V）。舊版下限是 0.0：只要偏移偏負，0 V 就被判成 ERROR 並一直卡住，
+// 待機時按 START 毫無反應（2026-10-08 實機回報：停止充電後按 START 沒反應，CP 顯示 0 V、判定異常）。
+#define CP_OFF_MIN_V        (-0.5f)
 
 // 充電中電壓檢查參數
 #define VOLTAGE_CHECK_DELAY_MS   1000u
@@ -138,12 +142,15 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
             sm->fault_source            = FAULT_SRC_NONE;
             sm->charge_complete_latched = false;
             out->vp_relay = true;
-            if (sm->cp_state == CP_STATE_OFF || sm->cp_state == CP_STATE_ON) {
-                sm->state          = TES_STATE_PARAM_EXCHANGE;
-                sm->state_start_ms = in->tick_ms;
-                out->set_psu_current    = true;
-                out->psu_current_target = 5.0f;
-            }
+            // 不看 CP 判定一律進入流程。舊版只在 CP 為 OFF/ON 時才進入，其他時候 START
+            // 被默默丟掉、OLED 與網頁都沒有任何反應。待機時 VP 是關的，CP 本來就沒有
+            // 意義；VP 打開後 PARAM_EXCHANGE／PRE_CHARGE 會檢查 CP，車沒準備好就照正常
+            // 流程逾時並留下故障說明 —— 按下去一定看得到結果。主繼電器要到 PRE_CHARGE 確認
+            // CP=ON、車端許可、車端接觸器閉合之後才會閉合，所以這裡不會讓槍頭帶電。
+            sm->state          = TES_STATE_PARAM_EXCHANGE;
+            sm->state_start_ms = in->tick_ms;
+            out->set_psu_current    = true;
+            out->psu_current_target = 5.0f;
             break;
         }
 
@@ -447,7 +454,7 @@ void tes_sm_request_fault_clear (tes_sm_t *sm) { sm->remote_fault_clear = true; 
 static cp_state_t update_cp_state(tes_sm_t *sm, float cp_v)
 {
     cp_state_t detected;
-    if      (cp_v >= 0.0f && cp_v <= (CP_OFF_MAX_V - CP_HYSTERESIS)) detected = CP_STATE_OFF;
+    if      (cp_v >= CP_OFF_MIN_V && cp_v <= (CP_OFF_MAX_V - CP_HYSTERESIS)) detected = CP_STATE_OFF;
     else if (cp_v >= (CP_ON_MIN_V + CP_HYSTERESIS) && cp_v <= CP_ON_MAX_V) detected = CP_STATE_ON;
     else    detected = CP_STATE_ERROR;
 
