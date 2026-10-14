@@ -373,7 +373,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div style="border-top:1px solid #222;margin:12px 0 10px;padding-top:12px">
     <label class="lbl2" style="margin-bottom:8px;display:block">📡 MQTT 遠端監控 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span></label>
     <label class="lbl2">Broker URL（空白 = 停用）</label>
-    <input type="url" id="mqtt-url" autocomplete="off" placeholder="mqtt://broker.hivemq.com:1883">
+    <input type="url" id="mqtt-url" autocomplete="off" placeholder="mqtts://帳號:密碼@xxxx.emqxsl.com:8883">
     <label class="lbl2">Topic Prefix</label>
     <input type="text" id="mqtt-topic" autocomplete="off" placeholder="tes/charger">
     <div class="chk-row">
@@ -389,7 +389,9 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     </div>
     <div style="font-size:.78em;color:#555;margin-top:8px;line-height:1.7">
       URL 可直接帶帳密與 TLS：<code style="color:#48f">mqtts://帳號:密碼@broker:8883</code><br>
-      公開 broker（如 <code>broker.hivemq.com</code>）任何人都能讀取你的充電狀態，
+      免費、需帳密的雲端 broker：EMQX Cloud Serverless（HiveMQ Cloud 的免費方案已停止新申請）。
+      手機 App 的「遠端監控」精靈會幫你填好這裡。<br>
+      公開 broker（如 <code>broker.emqx.io</code>）任何人都能讀取你的充電狀態，
       僅建議測試用。<br>
       MQTT 設定變更後需重啟生效
     </div>

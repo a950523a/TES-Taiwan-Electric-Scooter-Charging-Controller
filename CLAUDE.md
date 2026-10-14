@@ -1174,6 +1174,16 @@ NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/statu
 
 **Cloud PWA** (`docs/monitor.html`): MQTT.js via WebSocket, config from URL fragment (`#b=host&p=wsport&t=prefix`); stored in `localStorage` after first use. GitHub Pages (HTTPS) → Service Worker works → offline caching valid.
 
+**WebSocket must be wss, and cloud brokers need credentials (fixed 2026-10-14).** The PWA lives on
+GitHub Pages (HTTPS), where browsers block plaintext `ws://` as mixed content — yet it connected with
+`ws://` and `broker_ws_port()` returned plaintext ports (8000 / 8080 / 8083), so it could not connect
+to anything. It now always uses `wss://`; `broker_ws_port()` returns 8884 for HiveMQ, 8081 for
+test.mosquitto.org and 8084 otherwise (EMQX Cloud `*.emqxsl.com`, broker.emqx.io). The page has
+username/password fields, kept in that browser's `localStorage` and **never** put in the shared
+`#b=…&p=…&t=…` link; for `*.emqxsl.com` / `*.hivemq.cloud` it stays on the settings panel until they
+are filled. Context: HiveMQ Cloud stopped accepting new free Serverless clusters (retired
+2026-12-31); the mobile app's remote wizard now recommends EMQX Cloud Serverless (TLS 8883, wss 8084).
+
 ---
 
 ## Mobile App

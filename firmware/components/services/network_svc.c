@@ -1500,11 +1500,16 @@ static void extract_broker_host(const char *uri, char *host, size_t len)
     host[n] = '\0';
 }
 
+/*
+ * Cloud PWA 用的 WebSocket over TLS 埠。PWA 放在 GitHub Pages（HTTPS），瀏覽器擋 HTTPS 頁面裡的
+ * 明文 ws://，所以只能用 wss —— 以前回的 8000／8080／8083 都是明文埠，連公開 broker 也連不上。
+ * 2026-10-14：HiveMQ Cloud 的免費方案停止新申請，App 改推 EMQX Cloud Serverless（只開 8883／8084）。
+ */
 static uint16_t broker_ws_port(const char *host)
 {
-    if (strstr(host, "hivemq.com"))    return 8000;
-    if (strstr(host, "mosquitto.org")) return 8080;
-    return 8083;
+    if (strstr(host, "hivemq"))        return 8884;   /* HiveMQ Cloud、broker.hivemq.com */
+    if (strstr(host, "mosquitto.org")) return 8081;   /* test.mosquitto.org */
+    return 8084;                                      /* EMQX Cloud（*.emqxsl.com）、broker.emqx.io */
 }
 
 static esp_err_t handle_get_mqtt_link(httpd_req_t *req)
