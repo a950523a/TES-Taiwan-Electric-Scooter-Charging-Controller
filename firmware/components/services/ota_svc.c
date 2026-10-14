@@ -29,6 +29,14 @@ static void ota_task(void *arg)
         .crt_bundle_attach = esp_crt_bundle_attach,
         .keep_alive_enable = true,
         .timeout_ms        = 30000,
+        /*
+         * GitHub 的 releases/latest/download/... 會 302 轉到 release-assets.githubusercontent.com，
+         * 2026 年起那個網址帶一串簽章，超過 1000 字元。預設緩衝區 512 B：收不下 Location 標頭、
+         * 轉址後的請求行也送不出去，esp_https_ota_begin() 直接 ESP_FAIL（2026-10-14 TP-0001 實測）。
+         * buffer_size 收（含標頭行），buffer_size_tx 送（含請求行）。
+         */
+        .buffer_size       = 4096,
+        .buffer_size_tx    = 2048,
     };
     esp_https_ota_config_t ota_cfg = { .http_config = &http_cfg };
 
