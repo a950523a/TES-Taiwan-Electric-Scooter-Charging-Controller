@@ -229,6 +229,22 @@ void app_main(void)
     // Services init
     event_bus_init();
     ESP_ERROR_CHECK(config_svc_init());
+    // 這塊板量得準的上限（舊板 110 V、V1.3 120 V）。存著的值比它高（舊板以前可設到 120 V）
+    // 就夾下來寫回 NVS —— 只會發生一次
+    const uint16_t vmax = adc_driver_board()->max_volt_01v;
+    {
+        const charger_config_t *c = config_svc_get();
+        if (c->max_voltage_01v > vmax) {
+            ESP_LOGW(TAG, "max voltage %u.%uV above this board's %u.%uV - clamped",
+                     c->max_voltage_01v / 10, c->max_voltage_01v % 10, vmax / 10, vmax % 10);
+            config_svc_set_charging(vmax, c->max_current_01a, c->target_soc);
+        }
+        if (c->stop_voltage_01v > vmax) {
+            ESP_LOGW(TAG, "stop voltage %u.%uV above this board's %u.%uV - clamped",
+                     c->stop_voltage_01v / 10, c->stop_voltage_01v % 10, vmax / 10, vmax % 10);
+            config_svc_set_stop(c->stop_mode, vmax, c->charge_timer_min);
+        }
+    }
     notify_svc_init();
     log_svc_init();
     // trace buffer 配置在 PSRAM；失敗只會停用曲線/Log，不影響充電
@@ -245,11 +261,12 @@ void app_main(void)
         auto_volt_t av;
         uint16_t v01 = 0;
         uint32_t t0 = platform_tick_ms();
-        auto_volt_init(&av, AUTO_VOLT_MIN_01V, AUTO_VOLT_MAX_01V, t0);
+        auto_volt_init(&av, AUTO_VOLT_MIN_01V, vmax, t0);
         while (!auto_volt_boot_step(&av, (uint16_t)(adc_driver_read_voltage() * 10.0f + 0.5f),
                                     platform_tick_ms(), &v01)) {
             vTaskDelay(pdMS_TO_TICKS(10));
         }
+        config_svc_set_volt_over(av.over_01v);
         if (v01) {
             ESP_LOGI(TAG, "auto-voltage: settled after %lums", (unsigned long)(platform_tick_ms() - t0));
             config_svc_override_voltage(v01);

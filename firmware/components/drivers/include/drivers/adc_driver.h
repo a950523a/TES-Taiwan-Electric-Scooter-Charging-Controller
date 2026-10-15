@@ -27,6 +27,7 @@ typedef struct {
     int8_t      ain3_level;  // AIN3 自己判出來的級數（level 可能被出廠紀錄蓋掉，這個不會）
     bool        from_factory;// true = 版本取自已驗證的出廠紀錄，不是 AIN3
     bool        id_mismatch; // 出廠紀錄說的版本和 AIN3 讀到的不同 —— R36／R37／AIN3 焊點要檢查
+    uint16_t    max_volt_01v;// 這塊板量得準的最高電壓（0.1 V）：最大電壓、停止電壓、Auto Volt 的上限
 } adc_board_t;
 
 // 已驗證的出廠紀錄（簽章＋MAC 綁定，見 services/factory_svc.h）裡登記的級數。

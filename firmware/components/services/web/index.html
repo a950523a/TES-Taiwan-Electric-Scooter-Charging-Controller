@@ -190,6 +190,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 <!-- 狀態卡 -->
 <div class="card">
   <div class="badge s-idle" id="badge">STANDBY</div>
+  <div id="volt-over" style="display:none;color:#f96;font-size:.85em;line-height:1.6;margin:-4px 0 10px"></div>
   <div class="row">
     <span class="lbl">輸出電壓</span>
     <span class="val big" id="v">-- V</span>
@@ -775,6 +776,14 @@ async function poll(){
     // 現在只要有 fault_source 或 fault 旗標就顯示。
     renderFault(d);
 
+    // Auto Volt 讀到電源開得比這塊板的上限高
+    const vo=document.getElementById('volt-over');
+    if(d.psu_over_volt>0){
+      vo.textContent=`⚠ 電源電壓 ${d.psu_over_volt.toFixed(1)} V，超過這塊板的上限 ${(d.voltage_limit||110).toFixed(0)} V。`
+        +'這塊板量不準更高的電壓，最大電壓只會用到上限——請把電源調低到上限以下。';
+      vo.style.display='block';
+    }else vo.style.display='none';
+
     const dot=d.wifi_connected?'#4d4':'#f55';
     const txt=d.wifi_connected?'已連線':'未連線';
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
@@ -1022,6 +1031,10 @@ async function loadCfg(){
   try{
     const d=await(await fetch('/config')).json();
     document.getElementById('cav').checked=d.auto_voltage;
+    // 最大電壓、停止電壓的上限依板子（舊板 110 V、V1.3 120 V）；舊韌體沒有這欄就照舊 120
+    const vlim=d.voltage_limit||120;
+    document.getElementById('cv').max=vlim;
+    document.getElementById('csv').max=vlim;
     document.getElementById('cv').value=d.max_voltage;
     document.getElementById('ca').value=d.max_current;
     document.getElementById('cs').value=d.target_soc;
@@ -1215,17 +1228,19 @@ const CFG_ANCHOR={
 
 // 空欄位的 parseFloat 會是 NaN，而 NaN !== NaN 會讓該欄永遠顯示為「已變更」
 function num(v,dflt){const n=parseFloat(v);return isFinite(n)?n:dflt;}
+// 手打超過這塊板上限的電壓：直接用上限（韌體也會夾，這裡先夾，畫面才不會顯示一個存不進去的值）
+function capV(v,id){const m=parseFloat(document.getElementById(id).max);return v!==null&&isFinite(m)&&v>m?m:v;}
 
 function collectCfg(){
   const stopMode=document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
   return {
     device_name:document.getElementById('cdn').value.trim(),
     auto_voltage:document.getElementById('cav').checked,
-    max_voltage:num(document.getElementById('cv').value,null),
+    max_voltage:capV(num(document.getElementById('cv').value,null),'cv'),
     max_current:num(document.getElementById('ca').value,null),
     target_soc:num(document.getElementById('cs').value,null),
     stop_mode:stopMode,
-    stop_voltage:num(document.getElementById('csv').value,null),
+    stop_voltage:capV(num(document.getElementById('csv').value,null),'csv'),
     charge_timer_min:num(document.getElementById('ctm').value,120),
     wifi_ssid:document.getElementById('ci').value,
     sta_enabled:document.getElementById('csta').checked,

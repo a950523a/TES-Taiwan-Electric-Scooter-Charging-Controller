@@ -73,3 +73,7 @@ bool      config_svc_get_psu_ltk       (uint8_t ltk_32[32]);
 // 配對完成：MAC 與金鑰一起寫入，transport 設為 ESP-NOW
 esp_err_t config_svc_set_psu_pairing   (const uint8_t peer_mac_6[6], const uint8_t ltk_32[32]);
 void      config_svc_override_voltage   (uint16_t v_01v);  // RAM only, no NVS write
+// Auto Volt 讀到的電源電壓超過這塊板的上限（＋容差）時記下讀值，0 = 沒超過。只在 RAM。
+// 網頁、App、OLED 用它跳警告：電源開太高，這塊板量不準、送給車子的 VLIM2 也比電源低
+void      config_svc_set_volt_over      (uint16_t v_01v);
+uint16_t  config_svc_volt_over          (void);

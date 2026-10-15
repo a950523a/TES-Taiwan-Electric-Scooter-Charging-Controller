@@ -324,6 +324,21 @@ esp_err_t config_svc_set_psu_pairing(const uint8_t peer_mac_6[6], const uint8_t 
     return r;
 }
 
+static volatile uint16_t s_volt_over_01v;
+
+void config_svc_set_volt_over(uint16_t v_01v)
+{
+    if (v_01v && !s_volt_over_01v)
+        ESP_LOGW(TAG, "auto-voltage: PSU reads %u.%uV, above this board's limit",
+                 v_01v / 10, v_01v % 10);
+    s_volt_over_01v = v_01v;
+}
+
+uint16_t config_svc_volt_over(void)
+{
+    return s_volt_over_01v;
+}
+
 void config_svc_override_voltage(uint16_t v_01v)
 {
     s_cfg.max_voltage_01v = v_01v;

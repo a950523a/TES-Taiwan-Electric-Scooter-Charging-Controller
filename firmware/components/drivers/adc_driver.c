@@ -83,12 +83,15 @@ typedef struct {
     const char *name;
     float       r1_kohm;     // 分壓上臂
     float       r2_kohm;     // 分壓下臂
+    uint16_t    max_01v;     // 可設定的最高電壓（0.1 V），要在量測上限以內
 } board_rev_t;
 
 // 只列「韌體需要知道」的版本。新增硬體版本：挑一級、在這裡加一行。
 static const board_rev_t BOARD_REVS[] = {
-    { 0, "V1.1/V1.2", 348.0f, 12.0f  },   // AIN3 焊死接地 —— 現場每一台都是這個
-    { 6, "V1.3",      345.0f,  9.09f },   // R36 = R37 = 10k；上臂 115k × 3、下臂 9.09k
+    // 舊板 ADS1115 接 3.3 V，輸入被鉗在 VDD 附近：實測量到 114 V 就到頂（規格書算約 108 V）。
+    // 上限 110 V 留 4 V 給各板差異 —— 再高就讀不準，依電壓停止會永遠等不到（2026-10-15）
+    { 0, "V1.1/V1.2", 348.0f, 12.0f,  1100 },   // AIN3 焊死接地 —— 現場每一台都是這個
+    { 6, "V1.3",      345.0f,  9.09f, 1200 },   // R36 = R37 = 10k；上臂 115k × 3、下臂 9.09k；量到 140 V
 };
 
 static float ratio_of(const board_rev_t *r)
@@ -102,6 +105,7 @@ static adc_board_t s_board = {
     .level = 0, .id_volts = 0.0f, .name = "V1.1/V1.2", .known = true,
     .volt_ratio = (348.0f + 12.0f) / 12.0f,
     .ain3_level = -1,                       // -1 = 沒讀到（ADS1115 不在）
+    .max_volt_01v = 1100,                   // 不認得的板子也用舊板係數，上限一樣照舊板
 };
 
 static int8_t classify_hw_id(float v)
@@ -164,6 +168,7 @@ static void detect_board(void)
             s_board.name       = BOARD_REVS[i].name;
             s_board.known      = true;
             s_board.volt_ratio = ratio_of(&BOARD_REVS[i]);
+            s_board.max_volt_01v = BOARD_REVS[i].max_01v;
             ESP_LOGI(TAG, "board ID: AIN3 %.3f V → level %d = %s, divider x%.3f",
                      v, level, s_board.name, s_board.volt_ratio);
             return;
@@ -180,6 +185,7 @@ static void detect_board(void)
         s_board.known      = true;
         s_board.level      = 0;                       // /hw 的舊板底圖看的是 level 0
         s_board.volt_ratio = ratio_of(&BOARD_REVS[0]);
+        s_board.max_volt_01v = BOARD_REVS[0].max_01v;
         ESP_LOGW(TAG, "board ID: AIN3 %.3f V — should be 0 V on V1.1/V1.2; treating it as V1.1/V1.2 "
                  "(check AIN3's ground joint)", v);
         return;
@@ -229,6 +235,7 @@ void adc_driver_apply_factory_level(int level)
     s_board.name         = rev->name;
     s_board.known        = true;
     s_board.volt_ratio   = ratio_of(rev);
+    s_board.max_volt_01v = rev->max_01v;
     if (s_board.id_mismatch) {
         ESP_LOGW(TAG, "board ID: factory record = level %d (%s) but AIN3 %.3f V = level %d — "
                  "using the factory record; check R36/R37 and the AIN3 joint",

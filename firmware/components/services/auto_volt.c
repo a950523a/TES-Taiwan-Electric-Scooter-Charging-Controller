@@ -36,7 +36,15 @@ static bool sample(auto_volt_t *a, uint16_t v_01v, uint32_t now_ms, uint16_t *av
 
 static uint16_t in_range(const auto_volt_t *a, uint16_t v)
 {
-    return (v >= a->min_01v && v <= a->max_01v) ? v : 0u;
+    if (v < a->min_01v) return 0u;
+    if (v <= a->max_01v) return v;
+    if (v <= a->max_01v + AUTO_VOLT_OVER_TOL_01V) return a->max_01v;   // 讀值誤差：夾到上限
+    return 0u;                                                          // 真的超過：不採用
+}
+
+static void note_over(auto_volt_t *a, uint16_t v)
+{
+    a->over_01v = (v > a->max_01v + AUTO_VOLT_OVER_TOL_01V) ? v : 0u;
 }
 
 bool auto_volt_boot_step(auto_volt_t *a, uint16_t v_01v, uint32_t now_ms, uint16_t *result_01v)
@@ -54,12 +62,14 @@ bool auto_volt_boot_step(auto_volt_t *a, uint16_t v_01v, uint32_t now_ms, uint16
             // hist[0] 是 2 秒前、hist[2] 是現在。電壓下降（負載、雜訊）也算穩定
             if (a->hist_n == AUTO_VOLT_HIST &&
                 a->hist[2] < (uint16_t)(a->hist[0] + SETTLE_RISE_01V)) {
+                note_over(a, a->best_01v);
                 *result_01v = in_range(a, a->best_01v);
                 return true;
             }
         }
     }
     if (now_ms - a->start_ms >= BOOT_TIMEOUT_MS) {
+        note_over(a, a->best_01v);
         *result_01v = in_range(a, a->best_01v);
         return true;
     }
@@ -76,6 +86,7 @@ uint16_t auto_volt_idle_step(auto_volt_t *a, uint16_t v_01v, uint32_t now_ms,
     }
     uint16_t avg;
     if (!sample(a, v_01v, now_ms, &avg)) return 0;
+    note_over(a, avg);          // 只在 IDLE 更新：充電中的電壓是電池，不代表電源開多高
     avg = in_range(a, avg);
     return (avg >= current_01v + IDLE_HYST_01V) ? avg : 0u;
 }

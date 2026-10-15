@@ -744,11 +744,11 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | Item | Range | Short press step | Long press step |
 |------|-------|-----------------|-----------------|
 | Auto Volt | ON / OFF | toggle | toggle |
-| Max Voltage | 40.0 V -- 120.0 V (顯示為 "V Cap" when Auto ON) | ±0.1 V | ±1 V (auto-repeat) |
+| Max Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（顯示為 "V Cap" when Auto ON） | ±0.1 V | ±1 V (auto-repeat) |
 | Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
 | Stop Mode | SOC / Volt / Timer | toggle | toggle |
 | Target SOC | 20% -- 100%（Stop Mode=SOC 時顯示） | ±1% | ±5% (auto-repeat) |
-| Stop Voltage | 40.0 V -- 120.0 V（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
+| Stop Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
 | Charge Timer | 1 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
@@ -916,7 +916,7 @@ Charge history: namespace `"tes_hist"`, blob key `"log"` (**484 bytes**, 20 × `
 ## Feature Summaries
 
 ### Auto-Voltage
-NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40–120 V. Logic in
+NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40 V up to the board's limit. Logic in
 `services/auto_volt.c` — pure, data in / data out (2026-10-06; it used to wait 1 s and read once):
 
 - **Boot** (`main.c`, boot logo "Auto Setting Voltage..." on the OLED): sample every 100 ms, use
@@ -934,6 +934,18 @@ NVS key `auto_v`. Overrides `max_voltage` in RAM only (NVS not written), 40–12
 - **Why averages, not the raw maximum:** the value goes out as VLIM2 in 0x508, the vehicle's
   own over-voltage threshold. A spike read as the maximum would loosen that protection; a
   low value is the safe direction (worst case a "voltage too low" fault).
+
+**Per-board voltage ceiling (2026-10-15).** V1.1/V1.2 read at most ~114 V (see **What V1.3 needs
+from the firmware** §3), so on those boards Max Voltage, Stop Voltage and Auto Volt stop at **110 V**
+(4 V of margin); V1.3 keeps 120 V. The value lives in `BOARD_REVS[].max_01v` (`adc_driver.c`) and is
+exposed as `adc_driver_board()->max_volt_01v`, `/config` and `/status` `voltage_limit`. A stored value
+above it (old boards could be set to 120 V) is clamped and written back once at boot (`main.c`);
+`POST /config` caps 110–120 V at the limit instead of dropping the field, and the OLED menu and the web
+inputs simply stop at it — no extra message, by the author's choice. Auto Volt treats a reading up to
+2 V over the limit as read error and uses the limit; **more than 2 V over** means the supply itself is
+set too high: the reading is not used and is reported as `/status` `psu_over_volt` (V, 0 = none), shown
+on the web status card, in the app, and on the OLED's bottom line in IDLE (`!PSU 113.4V>110V`). It is
+re-evaluated every second in IDLE, so turning the knob down clears it.
 
 ### Stop Mode
 Three mutually exclusive termination conditions (NVS key `stop_m`). SM checks in `run_monitoring()`:

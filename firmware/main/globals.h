@@ -39,7 +39,7 @@ typedef struct {
 
 // Auto Volt 的有效範圍（0.1 V）：開機偵測與 IDLE 追蹤共用，見 services/auto_volt.h
 #define AUTO_VOLT_MIN_01V  400u    // 40 V
-#define AUTO_VOLT_MAX_01V 1200u    // 120 V
+// 上限依板子而定（adc_driver_board()->max_volt_01v：舊板 110 V、V1.3 120 V）
 extern task_entry_t g_tasks[G_TASK_MAX];
 extern int          g_task_count;
 

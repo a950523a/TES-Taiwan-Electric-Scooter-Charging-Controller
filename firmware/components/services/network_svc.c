@@ -371,6 +371,9 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         // hw_id_mismatch = 出廠紀錄和 AIN3 不同 —— 係數照出廠紀錄，但 R36／R37／AIN3 焊點該檢查
         cJSON_AddStringToObject(root, "hw_source",      hw->from_factory ? "factory" : "ain3");
         cJSON_AddNumberToObject(root, "hw_ain3_level",  hw->ain3_level);
+        // Auto Volt 讀到電源比這塊板的上限高 2 V 以上：電源要調低（0 = 沒有）
+        cJSON_AddNumberToObject(root, "voltage_limit",  (double)hw->max_volt_01v / 10.0);
+        cJSON_AddNumberToObject(root, "psu_over_volt",  (double)config_svc_volt_over() / 10.0);
         cJSON_AddBoolToObject  (root, "hw_id_mismatch", hw->id_mismatch);
     }
 
@@ -406,6 +409,8 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ap_ssid",        s_ap_ssid);
     cJSON_AddBoolToObject  (root, "auto_voltage",   cfg->auto_voltage);
     cJSON_AddNumberToObject(root, "max_voltage",    (double)cfg->max_voltage_01v / 10.0);
+    // 最大電壓與停止電壓能設到多高（依板子：舊板 110、V1.3 120）。網頁、App 的輸入上限照這個
+    cJSON_AddNumberToObject(root, "voltage_limit",  (double)adc_driver_board()->max_volt_01v / 10.0);
     cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
     cJSON_AddNumberToObject(root, "target_soc",     cfg->target_soc);
     cJSON_AddNumberToObject(root, "stop_mode",        (int)cfg->stop_mode);
@@ -457,7 +462,7 @@ static const httpd_uri_t s_uri_get_config = {
 // ── POST /config ──────────────────────────────────────────────────────────────
 // Partial update: only supplied fields are written to NVS.
 // Accepted fields (all optional):
-//   max_voltage  float V   (40.0–120.0)
+//   max_voltage  float V   (40.0–這塊板的上限：舊板 110、V1.3 120；超過上限的夾到上限)
 //   max_current  float A   (1.0–100.0)
 //   target_soc   int %     (20–100)
 //   wifi_ssid    string
@@ -487,6 +492,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     }
 
     const charger_config_t *cur = config_svc_get();
+    const int vmax = adc_driver_board()->max_volt_01v;
     uint16_t new_voltage = cur->max_voltage_01v;
     uint16_t new_current = cur->max_current_01a;
     int8_t   new_soc     = cur->target_soc;
@@ -513,7 +519,10 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "max_voltage");
     if (cJSON_IsNumber(item)) {
         int v = (int)(item->valuedouble * 10.0 + 0.5);
-        if (v >= 400 && v <= 1200) { new_voltage = (uint16_t)v; charging_changed = true; }
+        // 舊 App／舊網頁可能還送 120 V 到舊板：夾到上限，不要整筆丟掉
+        if (v >= 400 && v <= 1200) {
+            new_voltage = (uint16_t)(v > vmax ? vmax : v); charging_changed = true;
+        }
     }
     item = cJSON_GetObjectItem(root, "max_current");
     if (cJSON_IsNumber(item)) {
@@ -572,7 +581,9 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "stop_voltage");
     if (cJSON_IsNumber(item)) {
         int v = (int)(item->valuedouble * 10.0 + 0.5);
-        if (v >= 400 && v <= 1200) { new_stop_voltage = (uint16_t)v; stop_changed = true; }
+        if (v >= 400 && v <= 1200) {
+            new_stop_voltage = (uint16_t)(v > vmax ? vmax : v); stop_changed = true;
+        }
     }
     item = cJSON_GetObjectItem(root, "charge_timer_min");
     if (cJSON_IsNumber(item)) {

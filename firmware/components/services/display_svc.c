@@ -331,8 +331,9 @@ static void value_step(int item, int delta)
     switch ((menu_item_id_t)item) {
     case MENU_ITEM_MAX_VOLTAGE: {
         int v = (int)s_edit_voltage + delta;
+        int vmax = adc_driver_board()->max_volt_01v;   // 舊板 110 V、V1.3 120 V
         if (v < 400)  v = 400;
-        if (v > 1200) v = 1200;
+        if (v > vmax) v = vmax;
         s_edit_voltage = (uint16_t)v;
         break;
     }
@@ -365,8 +366,9 @@ static void value_step(int item, int delta)
         break;
     case MENU_ITEM_STOP_VOLTAGE: {
         int v = (int)s_edit_stop_voltage + delta;
+        int vmax = adc_driver_board()->max_volt_01v;
         if (v < 400)  v = 400;
-        if (v > 1200) v = 1200;
+        if (v > vmax) v = vmax;
         s_edit_stop_voltage = (uint16_t)v;
         break;
     }
@@ -589,6 +591,16 @@ static void render_status(const tes_snapshot_t *snap)
 
     // FAULT / EMERGENCY 已在函式開頭走專屬畫面，這裡只會是正常運作狀態
     display_driver_font_small();
+    uint16_t over = config_svc_volt_over();
+    if (over && snap->state == TES_STATE_IDLE) {
+        // Auto Volt 讀到電源比這塊板的上限高：待機時用最下面一行提醒把電源調低
+        uint16_t vmax = adc_driver_board()->max_volt_01v;
+        snprintf(buf, sizeof(buf), "!PSU %u.%uV>%uV",
+                 over / 10, over % 10, (unsigned)(vmax / 10));
+        display_driver_draw_str(0, 56, buf);
+        display_driver_flush();
+        return;
+    }
     if (snap->vehicle_req_voltage > 0.5f || snap->vehicle_req_current > 0.1f) {
         snprintf(buf, sizeof(buf), "REQ:%.0fV %.0fA",
                  snap->vehicle_req_voltage, snap->vehicle_req_current);

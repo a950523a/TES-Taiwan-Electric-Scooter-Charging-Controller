@@ -18,6 +18,9 @@
 
 #define AUTO_VOLT_RING   10u   // 10 × 100 ms = 1 秒平均
 #define AUTO_VOLT_HIST   3u    // 每秒一筆，比較「現在」與「2 秒前」
+// 高出上限這麼多以內（讀值誤差）就當作上限；再高 = 電源開得比這塊板能用的還高，
+// 不採用，記在 over_01v 讓畫面跳警告（2026-10-15：舊板上限 110 V，超過 112 V 警告）
+#define AUTO_VOLT_OVER_TOL_01V 20u
 
 typedef struct {
     uint16_t min_01v, max_01v;          // 有效範圍；範圍外的結果不採用
@@ -27,6 +30,7 @@ typedef struct {
     uint8_t  hist_n;
     uint32_t start_ms, last_sample_ms, last_hist_ms;
     uint16_t best_01v;                  // 開機期間最高的 1 秒平均
+    uint16_t over_01v;                  // 最近一次判定時超過 max + 容差的讀值；0 = 沒超過
 } auto_volt_t;
 
 void auto_volt_init(auto_volt_t *a, uint16_t min_01v, uint16_t max_01v, uint32_t now_ms);
