@@ -284,6 +284,14 @@ Long press threshold = 500 ms; auto-repeat every 100 ms while held (START/STOP o
 | SETTING | long | open settings menu | — | — |
 | EMERGENCY | short | `g_emergency_stop` atomic_bool (always, never gated) | same | same |
 
+**STOP during the handshake (2026-10-17).** `stop_requested` — button, `/stop`, app, MQTT all
+arrive as it — used to be read only in CHARGING, so a started handshake could only time out
+(15/20 s, leaving a fault on screen) or be E-stopped. Now PARAM_EXCHANGE → straight to IDLE
+(nothing is closed yet; VP off, PSU current 0) and PRE_CHARGE → ENDING (the vehicle contactor,
+and after RELAY_DELAY our relay, may be closed). Both are `STOP_REASON_USER`; the IDLE path
+sets `charge_complete_latched` so beta auto-start does not re-fire while CP is still on.
+No history record and no push — the session never reached CHARGING.
+
 ### Key Design Decisions vs V2
 
 | V2 Problem | V3 Solution |
@@ -1158,8 +1166,12 @@ drop the record on failure — tracing must never delay the 10 ms SM tick.
 
 `t_ms` is uptime ms for events and session-relative ms for samples; both use the same
 `esp_timer` base as `platform_tick_ms()`, so `event.t_ms − session.start_uptime_ms`
-gives session-relative time. `epoch_s` is 0 until NTP syncs, in which case the web UI
-falls back to `+MM:SS.mmm` relative timestamps.
+gives session-relative time. `epoch_s` is recorded as 0 until NTP syncs. Since 2026-10-17
+`/trace` (`start_epoch`) and `/tracelog` back-fill those zeros **at read time** once the clock
+is set: `now − (uptime_now − t_ms)` (`trace_epoch_backfill()` in `network_svc.c`). That is
+exact because traces live in RAM and so always belong to the current boot, on the same
+`esp_timer` base. The web UI's `開機 +…` / `+MM:SS.mmm` fallback now only shows while the
+unit has still not synced.
 
 **Web UI** — the chart and log live *inside each charge-history row*: clicking a row
 expands an inline detail panel holding that session's curve + log, fetched lazily on

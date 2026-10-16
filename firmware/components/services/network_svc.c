@@ -38,6 +38,7 @@
 #include "esp_heap_caps.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include <time.h>
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
@@ -1138,6 +1139,18 @@ static void chunk_puts(chunk_out_t *co, const char *s)
     co->len += n;
 }
 
+// 開機後還沒對時（NTP）就記下的 trace，epoch 是 0，網頁只能顯示「開機 +…」。trace 只在 RAM、
+// 一定是這次開機的，而 t_ms 與 esp_timer 同一個時基，所以對時之後可以回推：
+// 現在的 epoch − (現在的開機時間 − 當時的開機時間)。讀取時才算，不改 trace_svc 裡存的值
+static uint32_t trace_epoch_backfill(uint32_t epoch_s, uint32_t t_ms)
+{
+    if (epoch_s) return epoch_s;
+    time_t now = time(NULL);
+    if (now <= 1600000000) return 0;               // 同 trace_svc 的 now_epoch_s()：還沒對時
+    uint32_t up_ms = (uint32_t)(esp_timer_get_time() / 1000LL);
+    return (uint32_t)now - (up_ms - t_ms) / 1000u;  // 無號相減：跨過 uint32 回捲也對
+}
+
 static void trace_emit_sessions(chunk_out_t *co)
 {
     trace_session_info_t list[TRACE_MAX_SESSIONS];
@@ -1151,7 +1164,7 @@ static void trace_emit_sessions(chunk_out_t *co)
                  "\"samples\":%lu,\"events\":%lu}",
                  i ? "," : "",
                  (unsigned long)list[i].session_id,
-                 (unsigned long)list[i].start_epoch_s,
+                 (unsigned long)trace_epoch_backfill(list[i].start_epoch_s, list[i].start_t_ms),
                  (unsigned long)list[i].start_t_ms,
                  (unsigned long)list[i].sample_count,
                  (unsigned long)list[i].event_count);
@@ -1260,7 +1273,7 @@ static esp_err_t handle_get_tracelog(httpd_req_t *req)
 
         snprintf(buf, sizeof(buf), "%s[%lu,%lu,\"%s\"]",
                  first ? "" : ",",
-                 (unsigned long)e.t_ms, (unsigned long)e.epoch_s, esc);
+                 (unsigned long)e.t_ms, (unsigned long)trace_epoch_backfill(e.epoch_s, e.t_ms), esc);
         chunk_puts(&co, buf);
         first = false;
     }
