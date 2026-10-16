@@ -1142,7 +1142,9 @@ up afterwards. Three pieces make that work:
    raised*, meaning defined per `fault_source` (see the enum comments). The state machine
    only records numbers; `tes_protocol` does no string formatting.
 3. **Display layers format them.** This turns "Code:0x01" into "車輛要求 72.0 V，但最大電壓
-   設定只有 60.0 V → 把最大電壓調到 72.0 V 以上".
+   設定只有 60.0 V → 請換用 72.0 V 以上的電源". (Until 2026-10-17 it said "raise Max Voltage to 72.0 V";
+   that was wrong advice — Max Voltage is VLIM2, the vehicle's over-voltage threshold, and must match what
+   the PSU really outputs. Not enough voltage means not enough PSU.)
 
 `enter_fault(sm, out, tick_ms, src, ctx_a, ctx_b)` — every call site must state its context.
 

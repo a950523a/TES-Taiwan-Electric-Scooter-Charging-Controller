@@ -463,7 +463,8 @@ static void fault_src_text(uint8_t src, uint16_t ctx_a, const char **l1, const c
     case FAULT_SRC_VEHICLE_TIMEOUT:
         *l1 = "No CAN permit";      *l2 = "Check CAN wiring / plug"; break;
     case FAULT_SRC_VOLTAGE_INCOMPAT:
-        *l1 = "Volt limit too low"; *l2 = "Raise Max Voltage";       break;
+        // 不叫人調高 Max Voltage：它是送給車輛的過壓門檻（VLIM2），電壓不夠要換電源
+        *l1 = "PSU volt too low";   *l2 = "Use a higher-V PSU";      break;
     case FAULT_SRC_PRECHARGE_TIMEOUT:
         *l1 = "Pre-charge timeout"; *l2 = "Re-plug the connector";   break;
     case FAULT_SRC_CONTACTOR_TIMEOUT:
@@ -496,7 +497,7 @@ static void fault_detail(const tes_snapshot_t *s, char *buf, size_t bufsz)
     uint16_t a = s->fault_ctx_a, b = s->fault_ctx_b;
     switch ((fault_source_t)s->fault_source) {
     case FAULT_SRC_VOLTAGE_INCOMPAT:
-        snprintf(buf, bufsz, "car %.1fV > set %.1fV", a / 10.0f, b / 10.0f); break;
+        snprintf(buf, bufsz, "car %.1fV > max %.1fV", a / 10.0f, b / 10.0f); break;
     case FAULT_SRC_VEHICLE_TIMEOUT:
     case FAULT_SRC_CONTACTOR_TIMEOUT:
         snprintf(buf, bufsz, "waited %us  st:0x%02X", (unsigned)a, (unsigned)b); break;
