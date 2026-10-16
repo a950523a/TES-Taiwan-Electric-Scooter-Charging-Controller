@@ -917,7 +917,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
-Charge history: namespace `"tes_hist"`, blob key `"log"` (**484 bytes**, 20 × `charge_session_t` circular buffer). Blob length is the version check — changing `charge_session_t` discards existing history by design (see Charge Session History).
+Charge history: namespace `"tes_hist"`, blob key `"log"` (**564 bytes**, 20 × `charge_record_t` circular buffer; the 484-byte pre-2026-10-17 format is migrated on boot). Same namespace: `"energy"` (580-byte monthly totals, `energy_book_t`), `"eff"` (u32, PSU efficiency % for the cost estimate, default 90) and `"price"` (u32, NT$/kWh × 100, 0 = no cost estimate). See Charge Session History.
 
 ---
 
@@ -1038,7 +1038,24 @@ app clears its ongoing notification. The app builds the notification itself in a
 firmware never sends display text for it, and `notify_url` does not get these.
 
 ### Charge Session History
-`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with `charge_session_t` (**24 bytes**). `log_svc` stores last 20 sessions as NVS blob (`session_log_t` = 4 + 20×24 = **484 bytes**).
+`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with a `session_event_t` (`log_svc.h`, **32 bytes**): a `charge_record_t` — `charge_session_t` plus `start_epoch` — and the start uptime. `log_svc` stores the last 20 records as an NVS blob (`session_log_t` = 4 + 20×28 = **564 bytes**).
+
+**Start time (2026-10-17).** `start_epoch` is the Unix time CHARGING was entered. It is wrapped
+around `charge_session_t` in `log_svc.h` rather than added to `tes_types.h`, because that header is
+the TES-Protocol submodule shared with two other repos that never use the struct. Not synced at
+the start but synced by the end → back-computed from the uptime. Still not synced at the end →
+saved as 0 and kept on a RAM pending list; `task_log` wakes every 30 s and dates them once the
+clock is set (same boot only, same `esp_timer` base). After a reboot they stay undated.
+
+**Monthly totals (`energy_month.c`, pure, host-tested).** Only 20 records are kept, too few for
+a month view, so `log_svc` also adds every session to a per-month book: up to 36 months, oldest
+dropped, months in UTC+8 by integer date math (no TZ dependency). Each month holds `wh`,
+`est_wh` (sessions with `energy_estimated` — no PSU, current = Max Current setting), and the two
+session counts; `undated` counts sessions that never got a start time. `GET /energy` returns it
+with the cost settings. **This is energy into the battery (DC), not the electricity bill**: the
+web UI and app divide by the PSU efficiency and multiply by the price only when a price is set,
+and draw the estimated part lighter. Records migrated from the old format have no date and are
+not in the book (and not counted as undated).
 
 Key types in `tes_types.h`:
 ```c
@@ -1057,17 +1074,18 @@ typedef struct {
 } charge_session_t;          // 24 bytes — exactly charger_event_t.payload's limit
 ```
 
-**⚠️ This struct is at the payload ceiling.** `charger_event_t.payload` is 24 bytes and
-`task_tes_sm.c` `memcpy`s the whole struct into it; a `_Static_assert` at that call site
-blocks any further growth at compile time. To add a field, widen the payload first.
+**⚠️ `session_event_t` fills the payload.** `charger_event_t.payload` went 24 → 32 bytes on
+2026-10-17 for it (8 subscribers × 8-deep queues = +512 bytes of internal RAM); `_Static_assert`s
+in `task_tes_sm.c` and `log_svc.c` block further growth. Widen the payload first.
 
-**⚠️ Changing this struct's size discards existing history.** `log_svc_init()` compares
-the stored blob length against `sizeof(session_log_t)` and starts fresh on mismatch —
-deliberate, since reinterpreting old records at the new stride misaligns every field.
-There is no migration path; write one if history ever needs to survive.
+**Changing the record size needs a migration.** `log_svc_init()` checks the stored blob length;
+the 484-byte `charge_session_t` format is converted (`session_log_v1_t`, start time 0) so an OTA
+keeps the history. Anything else unrecognised starts fresh. Next time the record changes, add
+another branch there rather than discarding.
 
 `GET /history` returns newest-first JSON array (max 20 entries), each with a
-`session_id` linking to the trace buffers below, plus `fault_source` / `fault_ctx_a`.
+`session_id` linking to the trace buffers below, plus `fault_source` / `fault_ctx_a` and
+`start_epoch` (0 = unknown; shown as the 日期 column).
 The web UI renders those through the same `FAULTS[]` table as the live fault panel, so
 a fault stop reads "充電槍鬆脫" rather than a bare "故障".
 
@@ -1645,12 +1663,13 @@ shows 離線 without affecting the others.
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
 | GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
-| POST | `/config` | Partial update (any subset); WiFi changes require reboot |
+| POST | `/config` | Partial update (any subset); WiFi changes require reboot. Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc` |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |
 | POST | `/ota/upload` | Upload binary (`application/octet-stream`); progress via `/status` |
-| GET | `/history` | Last 20 charge sessions (newest-first), incl. `session_id`, `fault_source`, `fault_ctx_a` |
+| GET | `/history` | Last 20 charge sessions (newest-first), incl. `start_epoch`, `session_id`, `fault_source`, `fault_ctx_a` |
+| GET | `/energy` | Monthly energy `{"months":[{"ym","wh","est_wh","sessions","est_sessions"}],"undated","psu_eff","kwh_price"}`, oldest first, ≤ 36 months |
 | GET | `/trace` | Charge-curve samples for a session + session list (chunked) |
 | GET | `/tracelog` | Timestamped value-change log for a session (chunked) |
 | GET | `/manifest.json` | PWA manifest |
@@ -1671,7 +1690,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 32`; currently 28 handlers registered
+- `max_uri_handlers = 32`; currently 29 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)

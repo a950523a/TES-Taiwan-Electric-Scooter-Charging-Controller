@@ -440,6 +440,9 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     }
     cJSON_AddStringToObject(root, "psu_peer_mac",    mac_str);
     cJSON_AddBoolToObject  (root, "psu_pairing",     psu_driver_is_pairing());
+    // 月充電量的電費換算（存在 log_svc，不在 charger_config_t）
+    cJSON_AddNumberToObject(root, "psu_eff",         log_svc_psu_eff_pct());
+    cJSON_AddNumberToObject(root, "kwh_price",       log_svc_kwh_price_c() / 100.0);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -468,6 +471,8 @@ static const httpd_uri_t s_uri_get_config = {
 //   target_soc   int %     (20–100)
 //   wifi_ssid    string
 //   wifi_pass    string
+//   psu_eff      int %   (50–100，月充電量的電費換算，存在 log_svc)
+//   kwh_price    float 元 (0–20，0 = 不換算電費)
 //   beacon       bool
 
 static esp_err_t handle_post_config(httpd_req_t *req)
@@ -665,8 +670,22 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         if (t == 0 || t == 1) { new_psu_transport = (uint8_t)t; psu_transport_changed = true; }
     }
 
+    // 電費換算：psu_eff 50–100 %、kwh_price 0–20 元（0 = 不換算）。範圍外的值不採用
+    uint8_t  new_eff   = log_svc_psu_eff_pct();
+    uint16_t new_price = log_svc_kwh_price_c();
+    bool     cost_changed = false;
+    item = cJSON_GetObjectItem(root, "psu_eff");
+    if (cJSON_IsNumber(item) && item->valuedouble >= 50 && item->valuedouble <= 100) {
+        new_eff = (uint8_t)(item->valuedouble + 0.5); cost_changed = true;
+    }
+    item = cJSON_GetObjectItem(root, "kwh_price");
+    if (cJSON_IsNumber(item) && item->valuedouble >= 0 && item->valuedouble <= 20) {
+        new_price = (uint16_t)(item->valuedouble * 100.0 + 0.5); cost_changed = true;
+    }
+
     cJSON_Delete(root);
 
+    if (cost_changed)         log_svc_set_cost(new_eff, new_price);
     if (device_name_changed) {
         config_svc_set_device_name(new_device_name);
         // mDNS 的 instance name 與 TXT 是廣告出去的內容，改名要立刻反映，
@@ -965,22 +984,25 @@ static const httpd_uri_t s_uri_get_wifi_scan = {
 
 static esp_err_t handle_get_history(httpd_req_t *req)
 {
-    charge_session_t buf[20];
-    uint8_t n = log_svc_get_history(buf, 20);
+    static charge_record_t rec[20];   // 560 bytes：不放 httpd 的堆疊。httpd 只有一個 worker，不會同時進來
+    uint8_t n = log_svc_get_history(rec, 20);
 
     cJSON *arr = cJSON_CreateArray();
     for (uint8_t i = 0; i < n; i++) {
+        const charge_session_t *b = &rec[i].s;
         cJSON *obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "duration_s",       buf[i].duration_s);
-        cJSON_AddNumberToObject(obj, "energy_wh",        (double)buf[i].energy_wh);
-        cJSON_AddBoolToObject  (obj, "energy_estimated", buf[i].energy_estimated);
-        cJSON_AddNumberToObject(obj, "stop_voltage_v",   (double)buf[i].stop_voltage_v);
-        cJSON_AddNumberToObject(obj, "soc_start",        buf[i].soc_start);
-        cJSON_AddNumberToObject(obj, "soc_end",          buf[i].soc_end);
-        cJSON_AddNumberToObject(obj, "stop_reason",      buf[i].stop_reason);
-        cJSON_AddNumberToObject(obj, "session_id",       buf[i].session_id);
-        cJSON_AddNumberToObject(obj, "fault_source",     buf[i].fault_source);
-        cJSON_AddNumberToObject(obj, "fault_ctx_a",      buf[i].fault_ctx_a);
+        // 開始充電的 Unix 秒；0 = 不知道（2026-10-17 前的紀錄，或一直沒對到時）
+        cJSON_AddNumberToObject(obj, "start_epoch",      rec[i].start_epoch);
+        cJSON_AddNumberToObject(obj, "duration_s",       b->duration_s);
+        cJSON_AddNumberToObject(obj, "energy_wh",        (double)b->energy_wh);
+        cJSON_AddBoolToObject  (obj, "energy_estimated", b->energy_estimated);
+        cJSON_AddNumberToObject(obj, "stop_voltage_v",   (double)b->stop_voltage_v);
+        cJSON_AddNumberToObject(obj, "soc_start",        b->soc_start);
+        cJSON_AddNumberToObject(obj, "soc_end",          b->soc_end);
+        cJSON_AddNumberToObject(obj, "stop_reason",      b->stop_reason);
+        cJSON_AddNumberToObject(obj, "session_id",       b->session_id);
+        cJSON_AddNumberToObject(obj, "fault_source",     b->fault_source);
+        cJSON_AddNumberToObject(obj, "fault_ctx_a",      b->fault_ctx_a);
         cJSON_AddItemToArray(arr, obj);
     }
 
@@ -1001,6 +1023,51 @@ static esp_err_t handle_get_history(httpd_req_t *req)
 
 static const httpd_uri_t s_uri_get_history = {
     .uri = "/history", .method = HTTP_GET, .handler = handle_get_history
+};
+
+// ── GET /energy ───────────────────────────────────────────────────────────────
+// 每月充入電量（log_svc / energy_month.h），給充電紀錄的月圖表。months 由舊到新，最多 36 個月；
+// wh 含估算，est_wh 是其中沒接 PSU、電流用設定值估的部分。undated = 沒有開始時間、沒算進去的次數。
+// psu_eff / kwh_price 是使用者設的換算參數（kwh_price 0 = 沒設，不換算電費）
+
+static esp_err_t handle_get_energy(httpd_req_t *req)
+{
+    static energy_book_t book;   // 580 bytes，理由同 /history
+    log_svc_get_energy(&book);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *arr  = cJSON_AddArrayToObject(root, "months");
+    for (int i = 0; i < book.count; i++) {
+        const energy_month_t *m = &book.m[i];
+        cJSON *o = cJSON_CreateObject();
+        char ym[12];
+        snprintf(ym, sizeof ym, "%04u-%02u", (unsigned)m->year, (unsigned)m->month);
+        cJSON_AddStringToObject(o, "ym",           ym);
+        cJSON_AddNumberToObject(o, "wh",           (double)m->wh);
+        cJSON_AddNumberToObject(o, "est_wh",       (double)m->est_wh);
+        cJSON_AddNumberToObject(o, "sessions",     m->sessions);
+        cJSON_AddNumberToObject(o, "est_sessions", m->est_sessions);
+        cJSON_AddItemToArray(arr, o);
+    }
+    cJSON_AddNumberToObject(root, "undated",   book.undated);
+    cJSON_AddNumberToObject(root, "psu_eff",   log_svc_psu_eff_pct());
+    cJSON_AddNumberToObject(root, "kwh_price", log_svc_kwh_price_c() / 100.0);
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json alloc");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(req, json);
+    free(json);
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_get_energy = {
+    .uri = "/energy", .method = HTTP_GET, .handler = handle_get_energy
 };
 
 // ── GET /devices ──────────────────────────────────────────────────────────────
@@ -2105,7 +2172,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 32;   // 目前註冊 28 個，留餘裕
+    cfg.max_uri_handlers  = 32;   // 目前註冊 29 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     // 名額滿了就關掉最久沒用的那條，而不是拒絕新的。沒開時（2026-10-14 前）幾支手機進出家門
@@ -2134,6 +2201,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_icon);
     httpd_register_uri_handler(s_server, &s_uri_get_wifi_scan);
     httpd_register_uri_handler(s_server, &s_uri_get_history);
+    httpd_register_uri_handler(s_server, &s_uri_get_energy);
     httpd_register_uri_handler(s_server, &s_uri_get_trace);
     httpd_register_uri_handler(s_server, &s_uri_get_tracelog);
     httpd_register_uri_handler(s_server, &s_uri_post_notify_test);

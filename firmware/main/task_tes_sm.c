@@ -11,6 +11,7 @@
 #include "services/config_svc.h"
 #include "services/event_bus.h"
 #include "services/trace_svc.h"
+#include "services/log_svc.h"
 #include "services/auto_volt.h"
 #include "platform/platform.h"
 #include "esp_log.h"
@@ -19,6 +20,7 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static const char *TAG = "task_tes_sm";
 
@@ -32,6 +34,8 @@ static float    s_session_energy_wh     = 0.0f;
 static uint8_t  s_soc_start             = 0;
 static uint32_t s_session_end_sec       = 0;
 static float    s_session_end_v         = 0.0f; // output voltage the tick we left CHARGING
+static uint32_t s_session_start_epoch   = 0;    // 進入 CHARGING 的 Unix 秒；0 = 當時還沒對時
+static uint32_t s_session_start_up_ms   = 0;    // 同一刻的開機毫秒，之後對到時用來回推
 static bool     s_session_psu_seen      = false; // PSU connected at any tick during session
 
 // CAN diag: last received RX raw values + last sent TX frames
@@ -536,6 +540,9 @@ void task_tes_sm(void *arg)
                 s_session_energy_wh = 0.0f;
                 s_soc_start         = snap.soc;
                 s_session_psu_seen  = false;
+                time_t now = time(NULL);
+                s_session_start_epoch = (now > 1600000000) ? (uint32_t)now : 0u;
+                s_session_start_up_ms = inputs.tick_ms;
             }
             // Capture duration + output voltage the tick we leave CHARGING —
             // by the time we reach IDLE the relay is open and both read ~0.
@@ -553,6 +560,13 @@ void task_tes_sm(void *arg)
                 uint8_t reason = snap.stop_reason;
                 float   stop_v = (reason == STOP_REASON_VOLTAGE) ? s_session_end_v : 0.0f;
 
+                // 開始時還沒對時、現在對到了：用經過的時間回推（同一次開機，同一個時基）
+                uint32_t start_epoch = s_session_start_epoch;
+                if (!start_epoch) {
+                    time_t now = time(NULL);
+                    if (now > 1600000000)
+                        start_epoch = (uint32_t)now - (inputs.tick_ms - s_session_start_up_ms) / 1000u;
+                }
                 charge_session_t sess = {
                     .duration_s       = s_session_end_sec,
                     .energy_wh        = s_session_energy_wh,
@@ -568,11 +582,14 @@ void task_tes_sm(void *arg)
                 };
                 charger_event_t sess_evt = { .type = EVT_SESSION_COMPLETE,
                                              .timestamp_ms = inputs.tick_ms };
-                // charge_session_t 目前正好等於 payload 上限。再加欄位的話
-                // 這個 memcpy 會靜默寫過頭，因此在編譯期就擋下來。
-                _Static_assert(sizeof(charge_session_t) <= sizeof(sess_evt.payload),
-                               "charge_session_t exceeds charger_event_t.payload");
-                memcpy(sess_evt.payload, &sess, sizeof(charge_session_t));
+                session_event_t sev = {
+                    .rec = { .s = sess, .start_epoch = start_epoch },
+                    .start_uptime_ms = s_session_start_up_ms,
+                };
+                // 再加欄位的話這個 memcpy 會靜默寫過頭，因此在編譯期就擋下來
+                _Static_assert(sizeof(session_event_t) <= sizeof(sess_evt.payload),
+                               "session_event_t exceeds charger_event_t.payload");
+                memcpy(sess_evt.payload, &sev, sizeof sev);
                 event_bus_publish(&sess_evt);
                 s_session_active = false;
             }

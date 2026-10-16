@@ -147,6 +147,10 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 .hist-table th{color:#555;font-weight:normal;text-align:left;padding:4px 6px;border-bottom:1px solid #2a2a2a}
 .hist-table td{padding:5px 6px;border-bottom:1px solid #1e1e1e;vertical-align:middle}
 .hist-table tr:last-child td{border-bottom:none}
+.en-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:4px 0 2px;font-size:.82em;color:#999}
+.en-head b{color:#ddd;font-size:1.15em}
+.en-note{color:#555;font-size:.7em;line-height:1.5;margin:2px 0 8px}
+.en-chart svg{display:block;width:100%;height:auto}
 .hist-reason-0{color:#4d4}.hist-reason-1{color:#aaa}.hist-reason-2{color:#f55}.hist-reason-3{color:#f80}.hist-reason-4{color:#db4}.hist-reason-5{color:#77f}
 /* ── 每則充電紀錄底下的曲線 + 詳細 Log ── */
 .hist-table tr.hrow{cursor:pointer}
@@ -321,6 +325,12 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div id="timer-row" style="display:none">
     <label class="lbl2">充電時長上限（分鐘，10–600）</label>
     <input type="number" id="ctm" step="1" min="1" max="600">
+  </div>
+  <div id="cost-rows" style="display:none">
+    <label class="lbl2">月充電量換算：電源效率（%，50–100）</label>
+    <input type="number" id="ceff" step="1" min="50" max="100">
+    <label class="lbl2">每度電價（元，0 = 不換算電費）</label>
+    <input type="number" id="cprice" step="0.01" min="0" max="20">
   </div>
   <div class="chk-row" style="margin-top:12px">
     <input type="checkbox" id="csta" onchange="updateStaUI()">
@@ -552,10 +562,11 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 <!-- 充電紀錄 -->
 <div class="card">
   <section-title>📋 充電紀錄 <span style="font-size:.75em;background:#553300;color:#ffa;padding:1px 5px;border-radius:3px;vertical-align:middle">Beta</span> <button class="b-refresh" onclick="loadHistory()">↻ 重新整理</button></section-title>
+  <div id="energy-box" style="display:none"></div>
   <div id="hist-body">
     <table class="hist-table">
-      <thead><tr><th></th><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
-      <tbody id="hist-rows"><tr><td colspan="5" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
+      <thead><tr><th></th><th>日期</th><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
+      <tbody id="hist-rows"><tr><td colspan="6" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
     </table>
   </div>
   <div style="color:#3d3d3d;font-size:.7em;margin-top:7px">有 ▸ 的列可以展開，看該次的充電曲線與詳細 Log</div>
@@ -1041,6 +1052,13 @@ async function loadCfg(){
     document.getElementById('sm'+(d.stop_mode||0)).checked=true;
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
     document.getElementById('ctm').value=d.charge_timer_min||120;
+    // 舊韌體沒有電費換算：整組藏起來，collectCfg 也不會送
+    HAS_COST=(d.psu_eff!==undefined);
+    document.getElementById('cost-rows').style.display=HAS_COST?'':'none';
+    if(HAS_COST){
+      document.getElementById('ceff').value=d.psu_eff;
+      document.getElementById('cprice').value=d.kwh_price||0;
+    }
     document.getElementById('ci').value=d.wifi_ssid;
     // 舊韌體的 /config 沒有這個欄位，undefined 要當成「開啟」，否則畫面會謊報成關閉
     document.getElementById('csta').checked=(d.sta_enabled!==false);
@@ -1212,6 +1230,7 @@ function updateStaUI(){
 // CFG_BASE 是裝置上目前的值（每次載入／儲存成功後更新）。畫面上的值與它比對，
 // 差異就是「未儲存的變更」—— 既用來顯示浮動列，也用來決定 POST 只送哪幾個欄位。
 let CFG_BASE=null;
+let HAS_COST=false;
 
 // key → 要標記的元素 id。單一欄位就是它自己，選項群組標在外框上。
 const CFG_ANCHOR={
@@ -1223,7 +1242,8 @@ const CFG_ANCHOR={
   mqtt_cmd_enabled:'mqtt-cmd',
   sched_enabled:'sched-en', sched_start_min:'sched-start',
   sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
-  auto_start:'auto-start-en', psu_transport:'psu-transport-row'
+  auto_start:'auto-start-en', psu_transport:'psu-transport-row',
+  psu_eff:'ceff', kwh_price:'cprice'
 };
 
 // 空欄位的 parseFloat 會是 NaN，而 NaN !== NaN 會讓該欄永遠顯示為「已變更」
@@ -1254,7 +1274,11 @@ function collectCfg(){
     sched_stop_en:document.getElementById('sched-stop-en').checked,
     sched_stop_min:timeToMin(document.getElementById('sched-stop').value),
     auto_start:document.getElementById('auto-start-en').checked,
-    psu_transport:document.getElementById('pt1').checked?1:0
+    psu_transport:document.getElementById('pt1').checked?1:0,
+    ...(HAS_COST?{
+      psu_eff:num(document.getElementById('ceff').value,null),
+      kwh_price:num(document.getElementById('cprice').value,null)
+    }:{})
   };
 }
 
@@ -1353,6 +1377,7 @@ async function save(){
     // 儲存成功：畫面上的值成為新的基準，浮動列與標記一併清掉
     CFG_BASE=now;
     s_psu_transport_loaded=now.psu_transport;
+    if('psu_eff' in b||'kwh_price' in b)loadEnergy();   // 月圖表的換算跟著更新
     document.getElementById('cp').value='';
 
     // 需要使用者接手處理的情況，訊息要留著、而且要讓人看得到 ——
@@ -1793,6 +1818,61 @@ function paintDetail(sid){
 
 /* ── 清單 ───────────────────────────────────────────────────────────────── */
 
+function fmtWhen(ep){
+  return new Date(ep*1000).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+/* ── 月充電量（/energy）──────────────────────────────────────────────────── */
+// 充進電池的直流電量，不是電費單的度數：牆上用的電還要除以電源效率。
+// 沒接 PSU 時電流用設定值估，那部分畫淡色。舊韌體沒有 /energy → 整塊不顯示。
+async function loadEnergy(){
+  const box=document.getElementById('energy-box');
+  let d;
+  try{const r=await fetch('/energy');if(!r.ok)throw 0;d=await r.json();}
+  catch(e){box.style.display='none';return;}
+  const by={};(d.months||[]).forEach(m=>by[m.ym]=m);
+  // 最近 12 個月（含這個月），沒資料的月份畫 0
+  const now=new Date(), list=[];
+  for(let i=11;i>=0;i--){
+    const t=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const ym=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+    list.push(Object.assign({ym,mo:t.getMonth()+1,wh:0,est_wh:0,sessions:0,est_sessions:0},by[ym]||{}));
+  }
+  const cur=list[11], eff=(d.psu_eff||90)/100, price=d.kwh_price||0;
+  const kwh=w=>(w/1000).toFixed(w<10000?2:1);
+  let head=`<span>本月充入 <b>${kwh(cur.wh)} kWh</b>（${cur.sessions} 次）</span>`;
+  if(price>0){
+    const grid=cur.wh/1000/eff;
+    head+=`<span>約 ${grid.toFixed(1)} 度 · 約 NT$${Math.round(grid*price)}</span>`;
+  }
+  // SVG 長條圖：手寫，AP 模式沒有網路，不能用 CDN 函式庫
+  const W=320,H=120,ML=4,MR=4,MT=12,MB=16,bw=(W-ML-MR)/12;
+  const max=Math.max(1,...list.map(m=>m.wh));
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="最近 12 個月的充入電量">`;
+  list.forEach((m,i)=>{
+    const x=ML+i*bw+bw*0.15, w=bw*0.7, ph=H-MT-MB;
+    const hAll=m.wh/max*ph, hEst=m.est_wh/max*ph, y=MT+ph-hAll;
+    const tip=`${m.ym}：${kwh(m.wh)} kWh，${m.sessions} 次`+(m.est_wh>0?`（估算 ${kwh(m.est_wh)} kWh）`:'')
+             +(price>0&&m.wh>0?`，約 NT$${Math.round(m.wh/1000/eff*price)}`:'');
+    svg+=`<g><title>${tip}</title>`
+        +`<rect x="${x.toFixed(1)}" y="${MT}" width="${w.toFixed(1)}" height="${ph}" fill="transparent"/>`
+        +(hAll-hEst>0?`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${(hAll-hEst).toFixed(1)}" fill="#3a8a4a"/>`:'')
+        +(hEst>0?`<rect x="${x.toFixed(1)}" y="${(y+hAll-hEst).toFixed(1)}" width="${w.toFixed(1)}" height="${hEst.toFixed(1)}" fill="#25452c"/>`:'')
+        +`</g>`;
+    if(m.wh>0&&i===11)svg+=`<text x="${(x+w/2).toFixed(1)}" y="${(y-3).toFixed(1)}" fill="#aaa" font-size="9" text-anchor="middle">${kwh(m.wh)}</text>`;
+    svg+=`<text x="${(x+w/2).toFixed(1)}" y="${H-4}" fill="${i===11?'#aaa':'#555'}" font-size="9" text-anchor="middle">${m.mo}月</text>`;
+  });
+  svg+='</svg>';
+  const notes=[];
+  if(list.some(m=>m.est_wh>0))notes.push('淡色為估算：沒接可程式電源時，電流以「最大電流」設定值計算');
+  if(d.undated>0)notes.push(`${d.undated} 次充電開始時控制器還沒對到網路時間，未計入`);
+  notes.push(price>0?`電費以電源效率 ${d.psu_eff||90}%、每度 ${price} 元換算，僅供參考`
+                    :'這是充進電池的電量；在設定填入每度電價，可換算成大約的電費');
+  box.innerHTML=`<div class="en-head">${head}</div><div class="en-chart">${svg}</div>`
+               +`<div class="en-note">${notes.join('<br>')}</div>`;
+  box.style.display='';
+}
+
 function rowHtml(r){
   const sid=r.session_id||0;
   const can=sid&&TR.haveTrace.has(sid);   // 曲線/Log 只在 RAM，重開機就沒了
@@ -1805,10 +1885,8 @@ function rowHtml(r){
   let cells;
   if(r.kind==='trace'){
     // 只有 trace、沒有 NVS 紀錄 → 沒進到 CHARGING 就結束的嘗試
-    const when=r.start_epoch
-      ?new Date(r.start_epoch*1000).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
-      :`開機 +${fmtDur(r.start_uptime_ms)}`;
-    cells=`<td>${when}</td><td>—</td><td>—</td>`
+    const when=r.start_epoch?fmtWhen(r.start_epoch):`開機 +${fmtDur(r.start_uptime_ms)}`;
+    cells=`<td>${when}</td><td>—</td><td>—</td><td>—</td>`
          +`<td><span style="color:#886">未完成</span></td>`;
   }else{
     const dur=r.duration_s>=3600
@@ -1826,7 +1904,9 @@ function rowHtml(r){
       const ft=FAULTS[fs].title;
       reasonText=(typeof ft==='function')?ft(r.fault_ctx_a|0,0):ft;
     }
-    cells=`<td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}</td>`
+    // 開始時間：2026-10-17 之前的紀錄與一直沒對到時的那幾輪沒有（0）
+    const when=r.start_epoch?fmtWhen(r.start_epoch):'<span style="color:#444">—</span>';
+    cells=`<td>${when}</td><td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}</td>`
          +`<td>${r.soc_start}% → ${r.soc_end}%</td>`
          +`<td><span class="${STOP_CLS[ri]}">${reasonText}</span></td>`;
   }
@@ -1835,14 +1915,15 @@ function rowHtml(r){
           +`<td class="cr">${cr}</td>${cells}</tr>`;
   if(can){
     html+=`<tr class="hdet" id="hdet-${sid}" style="display:none">`
-         +`<td colspan="5"><div class="hdet-in"></div></td></tr>`;
+         +`<td colspan="6"><div class="hdet-in"></div></td></tr>`;
   }
   return html;
 }
 
 async function loadHistory(){
+  loadEnergy();
   const tbody=document.getElementById('hist-rows');
-  tbody.innerHTML='<tr><td colspan="5" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr>';
+  tbody.innerHTML='<tr><td colspan="6" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr>';
   try{
     // 兩個來源一起抓：NVS 摘要 + RAM 裡還在的 trace session
     const [hist,tr]=await Promise.all([
@@ -1862,14 +1943,14 @@ async function loadHistory(){
     rows.sort((a,b)=>(b.session_id||0)-(a.session_id||0));
 
     if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="5" style="color:#444;text-align:center;padding:12px">尚無紀錄</td></tr>';
+      tbody.innerHTML='<tr><td colspan="6" style="color:#444;text-align:center;padding:12px">尚無紀錄</td></tr>';
       return;
     }
     TR.rows=rows;
     TR.open.clear();
     tbody.innerHTML=rows.map(rowHtml).join('');
   }catch(e){
-    tbody.innerHTML='<tr><td colspan="5" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" style="color:#f55;text-align:center;padding:12px">✗ 讀取失敗</td></tr>';
   }
 }
 function checkAutoStart(){

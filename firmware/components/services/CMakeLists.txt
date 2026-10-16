@@ -10,6 +10,7 @@ idf_component_register(
         "live_progress.c"
         "boot_notice.c"
         "log_svc.c"
+        "energy_month.c"
         "trace_svc.c"
         "mqtt_svc.c"
         "scheduler_svc.c"

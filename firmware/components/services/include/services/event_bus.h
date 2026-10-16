@@ -23,13 +23,13 @@ typedef enum {
     EVT_OTA_PROGRESS,
     EVT_OTA_COMPLETE,
     EVT_FAULT_CLEAR,
-    EVT_SESSION_COMPLETE,   // payload: charge_session_t (12 bytes)
+    EVT_SESSION_COMPLETE,   // payload: session_event_t (log_svc.h, 32 bytes)
 } event_type_t;
 
 typedef struct {
     event_type_t type;
     uint32_t     timestamp_ms;
-    uint8_t      payload[24];
+    uint8_t      payload[32];   // largest: session_event_t. 8 subscribers x 8-deep queues live in internal RAM
 } charger_event_t;
 
 void          event_bus_init     (void);
