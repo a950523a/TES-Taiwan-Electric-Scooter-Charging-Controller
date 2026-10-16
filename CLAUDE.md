@@ -754,10 +754,11 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | Auto Volt | ON / OFF | toggle | toggle |
 | Max Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（顯示為 "V Cap" when Auto ON） | ±0.1 V | ±1 V (auto-repeat) |
 | Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
-| Stop Mode | SOC / Volt / Timer | toggle | toggle |
+| Stop Mode | SOC / Volt / Timer / kWh | toggle | toggle |
 | Target SOC | 20% -- 100%（Stop Mode=SOC 時顯示） | ±1% | ±5% (auto-repeat) |
 | Stop Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
 | Charge Timer | 1 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
+| Stop E | 0.1 -- 20.0 kWh（Stop Mode=kWh 時顯示） | ±0.1 kWh | ±1 kWh (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
 | WiFi Info | read-only display | — | — |
 | Scheduler | ON / OFF | toggle | toggle |
@@ -773,6 +774,7 @@ OLED status screen:
 - **SOC 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72/95%  1h23m`
 - **Volt 模式**：第二行 `54.2V/100.0V`（即時/目標電壓），第三行 `SOC:72%  1h23m`
 - **Timer 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72%  1h23m/2h00m`（已充時間/目標充電時長）
+- **kWh 模式**：第二行 `54.2V  12.3A`，第三行 `0.85/1.5kWh  1h23m`（已充入/目標＋剩餘時間；沒接 PSU 時 `~0.85/1.5kWh`，≥10 kWh 改一位小數）。SOC 放不下，網頁與 App 有
 
 Web UI voltage/SOC display mirrors OLED: Volt mode shows `voltage / stop_voltage`; SOC mode shows `soc% / target_soc%`; Timer mode shows single voltage and reference SOC only.
 
@@ -899,6 +901,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `stop_m` | uint32 | 0 | Stop mode: 0=SOC, 1=Volt, 2=Timer |
 | `stop_v` | uint32 | 1000 | Stop voltage × 10 (i.e. 100.0 V) |
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
+| `stop_e` | uint32 | 1000 | Energy stop target (Wh, 100–20000), stop mode 3 |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
 | `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
 | `chg_mark` | u32 | 0 | Charging-in-progress mark for the post-reboot notice: `0x100 \| start SOC`, 0 = not charging |
@@ -956,10 +959,17 @@ on the web status card, in the app, and on the OLED's bottom line in IDLE (`!PSU
 re-evaluated every second in IDLE, so turning the knob down clears it.
 
 ### Stop Mode
-Three mutually exclusive termination conditions (NVS key `stop_m`). SM checks in `run_monitoring()`:
+Four mutually exclusive termination conditions (NVS key `stop_m`). SM checks in `run_monitoring()`:
 - `STOP_MODE_SOC=0`: BMS SOC ≥ target_soc
 - `STOP_MODE_VOLTAGE=1`: output voltage ≥ stop_voltage_01v/10.0 (NVS key `stop_v`)
 - `STOP_MODE_TIMER=2`: charge_elapsed_ms ≥ charge_timer_min × 60000 (NVS key `timer_m`)
+- `STOP_MODE_ENERGY=3` (2026-10-17): energy delivered this session ≥ `stop_energy_wh` (NVS key
+  `stop_e`, Wh, 100–20000, default 1000) → `STOP_REASON_ENERGY` (7), counted as a completed charge
+  (green LED). The energy is `task_tes_sm`'s V×I sum, passed in as `session_energy_wh`. **Without a
+  PSU link it is an estimate** (current = Max Current setting), and when the BMS tapers it reads high,
+  so the session may stop early — never late; SOC 100 % and the BMS still stop it. The web UI and app
+  say so, the OLED prefixes the number with `~`. Both enum values were appended to TES-Protocol
+  (`eb72b20`). REST/MQTT carry `stop_energy` in **kWh** (one decimal).
 
 Voltage source is PSU-reported; ADC fallback if PSU standby.
 
@@ -1029,10 +1039,11 @@ every 5 s), then the mark is cleared — unless a new session has already starte
 
 **Live charging progress for the app (Android Now Bar / Live Updates).** While CHARGING, `task_notify`
 wakes every 5 s (`LIVE_POLL_MS`) even without events and sends a *data-only* push (no title/body,
-`ttl` 300 s) to registered phones — `{"k":"live","id","m","p","soc","tsoc","v","sv","el","tm","rem","w"}`,
+`ttl` 300 s) to registered phones — `{"k":"live","id","m","p","soc","tsoc","v","sv","el","tm","rem","w","e","se"}`
+(`e`/`se` = delivered / target Wh, for stop mode 3),
 voltages in 0.1 V, all integers so no `%f` on the 6 KB stack. `p` is the progress the user asked for,
 **by stop mode**: SOC → soc ÷ target, voltage → from the voltage at charge start to the stop voltage,
-timer → elapsed ÷ set time (`live_progress.c`, pure C, host-tested). A push goes out when `p` changes,
+timer → elapsed ÷ set time, energy → delivered ÷ target (`live_progress.c`, pure C, host-tested). A push goes out when `p` changes,
 at most once per 30 s (`live_should_send`); leaving CHARGING sends `{"k":"live_end","id","r"}` so the
 app clears its ongoing notification. The app builds the notification itself in a background task — the
 firmware never sends display text for it, and `notify_url` does not get these.
@@ -1213,7 +1224,8 @@ request overlaid as a dashed line; SOC is fixed 0–100 %. Hand-written SVG:
 
 ### MQTT Remote Monitoring
 NVS keys: `mqtt_url` (empty = disabled), `mqtt_topic`. Publishes `{prefix}/status` every 10 s (CHARGING) or 30 s (other), immediately on state change. LWT: `{"state":"offline"}` retained. Subscribes `{prefix}/cmd` QoS 1 for `{"cmd":"start"/"stop"}` → `g_btn_event_queue`. The status JSON
-carries `remote_cmd` (= `mqtt_cmd_enabled`, 2026-10-14) so the app can tell from outside the LAN
+carries `stop_mode` and `stop_energy` (kWh, 2026-10-17, so the app and Cloud PWA can show delivered / target
+remotely; buffers went 384 → 448 bytes) and `remote_cmd` (= `mqtt_cmd_enabled`, 2026-10-14) so the app can tell from outside the LAN
 whether commands will be heeded; the subscription itself only changes on reconnect, so after toggling
 the setting the two can disagree until a reboot. Uses ESP-IDF `esp-mqtt` component. `GET /mqtt/link` returns Cloud PWA URL with broker/topic in fragment.
 

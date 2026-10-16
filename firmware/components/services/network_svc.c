@@ -279,6 +279,7 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     const charger_config_t *cfg_snap = config_svc_get();
     cJSON_AddNumberToObject(root, "stop_mode",      (int)cfg_snap->stop_mode);
     cJSON_AddNumberToObject(root, "stop_voltage",   (double)cfg_snap->stop_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "stop_energy",    cfg_snap->stop_energy_wh / 1000.0);   // kWh
     cJSON_AddNumberToObject(root, "charge_timer_min", cfg_snap->charge_timer_min);
 
     // PSU 連線資訊（transport/pairing 來自 config；rssi/fail_streak 來自 driver 即時狀態）
@@ -416,6 +417,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "target_soc",     cfg->target_soc);
     cJSON_AddNumberToObject(root, "stop_mode",        (int)cfg->stop_mode);
     cJSON_AddNumberToObject(root, "stop_voltage",     (double)cfg->stop_voltage_01v / 10.0);
+    cJSON_AddNumberToObject(root, "stop_energy",      cfg->stop_energy_wh / 1000.0);   // kWh，0.1–20.0
     cJSON_AddNumberToObject(root, "charge_timer_min", cfg->charge_timer_min);
     cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
     cJSON_AddBoolToObject  (root, "sta_enabled",    cfg->sta_enabled);
@@ -473,6 +475,8 @@ static const httpd_uri_t s_uri_get_config = {
 //   wifi_pass    string
 //   psu_eff      int %   (50–100，月充電量的電費換算，存在 log_svc)
 //   kwh_price    float 元 (0–20，0 = 不換算電費)
+//   stop_mode    int     (0 SOC、1 電壓、2 時間、3 充入電量)
+//   stop_energy  float kWh (0.1–20.0，stop_mode=3 時用)
 //   beacon       bool
 
 static esp_err_t handle_post_config(httpd_req_t *req)
@@ -582,7 +586,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "stop_mode");
     if (cJSON_IsNumber(item)) {
         int m = item->valueint;
-        if (m >= 0 && m <= 2) { new_stop_mode = (uint8_t)m; stop_changed = true; }
+        if (m >= 0 && m <= 3) { new_stop_mode = (uint8_t)m; stop_changed = true; }
     }
     item = cJSON_GetObjectItem(root, "stop_voltage");
     if (cJSON_IsNumber(item)) {
@@ -595,6 +599,13 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (cJSON_IsNumber(item)) {
         int t = item->valueint;
         if (t >= 1 && t <= 600) { new_charge_timer = (uint16_t)t; stop_changed = true; }
+    }
+    // 充入電量目標：kWh，0.1–20.0（一位小數）
+    int  new_stop_energy_wh = -1;
+    item = cJSON_GetObjectItem(root, "stop_energy");
+    if (cJSON_IsNumber(item)) {
+        int wh = (int)(item->valuedouble * 10.0 + 0.5) * 100;
+        if (wh >= STOP_ENERGY_MIN_WH && wh <= STOP_ENERGY_MAX_WH) new_stop_energy_wh = wh;
     }
 
     char new_notify_url[128] = {0};
@@ -703,6 +714,8 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (beacon_changed)       config_svc_set_beacon(new_beacon);
     if (auto_voltage_changed) config_svc_set_auto_voltage(new_auto_voltage);
     if (notify_url_changed)   config_svc_set_notify_url(new_notify_url);
+    // 目標先存：同一個請求切到電量模式時，狀態機不會先看到舊的目標
+    if (new_stop_energy_wh > 0) config_svc_set_stop_energy((uint16_t)new_stop_energy_wh);
     if (stop_changed)         config_svc_set_stop((stop_mode_t)new_stop_mode, new_stop_voltage, new_charge_timer);
     if (mqtt_changed)         config_svc_set_mqtt(new_mqtt_broker_url, new_mqtt_topic_prefix);
     if (sched_changed)        config_svc_set_scheduler(new_sched_enabled, new_sched_start_min, new_sched_stop_en, new_sched_stop_min);

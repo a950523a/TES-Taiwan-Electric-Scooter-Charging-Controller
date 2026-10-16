@@ -67,7 +67,7 @@ static int build_status_json(char *buf, size_t len)
         "\"soc\":%d,\"target_soc\":%d,"
         "\"elapsed_seconds\":%lu,\"remaining_seconds\":%lu,"
         "\"fault\":%s,\"charge_complete\":%s,\"timer_running\":%s,"
-        "\"remote_cmd\":%s}",
+        "\"remote_cmd\":%s,\"stop_mode\":%d,\"stop_energy\":%.1f}",
         state_str(snap.state),
         snap.output_voltage, snap.output_current,
         snap.output_voltage * snap.output_current, snap.energy_wh,
@@ -81,7 +81,9 @@ static int build_status_json(char *buf, size_t len)
         // 有沒有訂閱 cmd：App 在外面讀不到 /config，靠這個決定要不要顯示遠端啟停。
         // 以連線時的設定為準（訂閱只在 MQTT_EVENT_CONNECTED 做）——改了開關要重新啟動才生效，
         // 這裡報的是 config 值，所以重開前可能和實際訂閱不一致
-        config_svc_get()->mqtt_cmd_enabled ? "true" : "false");
+        config_svc_get()->mqtt_cmd_enabled ? "true" : "false",
+        // 停止條件：App 在外面也要能畫「已充入 / 目標 kWh」（2026-10-17）
+        (int)config_svc_get()->stop_mode, config_svc_get()->stop_energy_wh / 1000.0);
 }
 
 static void mqtt_event_handler(void *arg, esp_event_base_t base,
@@ -102,7 +104,7 @@ static void mqtt_event_handler(void *arg, esp_event_base_t base,
             ESP_LOGI(TAG, "remote command disabled — status publish only");
         }
         {
-            char buf[384];
+            char buf[448];
             build_status_json(buf, sizeof(buf));
             esp_mqtt_client_publish(evt->client, s_topic_status, buf, 0, 0, 1);
         }
@@ -220,7 +222,7 @@ void task_mqtt(void *arg)
 
         if (!atomic_load(&s_mqtt_connected)) continue;
 
-        char buf[384];
+        char buf[448];
         build_status_json(buf, sizeof(buf));
         esp_mqtt_client_publish(s_client, s_topic_status, buf, 0, 0, 1);
     }

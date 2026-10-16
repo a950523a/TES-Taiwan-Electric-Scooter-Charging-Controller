@@ -452,7 +452,8 @@ tes_snapshot_t tes_sm_get_snapshot(const tes_sm_t *sm)
     bool completed_ok = sm->charge_complete_latched &&
                         (sm->last_stop_reason == STOP_REASON_NORMAL  ||
                          sm->last_stop_reason == STOP_REASON_TIMER   ||
-                         sm->last_stop_reason == STOP_REASON_VOLTAGE);
+                         sm->last_stop_reason == STOP_REASON_VOLTAGE ||
+                         sm->last_stop_reason == STOP_REASON_ENERGY);
 
     // 與 OLED 的故障畫面採同一個依據：fault_latched 在自動復歸時就被清掉，
     // 只看它會造成「畫面說 FAULT STOP、LED 卻已回到待機」的矛盾。
@@ -563,6 +564,12 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
     } else if (in->stop_mode == STOP_MODE_TIMER) {
         if (sm->elapsed_seconds >= (uint32_t)in->charge_timer_min * 60u) {
             enter_ending(sm, out, in->tick_ms, STOP_REASON_TIMER); return;
+        }
+    } else if (in->stop_mode == STOP_MODE_ENERGY) {
+        // 沒接 PSU 時電量用「最大電流」設定值估，BMS 降電流後估得偏高 → 可能提早停（不會過充）。
+        // 目標 0 不採用：設定有範圍檢查，這裡只是防止壞掉的值讓一開始就停
+        if (in->stop_energy_wh > 0 && in->session_energy_wh >= (float)in->stop_energy_wh) {
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_ENERGY); return;
         }
     } else {
         if (sm->soc >= (uint8_t)sm->cfg.target_soc) {

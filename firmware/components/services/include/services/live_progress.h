@@ -8,6 +8,7 @@
 //   STOP_MODE_SOC     → SOC ÷ 目標 SOC
 //   STOP_MODE_VOLTAGE → 從開始充電時的電壓走到停止電壓
 //   STOP_MODE_TIMER   → 已充時間 ÷ 設定時間
+//   STOP_MODE_ENERGY  → 已充入電量 ÷ 目標電量（2026-10-17）
 // 進度每變 1% 送一次，但兩次之間至少隔 LIVE_MIN_INTERVAL_MS。
 
 #define LIVE_MIN_INTERVAL_MS 30000u
@@ -21,6 +22,8 @@ typedef struct {
     uint16_t stop_v01;      // 停止電壓，0.1 V
     uint32_t elapsed_s;
     uint16_t timer_min;
+    uint32_t energy_wh;     // 本次已充入，Wh
+    uint16_t stop_energy_wh;
 } live_inputs_t;
 
 // 0–100

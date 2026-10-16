@@ -391,6 +391,8 @@ void task_tes_sm(void *arg)
         inputs.stop_mode          = cfg.stop_mode;
         inputs.stop_voltage_01v   = cfg.stop_voltage_01v;
         inputs.charge_timer_min   = cfg.charge_timer_min;
+        inputs.stop_energy_wh     = cfg.stop_energy_wh;
+        inputs.session_energy_wh  = s_session_active ? s_session_energy_wh : 0.0f;
         inputs.auto_start_enabled = cfg.auto_start;
 
         tes_sm_tick(&s_sm, &inputs, &outputs);

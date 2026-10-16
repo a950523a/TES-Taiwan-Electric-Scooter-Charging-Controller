@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include "tes_protocol/tes_types.h"
 
+// 充入電量停止條件的範圍（Wh）：0.1–20.0 kWh。網頁、App、OLED 選單與 POST /config 都照這個
+#define STOP_ENERGY_MIN_WH  100
+#define STOP_ENERGY_MAX_WH  20000
+
 // Centralised NVS access with RAM cache.
 // Fixes V2's hal_update_leds() opening NVS every 50ms.
 // All other components call config_svc_get() to read from RAM.
@@ -28,6 +32,7 @@ typedef struct {
     stop_mode_t stop_mode;           // STOP_MODE_SOC / STOP_MODE_VOLTAGE / STOP_MODE_TIMER
     uint16_t    stop_voltage_01v;    // 充電停止電壓（stop_mode=VOLTAGE 時有效）
     uint16_t    charge_timer_min;    // 充電時長上限（stop_mode=TIMER 時有效，分鐘）
+    uint16_t    stop_energy_wh;      // 充入電量目標（stop_mode=ENERGY 時有效，Wh，100–20000）
     char        notify_url[128];      // Webhook / ntfy URL（空字串 = 停用）
     char        mqtt_broker_url[128]; // MQTT broker URI，e.g. "mqtt://broker.hivemq.com:1883"（空字串 = 停用）
     char        mqtt_topic_prefix[64];// MQTT topic prefix，e.g. "tes/charger"
@@ -60,6 +65,7 @@ esp_err_t config_svc_set_sta_enabled    (bool enabled);   // false = 固定 AP �
 esp_err_t config_svc_set_beacon         (bool unlocked);
 esp_err_t config_svc_set_auto_voltage   (bool enabled);
 esp_err_t config_svc_set_stop          (stop_mode_t mode, uint16_t stop_voltage_01v, uint16_t charge_timer_min);
+esp_err_t config_svc_set_stop_energy   (uint16_t wh);   // STOP_ENERGY_MIN_WH–MAX_WH，範圍外回 INVALID_ARG
 esp_err_t config_svc_set_notify_url    (const char *url);
 esp_err_t config_svc_set_mqtt          (const char *broker_url, const char *topic_prefix);
 esp_err_t config_svc_set_mqtt_cmd      (bool enabled);   // false = 只發佈狀態，不訂閱 cmd

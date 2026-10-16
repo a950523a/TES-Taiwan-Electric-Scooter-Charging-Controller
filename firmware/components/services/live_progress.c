@@ -16,6 +16,9 @@ int live_progress_pct(const live_inputs_t *in)
     case 2:     // STOP_MODE_TIMER
         if (in->timer_min == 0) return 0;
         return clamp100((long)in->elapsed_s * 100 / ((long)in->timer_min * 60));
+    case 3:     // STOP_MODE_ENERGY
+        if (in->stop_energy_wh == 0) return 0;
+        return clamp100((long)in->energy_wh * 100 / in->stop_energy_wh);
     default:    // STOP_MODE_SOC
         if (in->target_soc <= 0) return 0;
         return clamp100((long)in->soc * 100 / in->target_soc);

@@ -37,6 +37,8 @@ typedef struct {
     stop_mode_t stop_mode;          // 充電停止條件
     uint16_t    stop_voltage_01v;   // 停止電壓（stop_mode=VOLTAGE 時有效）
     uint16_t    charge_timer_min;   // 充電時長上限（stop_mode=TIMER 時有效，分鐘）
+    uint16_t    stop_energy_wh;     // 充入電量目標（stop_mode=ENERGY 時有效，Wh）
+    float       session_energy_wh;  // 本次已充入的電量（Wh，task_tes_sm 累加；沒接 PSU 時是估算值）
 
     // 來自按鈕 / remote（atomic flags，讀後清除）
     bool start_requested;

@@ -313,6 +313,10 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
       <input type="radio" name="stop_mode" id="sm2" value="2" onchange="updateStopModeUI()" style="accent-color:#48f">
       <span>依時間停止</span>
     </label>
+    <label id="sm3-lbl" style="display:none;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="stop_mode" id="sm3" value="3" onchange="updateStopModeUI()" style="accent-color:#48f">
+      <span>依充入電量停止</span>
+    </label>
   </div>
   <div id="soc-row">
     <label class="lbl2">目標 SOC (%)</label>
@@ -325,6 +329,13 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div id="timer-row" style="display:none">
     <label class="lbl2">充電時長上限（分鐘，10–600）</label>
     <input type="number" id="ctm" step="1" min="1" max="600">
+  </div>
+  <div id="energy-row" style="display:none">
+    <label class="lbl2">充入電量目標（kWh，0.1–20）</label>
+    <input type="number" id="cse" step="0.1" min="0.1" max="20">
+    <div id="cse-est" style="display:none;color:#c90;font-size:.75em;margin-top:4px;line-height:1.5">
+      目前沒有接可程式電源，充入電量是用「最大電流」設定值估算的。電池快滿時 BMS 會降電流、估算值偏高，可能比目標<b>提早停止</b>（不會多充）。
+    </div>
   </div>
   <div id="cost-rows" style="display:none">
     <label class="lbl2">月充電量換算：電源效率（%，50–100）</label>
@@ -755,7 +766,15 @@ async function poll(){
     document.getElementById('a').textContent=d.current.toFixed(1)+' A';
     const est=d.psu_connected?'':'<span style="color:#555;font-size:.75em"> (預估)</span>';
     document.getElementById('pw').innerHTML=(d.power_w||0).toFixed(1)+' W'+est;
-    document.getElementById('ewh').innerHTML=(d.energy_wh||0).toFixed(2)+' Wh'+est;
+    const eLbl=document.getElementById('ewh').previousElementSibling;
+    if(eLbl)eLbl.textContent=sm===3?'已充入 / 目標':'累積電量';
+    if(sm===3){
+      // 電量模式：已充入 / 目標（kWh），跟 OLED 一樣
+      document.getElementById('ewh').innerHTML=((d.energy_wh||0)/1000).toFixed(2)+' / '+(+d.stop_energy||0).toFixed(1)+' kWh'+est;
+    }else{
+      document.getElementById('ewh').innerHTML=(d.energy_wh||0).toFixed(2)+' Wh'+est;
+    }
+    document.getElementById('cse-est').style.display=d.psu_connected?'none':'block';
     // SOC 顯示：SOC 模式顯示「現在/目標」，Volt/Timer 模式純參考
     if(sm===0){
       document.getElementById('soc-txt').textContent=d.soc+' / '+d.target_soc+'%';
@@ -1033,9 +1052,11 @@ function updateAutoVoltUI(){
 function updateStopModeUI(){
   const volt=document.getElementById('sm1').checked;
   const timer=document.getElementById('sm2').checked;
-  document.getElementById('soc-row').style.display=(!volt&&!timer)?'block':'none';
+  const energy=document.getElementById('sm3').checked;
+  document.getElementById('soc-row').style.display=(!volt&&!timer&&!energy)?'block':'none';
   document.getElementById('stop-volt-row').style.display=volt?'block':'none';
   document.getElementById('timer-row').style.display=timer?'block':'none';
+  document.getElementById('energy-row').style.display=energy?'block':'none';
 }
 
 async function loadCfg(){
@@ -1049,6 +1070,10 @@ async function loadCfg(){
     document.getElementById('cv').value=d.max_voltage;
     document.getElementById('ca').value=d.max_current;
     document.getElementById('cs').value=d.target_soc;
+    // 舊韌體沒有電量停止條件：選項藏起來，collectCfg 也不送 stop_energy
+    HAS_ENERGY=(d.stop_energy!==undefined);
+    document.getElementById('sm3-lbl').style.display=HAS_ENERGY?'flex':'none';
+    if(HAS_ENERGY)document.getElementById('cse').value=(+d.stop_energy).toFixed(1);
     document.getElementById('sm'+(d.stop_mode||0)).checked=true;
     document.getElementById('csv').value=(d.stop_voltage||100).toFixed(1);
     document.getElementById('ctm').value=d.charge_timer_min||120;
@@ -1231,6 +1256,7 @@ function updateStaUI(){
 // 差異就是「未儲存的變更」—— 既用來顯示浮動列，也用來決定 POST 只送哪幾個欄位。
 let CFG_BASE=null;
 let HAS_COST=false;
+let HAS_ENERGY=false;
 
 // key → 要標記的元素 id。單一欄位就是它自己，選項群組標在外框上。
 const CFG_ANCHOR={
@@ -1243,7 +1269,7 @@ const CFG_ANCHOR={
   sched_enabled:'sched-en', sched_start_min:'sched-start',
   sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
   auto_start:'auto-start-en', psu_transport:'psu-transport-row',
-  psu_eff:'ceff', kwh_price:'cprice'
+  psu_eff:'ceff', kwh_price:'cprice', stop_energy:'cse'
 };
 
 // 空欄位的 parseFloat 會是 NaN，而 NaN !== NaN 會讓該欄永遠顯示為「已變更」
@@ -1252,7 +1278,7 @@ function num(v,dflt){const n=parseFloat(v);return isFinite(n)?n:dflt;}
 function capV(v,id){const m=parseFloat(document.getElementById(id).max);return v!==null&&isFinite(m)&&v>m?m:v;}
 
 function collectCfg(){
-  const stopMode=document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
+  const stopMode=document.getElementById('sm3').checked?3:document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
   return {
     device_name:document.getElementById('cdn').value.trim(),
     auto_voltage:document.getElementById('cav').checked,
@@ -1275,6 +1301,7 @@ function collectCfg(){
     sched_stop_min:timeToMin(document.getElementById('sched-stop').value),
     auto_start:document.getElementById('auto-start-en').checked,
     psu_transport:document.getElementById('pt1').checked?1:0,
+    ...(HAS_ENERGY?{stop_energy:num(document.getElementById('cse').value,null)}:{}),
     ...(HAS_COST?{
       psu_eff:num(document.getElementById('ceff').value,null),
       kwh_price:num(document.getElementById('cprice').value,null)
@@ -1581,8 +1608,8 @@ async function scanWifi(){
   btn.disabled=false;btn.textContent='🔍 掃描';
 }
 
-const STOP_REASON=['SOC 達標','手動停止','故障','緊急停止','BMS 停止','計時完成','電壓達標'];
-const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5','hist-reason-6'];
+const STOP_REASON=['SOC 達標','手動停止','故障','緊急停止','BMS 停止','計時完成','電壓達標','電量達標'];
+const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5','hist-reason-0','hist-reason-0'];
 
 
 /* ══ 充電紀錄 ═══════════════════════════════════════════════════════════════
@@ -1893,7 +1920,7 @@ function rowHtml(r){
       ?`${Math.floor(r.duration_s/3600)}h ${String(Math.floor(r.duration_s%3600/60)).padStart(2,'0')}m`
       :`${String(Math.floor(r.duration_s/60)).padStart(2,'0')}:${String(r.duration_s%60).padStart(2,'0')}`;
     const whEst=r.energy_estimated?'<span style="color:#555;font-size:.75em"> (預估)</span>':'';
-    const ri=Math.min(r.stop_reason,6);
+    const ri=Math.min(r.stop_reason,STOP_REASON.length-1);
     let reasonText=STOP_REASON[ri];
     if(r.stop_reason===6&&r.stop_voltage_v)reasonText=`${r.stop_voltage_v.toFixed(1)} V`;
     // 故障／緊急停止只寫「故障」對使用者毫無幫助，等於逼他去展開 Log 自己猜。

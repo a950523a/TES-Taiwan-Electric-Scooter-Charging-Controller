@@ -42,10 +42,11 @@ typedef enum {
     MENU_ITEM_AUTO_VOLTAGE = 0,
     MENU_ITEM_MAX_VOLTAGE,
     MENU_ITEM_MAX_CURRENT,
-    MENU_ITEM_STOP_MODE,      // 停止條件：SOC / Voltage / Timer
+    MENU_ITEM_STOP_MODE,      // 停止條件：SOC / Voltage / Timer / kWh
     MENU_ITEM_TARGET_SOC,    // 停止條件值（stop_mode=SOC 時顯示）
     MENU_ITEM_STOP_VOLTAGE,  // 停止條件值（stop_mode=VOLTAGE 時顯示）
     MENU_ITEM_CHARGE_TIMER,  // 充電時長（stop_mode=TIMER 時顯示，分鐘）
+    MENU_ITEM_STOP_ENERGY,   // 充入電量目標（stop_mode=ENERGY 時顯示，0.1–20.0 kWh）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
@@ -78,6 +79,7 @@ static int8_t      s_edit_soc;
 static stop_mode_t s_edit_stop_mode;
 static uint16_t    s_edit_stop_voltage;
 static uint16_t    s_edit_charge_timer;
+static uint16_t    s_edit_stop_energy;    // Wh
 static bool        s_edit_beacon;
 static bool        s_edit_sched_enabled;
 static bool        s_edit_auto_start;
@@ -111,6 +113,7 @@ static void menu_open(void)
     s_edit_stop_mode      = cfg->stop_mode;
     s_edit_stop_voltage   = cfg->stop_voltage_01v;
     s_edit_charge_timer   = cfg->charge_timer_min;
+    s_edit_stop_energy    = cfg->stop_energy_wh;
     s_edit_beacon         = cfg->beacon_unlocked;
     s_edit_sched_enabled  = cfg->sched_enabled;
     s_edit_auto_start     = cfg->auto_start;
@@ -134,6 +137,7 @@ static void menu_save(void)
 {
     config_svc_set_auto_voltage(s_edit_auto_voltage);
     config_svc_set_charging(s_edit_voltage, s_edit_current, s_edit_soc);
+    config_svc_set_stop_energy(s_edit_stop_energy);   // 目標先存，再切模式
     config_svc_set_stop(s_edit_stop_mode, s_edit_stop_voltage, s_edit_charge_timer);
     config_svc_set_beacon(s_edit_beacon);
     {
@@ -176,7 +180,8 @@ static void item_label(int item, char *buf, size_t bufsz)
     case MENU_ITEM_STOP_MODE:
         snprintf(buf, bufsz, "Stop: %s",
                  s_edit_stop_mode == STOP_MODE_VOLTAGE ? "Volt" :
-                 s_edit_stop_mode == STOP_MODE_TIMER   ? "Timer" : "SOC");
+                 s_edit_stop_mode == STOP_MODE_TIMER   ? "Timer" :
+                 s_edit_stop_mode == STOP_MODE_ENERGY  ? "kWh" : "SOC");
         break;
     case MENU_ITEM_STOP_VOLTAGE:
         snprintf(buf, bufsz, "Stop V: %u.%uV",
@@ -184,6 +189,10 @@ static void item_label(int item, char *buf, size_t bufsz)
         break;
     case MENU_ITEM_CHARGE_TIMER:
         snprintf(buf, bufsz, "Timer: %um", s_edit_charge_timer);
+        break;
+    case MENU_ITEM_STOP_ENERGY:
+        snprintf(buf, bufsz, "Stop E: %u.%ukWh",
+                 s_edit_stop_energy / 1000, (s_edit_stop_energy % 1000) / 100);
         break;
     case MENU_ITEM_BEACON:
         snprintf(buf, bufsz, "LuxBeacon: %s",
@@ -281,6 +290,7 @@ static bool item_is_editable(int item)
             item == MENU_ITEM_STOP_MODE     ||
             item == MENU_ITEM_STOP_VOLTAGE  ||
             item == MENU_ITEM_CHARGE_TIMER  ||
+            item == MENU_ITEM_STOP_ENERGY   ||
             item == MENU_ITEM_BEACON        ||
             item == MENU_ITEM_SCHEDULER     ||
             item == MENU_ITEM_AUTO_START);
@@ -295,6 +305,8 @@ static bool item_is_visible(int item)
         return s_edit_stop_mode == STOP_MODE_VOLTAGE;
     if (item == MENU_ITEM_CHARGE_TIMER)
         return s_edit_stop_mode == STOP_MODE_TIMER;
+    if (item == MENU_ITEM_STOP_ENERGY)
+        return s_edit_stop_mode == STOP_MODE_ENERGY;
     return true;
 }
 
@@ -361,6 +373,8 @@ static void value_step(int item, int delta)
             s_edit_stop_mode = STOP_MODE_VOLTAGE;
         else if (s_edit_stop_mode == STOP_MODE_VOLTAGE)
             s_edit_stop_mode = STOP_MODE_TIMER;
+        else if (s_edit_stop_mode == STOP_MODE_TIMER)
+            s_edit_stop_mode = STOP_MODE_ENERGY;
         else
             s_edit_stop_mode = STOP_MODE_SOC;
         break;
@@ -379,6 +393,14 @@ static void value_step(int item, int delta)
         if (t < 1)   t = 1;
         if (t > 600) t = 600;
         s_edit_charge_timer = (uint16_t)t;
+        break;
+    }
+    case MENU_ITEM_STOP_ENERGY: {
+        // coarse |delta|=10 → 1 kWh; fine |delta|=1 → 0.1 kWh
+        int e = (int)s_edit_stop_energy + delta * 100;
+        if (e < STOP_ENERGY_MIN_WH) e = STOP_ENERGY_MIN_WH;
+        if (e > STOP_ENERGY_MAX_WH) e = STOP_ENERGY_MAX_WH;
+        s_edit_stop_energy = (uint16_t)e;
         break;
     }
     case MENU_ITEM_BEACON:
@@ -565,6 +587,21 @@ static void render_status(const tes_snapshot_t *snap)
             ? (snap->remaining_seconds + 30) / 60 : 0;
         snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
         display_driver_draw_str(80, 42, buf);
+    } else if (cfg->stop_mode == STOP_MODE_ENERGY) {
+        // kWh 模式：行 2 = 電壓/電流，行 3 = 已充入/目標 kWh + 剩餘時間。SOC 放不下，網頁與 App 看得到。
+        // 沒接 PSU 時電量是用最大電流設定值估的，前面加 ~（可能提早停）
+        snprintf(buf, sizeof(buf), "%.1fV  %.1fA",
+                 snap->output_voltage, snap->output_current);
+        display_driver_draw_str(0, 28, buf);
+        float kwh = snap->energy_wh / 1000.0f;
+        snprintf(buf, sizeof(buf), kwh < 10.0f ? "%s%.2f/%u.%ukWh" : "%s%.1f/%u.%ukWh",
+                 snap->psu_connected ? "" : "~", kwh,
+                 cfg->stop_energy_wh / 1000, (cfg->stop_energy_wh % 1000) / 100);
+        display_driver_draw_str(0, 42, buf);
+        uint32_t rem_min = snap->timer_running
+            ? (snap->remaining_seconds + 30) / 60 : 0;
+        snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
+        display_driver_draw_str(86, 42, buf);
     } else if (cfg->stop_mode == STOP_MODE_TIMER) {
         // Timer 模式：行 2 = 電壓/電流，行 3 = SOC + 已充/目標時間
         snprintf(buf, sizeof(buf), "%.1fV  %.1fA",

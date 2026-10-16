@@ -209,6 +209,8 @@ static void live_tick(void)
         .stop_v01  = cfg.stop_voltage_01v,
         .elapsed_s = snap.elapsed_seconds,
         .timer_min = cfg.charge_timer_min,
+        .energy_wh = (uint32_t)(snap.energy_wh + 0.5f),
+        .stop_energy_wh = cfg.stop_energy_wh,
     };
     int pct = live_progress_pct(&li);
     uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
@@ -218,10 +220,11 @@ static void live_tick(void)
     unsigned w = (unsigned)(snap.output_voltage * snap.output_current + 0.5f);
     snprintf(data, sizeof data,
              "{\"k\":\"live\",\"id\":\"%s\",\"m\":%u,\"p\":%d,\"soc\":%u,\"tsoc\":%d,"
-             "\"v\":%u,\"sv\":%u,\"el\":%lu,\"tm\":%u,\"rem\":%lu,\"w\":%u}",
+             "\"v\":%u,\"sv\":%u,\"el\":%lu,\"tm\":%u,\"rem\":%lu,\"w\":%u,\"e\":%lu,\"se\":%u}",
              cfg.device_id, (unsigned)cfg.stop_mode, pct, (unsigned)snap.soc, (int)snap.target_soc,
              (unsigned)v01, (unsigned)cfg.stop_voltage_01v, (unsigned long)snap.elapsed_seconds,
-             (unsigned)cfg.charge_timer_min, (unsigned long)snap.remaining_seconds, w);
+             (unsigned)cfg.charge_timer_min, (unsigned long)snap.remaining_seconds, w,
+             (unsigned long)li.energy_wh, (unsigned)cfg.stop_energy_wh);   // e／se：Wh
     // 失敗（例如暫時連不上 Expo）只更新時間：30 秒後再試，不會每 5 秒打一次
     s_live.last_ms = now;
     if (push_svc_send_data_all(data) == ESP_OK || first) s_live.last_pct = pct;
