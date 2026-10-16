@@ -175,6 +175,22 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
         break;
 
     case TES_STATE_PARAM_EXCHANGE:
+        // 握手中按 STOP（按鈕、網頁、App、MQTT 都走 stop_requested）= 取消。這時主繼電器
+        // 還沒閉合、車端接觸器也還沒閉合，直接回 IDLE。以前握手中 STOP 沒有作用，只能等
+        // 15／20 秒逾時並留下故障畫面。charge_complete_latched 是 auto_start 的重入防護：
+        // 不設的話回到 IDLE 時 CP 還是 ON，下一拍又自動開始；拔槍（CP OFF）後才解除。
+        // 停止原因是 USER，LED 不亮綠燈（見 tes_sm_get_snapshot 的 completed_ok）
+        if (in->stop_requested || sm->remote_stop) {
+            sm->remote_stop             = false;
+            sm->charge_complete_latched = true;
+            sm->last_stop_reason        = STOP_REASON_USER;
+            sm->state                   = TES_STATE_IDLE;
+            sm->state_start_ms          = in->tick_ms;
+            out->vp_relay               = false;
+            out->set_psu_current        = true;
+            out->psu_current_target     = 0.0f;
+            break;
+        }
         out->vp_relay = true;
         if (!sm->vehicle_ready && (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT)) {
             sm->vehicle_ready = true;
@@ -201,6 +217,13 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     case TES_STATE_PRE_CHARGE: {
         const tes_vehicle_status_t *vs = &in->vehicle_status;
 
+        // 握手中按 STOP = 取消。車端接觸器可能已經閉合，RELAY_DELAY 之後主繼電器也可能已閉合，
+        // 所以不能直接回 IDLE：走 ENDING，先送 0x508 停止控制、等車端斷開接觸器再解鎖
+        if (in->stop_requested || sm->remote_stop) {
+            sm->remote_stop = false;
+            enter_ending(sm, out, in->tick_ms, STOP_REASON_USER);
+            break;
+        }
         if (vs->status_flags & V500_ST_NORMAL_STOP_REQ) {
             enter_ending(sm, out, in->tick_ms, STOP_REASON_NORMAL);
             break;
