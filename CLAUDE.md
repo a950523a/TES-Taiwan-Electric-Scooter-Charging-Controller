@@ -799,7 +799,7 @@ English screens are unchanged. The bench-test screen stays English.
 |---|---|---|
 | Boot (Auto Volt on) | lightning blinks, dots after 偵測電壓 / Voltage cycle — `main.c` redraws every 100 ms while `auto_volt_boot_step()` runs | always |
 | CHARGING | battery icon top right fills from the SOC segment upward; a row of `>` under the voltage line flows right (lines 3 and 4 move down 8 px) | NVS `oled_anim`: 0 both (default), 1 battery, 2 arrows, 3 off |
-| Charge complete | IDLE + `led_state == COMPLETE`: check mark drawn in 1.2 s, then SOC / duration / kWh of that session (latched while CHARGING — the snapshot zeroes them in IDLE). Stays until **SETTING short press** (which then means "back", not the quick-SOC cycle) or the next session | always |
+| Charge complete | IDLE + `led_state == COMPLETE`: check mark drawn in 1.2 s, then SOC / duration / kWh of that session (latched while CHARGING — the snapshot zeroes them in IDLE). Shown for **1 minute, or until any key is pressed** (the user found "press SETTING to go back" awkward); a SETTING press used for that does not also cycle the SOC preset. Back in standby, line 3 (SOC 0/0 %, 0h00m — meaningless in IDLE) shows **上次 95% 1.83kWh / Last: …** until the next session | always |
 | IDLE | whole screen offset by 1 px, four positions, one per minute (`display_driver_set_offset()`) — burn-in | always |
 | Fault | never animated | — |
 
