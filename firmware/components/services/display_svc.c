@@ -594,6 +594,10 @@ static void fault_src_text(uint8_t src, uint16_t ctx_a, const char **l1, const c
     case FAULT_SRC_EMERGENCY_VEHICLE:
         *l1 = L("Vehicle E-stop",     ZH("車輛緊急停止"));
         *l2 = L("Normal after charge end", ZH("充電結束後屬正常")); break;
+    case FAULT_SRC_OVER_CURRENT:
+        // 只有接電流量測節點、配旋鈕電源時會出現：電源開得比最大電流（量測節點上限 15 A）大
+        *l1 = L("Over current",       ZH("電流過大"));
+        *l2 = L("Turn PSU current down", ZH("請把電源電流調低")); break;
     default:
         *l1 = L("Unknown fault",      ZH("未知故障"));
         *l2 = ""; break;
@@ -631,6 +635,8 @@ static void fault_detail(const tes_snapshot_t *s, char *buf, size_t bufsz)
         snprintf(buf, bufsz, "CP %.1fV", a / 10.0f); break;
     case FAULT_SRC_EMERGENCY_VEHICLE:
         snprintf(buf, bufsz, "auto-clears in 5s"); break;
+    case FAULT_SRC_OVER_CURRENT:
+        snprintf(buf, bufsz, "out %.1fA  car %.1fA", a / 10.0f, b / 10.0f); break;
     default:
         buf[0] = '\0'; break;
     }

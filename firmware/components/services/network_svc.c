@@ -33,6 +33,7 @@
 #include "services/factory_svc.h"
 #include "services/wifi_list.h"
 #include "services/wifi_plan.h"
+#include "psu_link/psu_link.h"
 #include "drivers/display_driver.h"
 #include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
@@ -317,6 +318,13 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         psu_status_t psu_st = psu_driver_get_status();
         cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
         cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
+        // 電流是不是實測的（節點宣告會報電流且有效）、實測讀值是否被判定不可信（2026-10-17；畫面還沒用）
+        {
+            extern volatile bool g_isense_suspect;
+            bool i_reported = psu_st.connected && psu_st.caps_known && (psu_st.caps & PSU_CAP_REPORT_I);
+            cJSON_AddBoolToObject(root, "current_measured", i_reported && !g_isense_suspect);
+            cJSON_AddBoolToObject(root, "isense_suspect",   g_isense_suspect);
+        }
         // 電源節點回報的 AC 輸入與可用功率（PWR）。沒收到就不放，網頁與 App 看欄位在不在
         if (psu_st.connected && psu_st.pwr_known) {
             cJSON_AddNumberToObject(root, "psu_ac_v",       psu_st.ac_vac_dv / 10.0);

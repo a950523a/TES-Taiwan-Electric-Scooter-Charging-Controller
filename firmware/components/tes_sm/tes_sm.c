@@ -18,12 +18,18 @@
 
 // CAN 週期發送間隔（協議要求 100ms ± 10ms）
 #define PERIODIC_SEND_MS    100u
+// 硬過電流：實測超過最大電流 1.5 A 持續 1 秒 → FAULT。只在電源不能被命令時判斷
+#define OC_HARD_MARGIN_01A   15u
+#define OC_HARD_MS         1000u
 
 // ─── 私有函數原型 ──────────────────────────────────────────────────────────────
 
 static cp_state_t  update_cp_state(tes_sm_t *sm, float cp_v);
 static bool        check_battery_compatibility(tes_sm_t *sm, const tes_sm_inputs_t *in);
 static void        prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out);
+static float       output_voltage(const tes_sm_inputs_t *in);
+static uint16_t    reported_current_01a(const tes_sm_t *sm, const tes_sm_inputs_t *in, bool output_on);
+static bool        check_over_current(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out);
 static void        run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out);
 static void        update_timer(tes_sm_t *sm, const tes_sm_inputs_t *in);
 
@@ -274,6 +280,7 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
 
         case PRECHARGE_STEP_COMPLETE:
             sm->state                 = TES_STATE_CHARGING;
+            sm->oc_hard_since         = 0;
             sm->state_start_ms        = in->tick_ms;
             sm->timer_running         = true;
             sm->elapsed_seconds       = 0;
@@ -401,13 +408,8 @@ void tes_sm_tick(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
     }
 
     // Live voltage/current: prefer PSU measured; fallback to ADC when PSU not reporting V/I
-    if (in->psu_connected && in->psu_voltage > 0.0f) {
-        sm->live_voltage_01v = (uint16_t)(in->psu_voltage   * 10.0f);
-        sm->live_current_01a = (uint16_t)(in->psu_current   * 10.0f);
-    } else {
-        sm->live_voltage_01v = (uint16_t)(in->measured_voltage * 10.0f);
-        sm->live_current_01a = out->relay_on ? sm->cfg.max_current_01a : 0;
-    }
+    sm->live_voltage_01v = (uint16_t)(output_voltage(in) * 10.0f);
+    sm->live_current_01a = reported_current_01a(sm, in, out->relay_on);
 
     // Beta auto_start: update CAN permit edge-detection latch for next tick
     sm->last_can_permit = (in->vehicle_status.status_flags & V500_ST_CHARGE_PERMIT) != 0;
@@ -505,19 +507,54 @@ static bool check_battery_compatibility(tes_sm_t *sm, const tes_sm_inputs_t *in)
     return true;
 }
 
+// 輸出電壓：PSU 回報了有效電壓就用它，否則用自己的 ADC（只量電流的量測節點、PSU 待機時都是 0）
+static float output_voltage(const tes_sm_inputs_t *in)
+{
+    return (in->psu_connected && in->psu_voltage > 0.0f) ? in->psu_voltage : in->measured_voltage;
+}
+
+// 0x509 與即時顯示的電流。有實測值就用實測；PSU 有回報電壓時沿用它的電流；
+// 都沒有就報最大電流設定 —— 報 0 A 車端可能以為沒在充電而中止
+static uint16_t reported_current_01a(const tes_sm_t *sm, const tes_sm_inputs_t *in, bool output_on)
+{
+    if (in->current_measured) return (uint16_t)(in->measured_current * 10.0f + 0.5f);
+    if (in->psu_connected && in->psu_voltage > 0.0f) return (uint16_t)(in->psu_current * 10.0f);
+    return output_on ? sm->cfg.max_current_01a : 0;
+}
+
+// 硬過電流：只在有實測值、而且電源不能被命令時判斷（旋鈕電源：BMS 降請求時照推，
+// 只能停機）。實測超過車端請求不停 —— 由車端自己判斷。
+// 最大電流已經被電源的額定收過（量測節點 15 A），所以上限就是 min(設定, 15 A) + 1.5 A。
+// 回傳 true = 已進入 FAULT；fault_ctx_b 記車端當時的請求，只給顯示用
+static bool check_over_current(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
+{
+    if (!in->current_measured || in->psu_commandable) {
+        sm->oc_hard_since = 0;
+        return false;
+    }
+    uint32_t now  = in->tick_ms;
+    uint16_t meas = (uint16_t)(in->measured_current * 10.0f + 0.5f);
+    uint16_t hard = (uint16_t)(sm->cfg.max_current_01a + OC_HARD_MARGIN_01A);
+    if (meas > hard) {
+        if (sm->oc_hard_since == 0) sm->oc_hard_since = now ? now : 1u;
+        if (now - sm->oc_hard_since >= OC_HARD_MS) {
+            enter_fault(sm, out, now, FAULT_SRC_OVER_CURRENT, meas,
+                        in->vehicle_status.charge_current_cmd);
+            return true;
+        }
+    } else {
+        sm->oc_hard_since = 0;
+    }
+    return false;
+}
+
 static void prepare_periodic_tx(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outputs_t *out)
 {
     if (in->tick_ms - sm->last_periodic_ms < PERIODIC_SEND_MS) return;
     sm->last_periodic_ms = in->tick_ms;
 
-    if (in->psu_connected && in->psu_voltage > 0.0f) {
-        sm->params_509.actual_voltage = (uint16_t)(in->psu_voltage * 10.0f);
-        sm->params_509.actual_current = (uint16_t)(in->psu_current * 10.0f);
-    } else {
-        sm->params_509.actual_voltage = (uint16_t)(in->measured_voltage * 10.0f);
-        sm->params_509.actual_current = out->relay_on
-            ? sm->cfg.max_current_01a : 0;
-    }
+    sm->params_509.actual_voltage = (uint16_t)(output_voltage(in) * 10.0f);
+    sm->params_509.actual_current = reported_current_01a(sm, in, out->relay_on);
 
     uint32_t rem = (sm->total_seconds > sm->elapsed_seconds)
                    ? (sm->total_seconds - sm->elapsed_seconds) : 0;
@@ -556,8 +593,7 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         enter_ending(sm, out, in->tick_ms, STOP_REASON_USER); return;
     }
     if (in->stop_mode == STOP_MODE_VOLTAGE) {
-        float v_out = (in->psu_connected && in->psu_voltage > 0.0f)
-                      ? in->psu_voltage : in->measured_voltage;
+        float v_out = output_voltage(in);
         if (v_out >= (float)in->stop_voltage_01v / 10.0f) {
             enter_ending(sm, out, in->tick_ms, STOP_REASON_VOLTAGE); return;
         }
@@ -578,7 +614,8 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
     }
     if (in->tick_ms - sm->state_start_ms > VOLTAGE_CHECK_DELAY_MS) {
         float v_limit = (float)vs->charge_voltage_limit / 10.0f;
-        float v_out   = in->psu_connected ? in->psu_voltage : in->measured_voltage;
+        // 以前是「PSU 連著就用 PSU 的電壓」：只量電流的節點回報 0 V，這個判斷就永遠不成立
+        float v_out   = output_voltage(in);
         if (v_limit > 0.1f && v_out >= v_limit + VOLTAGE_CHECK_TOLERANCE) {
             enter_ending(sm, out, in->tick_ms, STOP_REASON_VOLTAGE); return;
         }
@@ -608,6 +645,7 @@ static void run_monitoring(tes_sm_t *sm, const tes_sm_inputs_t *in, tes_sm_outpu
         }
         return;
     }
+    if (check_over_current(sm, in, out)) return;
 }
 
 // 依故障來源選出要送給車端的 0x508 故障位元。
@@ -622,7 +660,8 @@ static uint8_t c508_fault_bit(uint8_t src)
         return C508_FAULT_BATTERY_UNSUIT;
     case FAULT_SRC_PSU_LOST:
     case FAULT_SRC_EMERGENCY_BTN:
-        // PSU 就是「直流供電裝置」；緊急停止也是本機主動切斷
+    case FAULT_SRC_OVER_CURRENT:
+        // PSU 就是「直流供電裝置」；緊急停止也是本機主動切斷；過電流是電源輸出超過上限
         return C508_FAULT_DEVICE_ABNORMAL;
     default:
         return C508_FAULT_SUPPLY_SYSTEM;

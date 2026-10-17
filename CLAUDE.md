@@ -860,6 +860,24 @@ it; before `CAP` arrives they return true and an unsupported node answers `ACK 2
 **The state machine does not use node type or capabilities yet** — that is the next
 step (measured current in 0x509, following a manual current knob, over-current stop).
 
+**Measured current (2026-10-17).** `tes_sm_inputs_t` gained `current_measured` / `measured_current` /
+`psu_commandable`. `task_tes_sm` sets `current_measured` when the node declares `PSU_CAP_REPORT_I` and the
+latest `ST` has `PSU_ST_I_VALID` — LianMing, or a current-only **meter node** (`PSU_NODE_METER`, planned as
+an optional UART add-on for knob power supplies: reports current only, ≤ 15 A, rated current 15 A in `CAP`,
+so Max Current is capped at 15 A by the mechanism below). With it:
+- 0x509, the live display and the session energy use the measured current (no PSU / not measured: as before —
+  PSU current when the PSU reports a voltage, else the Max Current setting).
+- **Hard over-current**: measured > Max Current + 1.5 A for 1 s → `FAULT_SRC_OVER_CURRENT` (0x508 bit1, device
+  abnormal). Only when the PSU cannot be commanded (no `PSU_CAP_SET_I`) — a commanded PSU's current is ours.
+  Measured above the vehicle's request is **not** stopped; the vehicle decides.
+- `isense_check` (`services/isense_check.c`): vehicle asks ≥ 2 A but the measured current stays < 0.3 A for
+  10 s (a shunt wired backwards reads 0) → the reading is distrusted until reboot (`/status` `isense_suspect`).
+- Output voltage everywhere goes through `output_voltage()`: PSU voltage only when it is > 0, else the ADC. The
+  over-voltage end check used to take the PSU voltage whenever the PSU was connected, so a current-only node
+  (voltage 0) would have disabled it.
+Nothing about this is in the settings yet (decided 2026-10-17); `/status` has `current_measured`. The OLED,
+web `FAULTS` and the app's `faults.ts` describe fault 10. Host-tested in the session that wrote it.
+
 **Except the current ceiling (2026-10-17).** `psu_driver_current_cap_01a()` = min(the node's
 rated current from `CAP` `imax`, its available power from `PWR` `pmax` ÷ output voltage). The
 voltage is the node's measured output while it is outputting, else Max Voltage (the VLIM2 sent to

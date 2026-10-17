@@ -29,6 +29,13 @@ typedef struct {
     bool     psu_connected;         // PSU UART 連線狀態
     float    psu_voltage;           // V，PSU 回報
     float    psu_current;           // A，PSU 回報
+    // 實測電流（2026-10-17）：電源節點回報了有效電流（LianMing，或只量電流的量測節點），
+    // 而且 isense_check 沒判定讀值不可信。true 時 0x509、即時顯示、充電量都用 measured_current
+    bool     current_measured;
+    float    measured_current;      // A
+    // 電源能不能被命令（節點接受 SET 電流）。不能命令（旋鈕電源＋量測節點）時才做硬過電流保護：
+    // 可命令的電源電流由我們設定，旋鈕電源只能靠停機
+    bool     psu_commandable;
 
     // 來自 config_svc（每次 tick 更新）
     uint16_t    max_voltage_01v;
@@ -139,6 +146,9 @@ typedef struct {
 
     // PSU 連線模式：進入 CHARGING 時快照；true = 有 PSU，斷線須 FAULT；false = PSU-less ADC 模式
     bool       psu_session_connected;
+
+    // 硬過電流：實測超過最大電流 + OC_HARD_MARGIN_01A 開始的時間，0 = 沒超過
+    uint32_t   oc_hard_since;
 } tes_sm_t;
 
 // ─── 公開 API ────────────────────────────────────────────────────────────────

@@ -13,6 +13,8 @@
 #include "services/trace_svc.h"
 #include "services/log_svc.h"
 #include "services/auto_volt.h"
+#include "services/isense_check.h"
+#include "psu_link/psu_link.h"
 #include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -37,6 +39,10 @@ static float    s_session_end_v         = 0.0f; // output voltage the tick we le
 static uint32_t s_session_start_epoch   = 0;    // 進入 CHARGING 的 Unix 秒；0 = 當時還沒對時
 static uint32_t s_session_start_up_ms   = 0;    // 同一刻的開機毫秒，之後對到時用來回推
 static bool     s_session_psu_seen      = false; // PSU connected at any tick during session
+static isense_check_t s_isense;                  // 實測電流讀不到的偵測（零初始化 = isense_check_init）
+
+// 實測電流被判定不可信（isense_check 觸發，保持到重開機）。/status 的 isense_suspect，還沒有畫面顯示
+volatile bool g_isense_suspect = false;
 
 // CAN diag: last received RX raw values + last sent TX frames
 static tes_vehicle_emergency_t s_last_5f0    = {0};
@@ -393,6 +399,23 @@ void task_tes_sm(void *arg)
         inputs.psu_connected = psu.connected;
         inputs.psu_voltage   = psu.voltage;
         inputs.psu_current   = psu.current;
+
+        // 實測電流（2026-10-17）：節點宣告會報電流（CAP REPORT_I）而且這一筆有效。
+        // LianMing 與只量電流的量測節點都算；isense_check 判定讀值不可信後就不用（保持到重開機）
+        bool i_reported = psu.connected && psu.caps_known && (psu.caps & PSU_CAP_REPORT_I);
+        bool i_valid    = i_reported && (psu.flags & PSU_ST_I_VALID);
+        if (isense_check_step(&s_isense, i_reported && s_sm.state == TES_STATE_CHARGING,
+                              inputs.vehicle_status.charge_current_cmd,
+                              i_valid ? (int32_t)(psu.current * 1000.0f) : 0, inputs.tick_ms)) {
+            g_isense_suspect = true;
+            ESP_LOGW(TAG, "measured current stays ~0 A while the vehicle asks for %.1f A: "
+                          "check the current sensor wiring / PSU output — ignoring it until reboot",
+                     inputs.vehicle_status.charge_current_cmd / 10.0f);
+        }
+        inputs.current_measured = i_valid && !s_isense.tripped;
+        inputs.measured_current = psu.current;
+        // 可命令 = 節點接受 SET 電流（LianMing）。量測節點不行：硬過電流只對它做
+        inputs.psu_commandable  = psu.connected && psu.caps_known && (psu.caps & PSU_CAP_SET_I);
 
         // 一致性快照：這些值會直接進入 0x508/0x509 廣播給 BMS，
         // 不能出現「新電壓 + 舊電流」這種被 setter 寫到一半的組合。

@@ -18,6 +18,7 @@ idf_component_register(
         "factory_svc.c"
         "auto_volt.c"
         "restart_svc.c"
+        "isense_check.c"
         "wifi_list.c"
         "wifi_plan.c"
     INCLUDE_DIRS
