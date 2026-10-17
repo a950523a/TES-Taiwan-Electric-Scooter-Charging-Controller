@@ -16,6 +16,7 @@
 #define PSU_ESPNOW_FAIL_LIMIT       3   // 連續 MAC-ACK 失敗 N 次 → 立即標記斷線
 #define PSU_SET_MIN_TICKS          50   //  50 × 10ms = 500ms：同值 SET 最短發送間隔（UART 與 ESP-NOW 共用）
 #define PSU_HELLO_INTERVAL_TICKS  100   // 100 × 10ms = 1s：已連線但還不知道節點能力時，多久問一次
+#define PSU_CHN_INTERVAL_TICKS    500   // 5 s：ESP-NOW 握手完成後多久告訴節點一次我們的頻道（$CHN）
 #define PSU_ESPNOW_RSSI_WARN      -80   // dBm，低於此值印 LOGW
 #define PAIR_LINGER_TICKS         300   // 配對結束後再處理 3 s 的訊息：對方可能還在等最後一則確認
 
@@ -29,6 +30,8 @@ static uint32_t        s_last_valid_ticks = 0;   // 最後一個有效訊框（�
 static uint32_t        s_last_st_ticks    = 0;   // 最後一筆 ST
 static bool            s_have_st          = false;
 static uint32_t        s_last_hello_ticks = 0;
+static uint32_t        s_last_chn_ticks   = 0;
+static uint8_t         s_last_chn         = 0;   // 上次送出的頻道；變了就馬上再送
 static psu_transport_t s_transport        = PSU_TRANSPORT_UART;
 
 // s_status 由 task_hal_poll 寫入，由 task_tes_sm / HTTP / display 讀取。
@@ -679,6 +682,22 @@ void psu_driver_poll(void)
         ESP_LOGW(TAG, "PSU timeout — disconnected (%s, %lums)",
                  s_transport == PSU_TRANSPORT_ESPNOW ? "ESP-NOW" : "UART",
                  (unsigned long)(timeout * 10));
+    }
+
+    // ESP-NOW：告訴節點我們在哪個頻道（$CHN，2026-10-18）。節點停在隔壁頻道時，漏過來的封包讓握手
+    // 照樣成功、之後時通時斷，它自己的「連續送不出去才重找」又被偶爾的成功歸零 —— 實機卡過。
+    // 握手完成後每 5 s 送一次，頻道變了（路由器換頻道）就馬上送；它在隔壁頻道也收得到一部分，夠用了
+    if (s_transport == PSU_TRANSPORT_ESPNOW && s_sess_on && psu_sess_ready(&s_sess)) {
+        uint8_t ch = 0;
+        wifi_second_chan_t sc;
+        if (esp_wifi_get_channel(&ch, &sc) == ESP_OK && ch >= 1 && ch <= 14 &&
+            (ch != s_last_chn || (s_poll_ticks - s_last_chn_ticks) >= PSU_CHN_INTERVAL_TICKS)) {
+            s_last_chn_ticks = s_poll_ticks;
+            s_last_chn = ch;
+            psu_msg_t m = { .type = PSU_MSG_CHANNEL };
+            m.u.channel.channel = ch;
+            send_msg(&m);
+        }
     }
 
     // 節點在說話但還不知道它是什麼 → 問。節點開機時會主動送 CAP，
