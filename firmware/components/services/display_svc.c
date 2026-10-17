@@ -683,14 +683,13 @@ static void render_fault(const tes_snapshot_t *snap)
 //   * 充電完成：打勾一筆一筆畫出來，停在完成畫面直到按 SETTING 或開始下一次
 //   * 待機：整個畫面每分鐘偏 1 px（防烙印，一律開）；超過設定時間沒人碰就進螢幕保護
 //   * 故障畫面不動，要讓人專心讀
-// 充電完成畫面的狀態（說明見下方「充電完成畫面」；待機畫面也要用到上次的摘要，所以放在這裡）
+// 充電完成畫面的狀態（說明見下方「充電完成畫面」）
 static uint8_t  s_done_soc;
 static uint32_t s_done_el;
 static float    s_done_wh;
 static bool     s_done_dismissed;   // 按過鍵或顯示滿 DONE_SHOW_MS：回到一般待機畫面
 static bool     s_done_showing;     // 目前畫面是完成畫面（SETTING 短按改成「返回」）
 static bool     s_eat_set;          // 用 SETTING 離開完成畫面：放開時的短按事件不要再切 SOC
-static bool     s_last_valid;       // 有「上次充電」的摘要可以放在待機畫面（開機後正常完成過一次）
 static uint32_t s_done_since;       // 進入完成畫面的時間（打勾動畫從這裡起算）
 
 static uint32_t anim_frame(uint32_t now) { return now / 100u; }
@@ -769,17 +768,7 @@ static void render_status(const tes_snapshot_t *snap, uint32_t now)
         snprintf(buf, sizeof(buf), "SOC:%d/%d%%", snap->soc, (int)snap->target_soc);
         display_driver_draw_str(0, y3, buf);
     }
-    if (snap->state == TES_STATE_IDLE && s_last_valid) {
-        // 待機時第三行（SOC 0/0%、0h00m）沒有意義：換成上一次充電的摘要
-        display_driver_set_color(0);
-        display_driver_draw_box(0, y3 - 10, 128, 12);
-        display_driver_set_color(1);
-        snprintf(buf, sizeof(buf), "%s%u%%  %.2fkWh", L("Last: ", ZH("上次 ")),
-                 (unsigned)s_done_soc, s_done_wh / 1000.0f);
-        if (lang_zh()) { display_driver_font_zh(); display_driver_draw_utf8(0, y3 + 1, buf); }
-        else           { display_driver_font_medium(); display_driver_draw_str(0, y3, buf); }
-        display_driver_font_medium();
-    } else if (cfg->stop_mode != STOP_MODE_TIMER) {
+    if (cfg->stop_mode != STOP_MODE_TIMER) {
         uint32_t rem_min = snap->timer_running ? (snap->remaining_seconds + 30) / 60 : 0;
         snprintf(buf, sizeof(buf), "%luh%02lum", rem_min / 60, rem_min % 60);
         display_driver_draw_str(cfg->stop_mode == STOP_MODE_ENERGY ? 86 : 80, y3, buf);
@@ -819,8 +808,8 @@ static void render_status(const tes_snapshot_t *snap, uint32_t now)
 
 // ── 充電完成畫面 ───────────────────────────────────────────────────────────────
 // 正常結束（LED 綠燈）後回到 IDLE 時顯示 DONE_SHOW_MS，之後自動回到待機畫面；這段時間內按任何一顆鍵
-// 也會馬上回去（使用者 2026-10-17：「還要按設定鍵返回用起來不順」）。回到待機後，待機畫面的第三行
-// 改成這一輪的摘要（上次 95% 1.83kWh），留到下一次開始充電。
+// 也會馬上回去（使用者 2026-10-17：「還要按設定鍵返回用起來不順」）。回到的是一般待機畫面，
+// 照樣看得到充電設定（SOC:0/95% 這一行的目標值）——試過把那行換成上一次的摘要，使用者要看設定值，改回來了
 // 這一輪的 SOC、時長、電量在 CHARGING 期間記下來 —— 回到 IDLE 時快照裡的已經歸零
 #define DONE_SHOW_MS 60000u
 
@@ -1273,7 +1262,7 @@ void display_svc_tick(void)
         s_done_dismissed = false;
     }
     bool done = done_active(&snap);
-    if (done && !s_done_showing) { s_done_since = now; s_last_valid = true; }   // 剛進入：打勾從頭播
+    if (done && !s_done_showing) s_done_since = now;   // 剛進入完成畫面：打勾動畫從頭播
     if (done && s_done_showing) {
         // 顯示滿 1 分鐘，或按了任何一顆鍵（START／STOP／SETTING 剛按下），就回到待機畫面。
         // START 照常會送給狀態機（插著槍就是再充一次），這裡只負責畫面
