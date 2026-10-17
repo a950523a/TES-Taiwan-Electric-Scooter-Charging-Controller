@@ -1383,7 +1383,30 @@ Renaming or removing a field in any of these breaks installed apps; add fields i
 
 ## Known Technical Debt
 
-### 🔴 Unresolved: `/control` throughput collapses after 1–2 loads
+### 🟡 Half solved (2026-10-18): internal RAM starvation fixed; sending is still slow
+
+Measured with `/hw.json` (the procedure below) on three units:
+
+| | stock `sdkconfig` | + WiFi/lwIP in PSRAM | + mbedTLS in PSRAM too |
+|---|---|---|---|
+| internal RAM free, idle | ~97 KB | ~81 KB | **~113 KB** |
+| lowest since boot | 17.5 KB; **276 bytes** on a unit doing a GitHub OTA with MQTT TLS up | ~40 KB | **~70 KB** |
+| 1.56 MB `POST /ota/upload`, unthrottled | stalled at 58 % / 88 % (~4.5 KB/s) | — | **11.5 s, 136 KB/s** |
+| `/control` (121 KB) ×10 | 8–49 KB/s | 5–72 KB/s | 3–311 KB/s, some timeouts |
+| TIME_WAIT / active PCBs | 0 / ≤ 6 of 16 | | |
+
+- **Receiving was internal RAM.** At 276 bytes free the HTTP server stopped accepting connections (ping
+  still answered), OTA from GitHub stalled at 14 %, and a restart request did not complete. The fix is
+  `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP` + `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` in `sdkconfig.defaults`
+  (app config only — reaches deployed units by OTA). MQTT over TLS checked working with it.
+- **Hypothesis 2 is ruled out**: TIME_WAIT stayed 0 and active PCBs ≤ 6 throughout.
+- **Sending (`/control`) is still slow and RAM is not why** — with 70 KB to spare it still stalls in roughly
+  1 s steps, which looks like retransmission timeouts. Not diagnosed yet. Two things are known to make it
+  worse: `LWIP_TCP_SND_BUF` / `TCP_WND` are 5760 (4 segments), and httpd has one worker, so `/hw.json` and the
+  app's `/status` polls queue behind a slow page and time out (5 s) — the snapshot never shows the stall
+  itself. Next: look at it from the PC side (packet capture) or give `/hw.json` its own path.
+
+### 🔴 Unresolved (original notes): `/control` throughput collapses after 1–2 loads
 
 Investigated 2026-09-11, **not fixed, cause not identified**. Reproducible and
 characterised, but diagnosis stalled for lack of device-side visibility.

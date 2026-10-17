@@ -19,6 +19,11 @@ CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
 CONFIG_SPIRAM_RODATA=y
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+# WiFi / lwIP buffers and mbedTLS (MQTT, OTA, push) in PSRAM (2026-10-18). Internal RAM ran out:
+# min free fell to 276 bytes during a GitHub OTA with MQTT TLS up, which stalled uploads and OTA
+# and froze the HTTP server. With both: ~113 KB free, min ~70 KB; 1.5 MB upload in 11 s.
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 
 # --- USB CDC console ---
 CONFIG_ESP_CONSOLE_USB_CDC=y
