@@ -9,6 +9,6 @@ void task_network(void *arg)
     // network_svc already started in main.c; this task handles event-driven work
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
-        // Future: process network events, update REST status cache
+        network_svc_wifi_tick();   // 記住的 WiFi、自動熱點
     }
 }

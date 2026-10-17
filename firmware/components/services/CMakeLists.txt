@@ -18,6 +18,8 @@ idf_component_register(
         "factory_svc.c"
         "auto_volt.c"
         "restart_svc.c"
+        "wifi_list.c"
+        "wifi_plan.c"
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES

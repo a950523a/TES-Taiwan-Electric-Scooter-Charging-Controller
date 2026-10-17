@@ -18,6 +18,33 @@
   }
 
   var EN = {
+    // 記住的 WiFi、自動熱點（2026-10-17）
+    '記住的 WiFi（最多 5 組，會連訊號最強的那組）': 'Saved WiFi networks (up to 5; the strongest one is used)',
+    '還沒有記住的 WiFi': 'No saved WiFi networks yet',
+    'WiFi 名稱': 'WiFi name',
+    'WiFi 密碼（開放網路留空）': 'WiFi password (empty for an open network)',
+    '＋ 加入這組 WiFi': '+ Add this WiFi',
+    '● 連線中': '● connected',
+    '移除': 'Remove',
+    '連不上記住的 WiFi 時（開機 30 秒、斷線 60 秒後）會自動開熱點': 'When no saved WiFi can be reached (30 s after boot, 60 s after losing it) the charger opens its own hotspot',
+    '，密碼': ', password',
+    '（OLED 設定選單的「熱點密碼」也看得到）。手機連上後開': '(also shown in the OLED settings menu as "AP pass"). Join it with the phone, then open',
+    '出門充電時先把當地的 WiFi 加進來，之後去那裡就會自動連上，推播與遠端監控照常。': 'When charging away from home, add the local WiFi once; next time it connects by itself and notifications and remote monitoring keep working.',
+    '請輸入 WiFi 名稱': 'Enter the WiFi name',
+    '密碼要 8–63 個字（開放網路請留空）': 'The password must be 8–63 characters (leave it empty for an open network)',
+    '已經記住 5 組了，先移除一組': '5 networks are already saved; remove one first',
+    '✓ 已更新「{}」': '✓ Updated "{}"',
+    '✓ 已加入「{}」，不用重開機；在範圍內的話幾秒內就會去連': '✓ Added "{}". No restart needed; if it is in range the charger connects within seconds',
+    '✗ 加入失敗': '✗ Could not add it',
+    '目前就是連著「{}」，移除後會馬上斷線、改找其他記住的 WiFi（都沒有就開熱點）。確定移除？': 'The charger is connected to "{}" right now. Removing it disconnects immediately and it looks for another saved network (or opens its hotspot). Remove it?',
+    '移除「{}」？': 'Remove "{}"?',
+    '✓ 已移除「{}」': '✓ Removed "{}"',
+    '✗ 移除失敗': '✗ Could not remove it',
+    '充電中（PSU 走 ESP-NOW）不能掃描，充完再掃': 'Cannot scan while charging with an ESP-NOW PSU; scan after charging',
+    '已連線 · 熱點開著': 'Connected · hotspot on',
+    '未連線 · 熱點開著': 'Not connected · hotspot on',
+    '目前的連線不受影響。記住的 WiFi 都會保留，開關打開即可連回。': 'The current connection is not affected. Saved networks are kept; turn this back on to reconnect.',
+    '✓ 已儲存。重啟後將連線至記住的 WiFi。': '✓ Saved. After a restart it connects to the saved WiFi.',
     // ── 共用 ──
     '中文': '中文', '讀取中': 'Loading', '讀取中…': 'Loading…', '錯誤': 'Error', '未知': 'Unknown',
     '已連線': 'Connected', '未連線': 'Not connected', '離線': 'Offline', '正常': 'Normal', '無': 'None',

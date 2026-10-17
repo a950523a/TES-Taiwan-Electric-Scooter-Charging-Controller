@@ -760,7 +760,8 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | Charge Timer | 1 min -- 600 min（Stop Mode=Timer 時顯示） | ±10 min | ±30 min (auto-repeat) |
 | Stop E | 0.1 -- 20.0 kWh（Stop Mode=kWh 時顯示） | ±0.1 kWh | ±1 kWh (auto-repeat) |
 | LuxBeacon | ON / OFF | toggle | toggle |
-| WiFi Info | read-only display | — | — |
+| WiFi Info | read-only display（連著 WiFi 顯示 `IP:`，只有熱點時 `AP:`） | — | — |
+| AP pass / 熱點密碼 | 自動熱點的 WPA2 密碼（唯讀） | — | — |
 | Scheduler | ON / OFF | toggle | toggle |
 | [Beta] Auto | ON / OFF | toggle | toggle |
 | Language | 中文 / English（兩種都用本身的語言寫，選錯也認得回去） | toggle | toggle |
@@ -968,6 +969,8 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `psu_mac` | blob[6] | — | ESP-NOW peer MAC (PSU 的 MAC 地址，配對後寫入）|
 | `psu_ltk` | blob[32] | — | ESP-NOW 配對的長期金鑰。**秘密**：不進 `charger_config_t`（那個結構會被 `GET /config` 整包送出），只經 `config_svc_get_psu_ltk()` 讀。有 `psu_mac` 沒有 `psu_ltk` = 舊版配對，需重新配對 |
 | `sta_en` | bool | **true** | false = 固定 AP 模式但保留 SSID／密碼。預設必須為 true，否則 OTA 上來的舊機器會全部掉進 AP 模式 |
+| `wifi_nets` | blob[485] | — | 記住的 WiFi（`wifi_list_t`，最多 5 組，最新的在前）。沒有就從 `wifi_ssid`／`wifi_pass` 搬；第一組會寫回那兩個鍵 |
+| `ap_pass` | str[64] | 隨機 10 碼 | 連不上 WiFi 時自動熱點的 WPA2 密碼（首次設定的熱點仍不加密） |
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
@@ -1553,10 +1556,39 @@ the hostname. It appears in the web UI `<h1>`, the browser tab title, and the `_
 TXT records (`id`, `name`, `ver`) so a LAN scan can identify units without opening each one.
 The OLED settings menu has a read-only `tes-<id>` row for cross-referencing.
 
-**WiFi modes** — AP when *either* condition holds, STA otherwise:
-- No SSID in NVS → AP mode, SSID `TES-Charger-<id>` (open), IP `192.168.4.1`
-- `sta_enabled == false` (NVS `sta_en`) → AP mode **with SSID/password kept intact**
-- Otherwise → STA mode, auto-reconnect, mDNS `tes-<id>.local` after got-IP
+**WiFi modes** (rewritten 2026-10-17):
+- No network saved → hotspot `TES-Charger-<id>` (**open**), IP `192.168.4.1` — first setup, as before
+- `sta_enabled == false` (NVS `sta_en`) → the same open hotspot, saved networks kept intact
+- Otherwise → STA. It **scans and joins the strongest of up to 5 saved networks**; if none is
+  reachable 30 s after boot (60 s after losing one) it **also opens the hotspot, WPA2** with a per-unit
+  password, and keeps scanning in the background (every 10 s before the hotspot, 60 s after)
+
+Why: a unit set up at home and taken elsewhere used to retry the home network forever and never open
+the hotspot, so no phone could reach it — and the switch that forces the hotspot is on the web page it
+could not reach. Taking it out is the case to design for: add the local WiFi once through the hotspot
+and next time it joins by itself, so pushes and MQTT work while the owner is away (a phone hotspot does
+not: the phone leaves with the owner).
+
+| Piece | Where |
+|---|---|
+| Saved networks | `wifi_list.c` (pure): `wifi_list_t` = 5 × {ssid, pass}, newest first, NVS blob `wifi_nets` (485 B). The first entry is also written to the old `wifi_ssid`/`wifi_pass` keys (and `charger_config_t.wifi_ssid`), so a downgrade still connects; units without the blob migrate those keys on boot |
+| When to scan / open the hotspot | `wifi_plan.c` (pure, host-tested): delays above; with the station up, the hotspot closes after 30 s with no client on it (never kicks a phone off); `hold` = ESP-NOW PSU and a session running → no scanning at all, because a scan hops channels and the PSU link faults after 2 s |
+| ESP-IDF glue | `network_svc.c` "WiFi：記住的網路、自動熱點": `network_svc_wifi_tick()` from `task_network` every 100 ms. Scans are async; `SCAN_DONE` only sets a flag (the event task has 2.3 KB of stack) and the tick reads the results, picks the strongest saved SSID not yet failed this round, connects with the scanned channel. A failed network is skipped until the next round; connect attempts time out after 20 s. `s_scan_lock` makes the background scan and `GET /wifi/scan` take turns |
+| Hotspot | channel = the current one (no hop for an ESP-NOW PSU); its security is chosen when it starts and **not changed while it runs**, so a phone that just added a network over the open setup hotspot is not dropped |
+| Password | NVS `ap_pass`, 10 characters generated on first boot from an alphabet without 0/o/1/l/i; OLED menu row `AP pass` / 熱點密碼 under WiFi Info; `GET /config` `ap_pass` (anyone on the LAN can already control the unit); `POST /config` `ap_pass` changes it (8–63 visible ASCII) |
+
+`POST /config`: `{"wifi_add":{"ssid","pass"}}` (pass omitted = keep a saved one's password / open for a
+new one), `{"wifi_remove":"ssid"}` (removing the connected one disconnects). Both apply live — no reboot.
+The old `wifi_ssid` + `wifi_pass` fields still work and mean "add this one"; an empty `wifi_ssid` is
+ignored. A WiFi error comes back as `{"ok":false,"error":...}` (other fields in the request are saved).
+`GET /config` has `wifi_nets` (SSIDs only, never passwords), `wifi_max`, `ap_pass`; `/status` has
+`sta_ssid`, `ap_on`, `ap_clients`. `GET /wifi/scan` answers 409 while `hold`.
+
+**Not tested on hardware yet:** joining the strongest of two saved networks; wrong password on one →
+the next one; hotspot appears 30 s after boot away from home and the phone reaches 192.168.4.1 with
+the OLED password; hotspot closes 30 s after the phone leaves once home WiFi is back; an ESP-NOW PSU
+keeps its link through all of it (and no scan while charging); Android reaching 192.168.4.1 on a WiFi
+without internet.
 
 `sta_enabled` **defaults to true** and must stay that way: units upgrading by OTA have no
 such NVS key, and defaulting to false would drop every deployed device into AP mode after
@@ -1759,7 +1791,7 @@ shows 離線 without affecting the others.
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
 | GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
-| POST | `/config` | Partial update (any subset); WiFi changes require reboot. Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc`, and the OLED settings `oled_lang` / `oled_anim` / `ss_min` / `ss_style` |
+| POST | `/config` | Partial update (any subset); `wifi_add` / `wifi_remove` / `ap_pass` apply live, `sta_enabled` needs a reboot (see WiFi modes). Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc`, and the OLED settings `oled_lang` / `oled_anim` / `ss_min` / `ss_style` |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |
@@ -1772,7 +1804,7 @@ shows 離線 without affecting the others.
 | GET | `/manifest.json` | PWA manifest |
 | GET | `/sw.js` | Service Worker |
 | GET | `/icon.svg` | App icon |
-| GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
+| GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured); 409 while charging with an ESP-NOW PSU |
 | POST | `/notify/test` | Send a test notification to `notify_url` and every registered phone |
 | GET | `/push` | Registered phones: `{"max":4,"phones":[{"slot","name","added","tail","lang"}]}` — never the full token |
 | POST | `/push` | Mobile app: `{"op":"add","token","name","lang"}` (`lang` `zh`/`en`, optional) / `{"op":"remove","token"}` / `{"op":"remove_slot","slot"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |

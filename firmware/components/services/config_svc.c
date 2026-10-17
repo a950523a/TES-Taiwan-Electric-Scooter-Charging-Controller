@@ -2,6 +2,7 @@
 #include "hal/hal_nvs.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
@@ -15,6 +16,8 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_SSID    "wifi_ssid"
 #define NVS_KEY_PASS    "wifi_pass"
 #define NVS_KEY_STA_EN  "sta_en"
+#define NVS_KEY_WIFI_NETS "wifi_nets"   // blob：wifi_list_t
+#define NVS_KEY_AP_PASS "ap_pass"
 #define NVS_KEY_BEACON  "beacon"
 #define NVS_KEY_AUTO_V  "auto_v"
 #define NVS_KEY_STOP_M  "stop_m"
@@ -47,6 +50,9 @@ static const char *TAG = "config_svc";
 #define DEFAULT_STOP_E  1000   // 1.0 kWh
 
 static charger_config_t s_cfg;
+static wifi_list_t      s_wifi;      // 記住的 WiFi；s_cfg.wifi_ssid／pass 是它的第一組
+static uint32_t         s_wifi_gen;
+static char             s_ap_pass[WIFI_PASS_MAX_LEN + 1];
 
 // 保護 s_cfg 的多欄位更新。setter 由 HTTP / display task 呼叫，
 // 讀取端（task_tes_sm）每 10ms 會取用。臨界區內只有 memcpy，非常短。
@@ -95,6 +101,29 @@ esp_err_t config_svc_init(void)
     }
     if (hal_nvs_get_str(NVS_NS, NVS_KEY_PASS, s_cfg.wifi_pass, sizeof(s_cfg.wifi_pass)) != ESP_OK) {
         s_cfg.wifi_pass[0] = '\0';
+    }
+
+    // 記住的 WiFi 清單。沒有（2026-10-17 前的韌體）就把舊的那一組搬進來
+    {
+        size_t len = sizeof(s_wifi);
+        if (hal_nvs_get_blob(NVS_NS, NVS_KEY_WIFI_NETS, &s_wifi, &len) != ESP_OK || len != sizeof(s_wifi)) {
+            memset(&s_wifi, 0, sizeof(s_wifi));
+            if (s_cfg.wifi_ssid[0]) {
+                wifi_list_add(&s_wifi, s_cfg.wifi_ssid, s_cfg.wifi_pass);
+                hal_nvs_set_blob(NVS_NS, NVS_KEY_WIFI_NETS, &s_wifi, sizeof(s_wifi));
+                ESP_LOGI(TAG, "migrated wifi_ssid into wifi_nets");
+            }
+        }
+        wifi_list_sanitize(&s_wifi);
+        ESP_LOGI(TAG, "%d WiFi network(s) remembered", wifi_list_count(&s_wifi));
+    }
+    // 自動熱點的密碼：沒有就產生一組。去掉 0/o、1/l/i 這類容易看錯的字
+    if (hal_nvs_get_str(NVS_NS, NVS_KEY_AP_PASS, s_ap_pass, sizeof(s_ap_pass)) != ESP_OK || strlen(s_ap_pass) < 8) {
+        static const char alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
+        for (int i = 0; i < 10; i++) s_ap_pass[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
+        s_ap_pass[10] = '\0';
+        hal_nvs_set_str(NVS_NS, NVS_KEY_AP_PASS, s_ap_pass);
+        ESP_LOGI(TAG, "generated hotspot password");
     }
 
     // 預設 true —— 舊機器升級上來時 NVS 沒有這個鍵，必須維持原本會連線的行為，
@@ -220,15 +249,73 @@ esp_err_t config_svc_set_charging(uint16_t v_01v, uint16_t a_01a, int8_t soc)
 
 esp_err_t config_svc_set_wifi(const char *ssid, const char *pass)
 {
+    if (!ssid || !ssid[0]) return ESP_OK;
+    return config_svc_wifi_add(ssid, pass);
+}
+
+// 清單改了：寫 NVS，第一組同步到 s_cfg 與舊的 wifi_ssid／wifi_pass（降版也連得上）
+static esp_err_t wifi_commit(const wifi_list_t *l)
+{
     CFG_WRITE_BEGIN();
-    strncpy(s_cfg.wifi_ssid, ssid, sizeof(s_cfg.wifi_ssid) - 1);
-    s_cfg.wifi_ssid[sizeof(s_cfg.wifi_ssid) - 1] = '\0';
-    strncpy(s_cfg.wifi_pass, pass, sizeof(s_cfg.wifi_pass) - 1);
-    s_cfg.wifi_pass[sizeof(s_cfg.wifi_pass) - 1] = '\0';
+    s_wifi = *l;
+    strcpy(s_cfg.wifi_ssid, l->e[0].ssid);
+    strcpy(s_cfg.wifi_pass, l->e[0].pass);
+    s_wifi_gen++;
     CFG_WRITE_END();
-    esp_err_t r = hal_nvs_set_str(NVS_NS, NVS_KEY_SSID, s_cfg.wifi_ssid);
-    r |= hal_nvs_set_str(NVS_NS, NVS_KEY_PASS, s_cfg.wifi_pass);
+    esp_err_t r = hal_nvs_set_blob(NVS_NS, NVS_KEY_WIFI_NETS, l, sizeof(*l));
+    r |= hal_nvs_set_str(NVS_NS, NVS_KEY_SSID, l->e[0].ssid);
+    r |= hal_nvs_set_str(NVS_NS, NVS_KEY_PASS, l->e[0].pass);
     return r;
+}
+
+void config_svc_wifi_get(wifi_list_t *out)
+{
+    CFG_WRITE_BEGIN();
+    *out = s_wifi;
+    CFG_WRITE_END();
+}
+
+uint32_t config_svc_wifi_gen(void)
+{
+    return s_wifi_gen;
+}
+
+esp_err_t config_svc_wifi_add(const char *ssid, const char *pass)
+{
+    // 485 bytes：放 static，不吃呼叫端（httpd）的堆疊。只有 httpd 會改清單
+    static wifi_list_t l;
+    config_svc_wifi_get(&l);
+    wifi_list_err_t e = wifi_list_add(&l, ssid, pass);
+    if (e == WIFI_LIST_FULL)    return ESP_ERR_NO_MEM;
+    if (e != WIFI_LIST_OK)      return ESP_ERR_INVALID_ARG;
+    return wifi_commit(&l);
+}
+
+esp_err_t config_svc_wifi_remove(const char *ssid)
+{
+    static wifi_list_t l;
+    config_svc_wifi_get(&l);
+    if (wifi_list_remove(&l, ssid) != WIFI_LIST_OK) return ESP_ERR_NOT_FOUND;
+    return wifi_commit(&l);
+}
+
+void config_svc_get_ap_pass(char out[WIFI_PASS_MAX_LEN + 1])
+{
+    CFG_WRITE_BEGIN();
+    strcpy(out, s_ap_pass);
+    CFG_WRITE_END();
+}
+
+esp_err_t config_svc_set_ap_pass(const char *pass)
+{
+    size_t n = pass ? strlen(pass) : 0;
+    if (n < 8 || n > WIFI_PASS_MAX_LEN) return ESP_ERR_INVALID_ARG;
+    for (size_t i = 0; i < n; i++)
+        if (pass[i] < 0x21 || pass[i] > 0x7E) return ESP_ERR_INVALID_ARG;   // 可見 ASCII，不含空白
+    CFG_WRITE_BEGIN();
+    strcpy(s_ap_pass, pass);
+    CFG_WRITE_END();
+    return hal_nvs_set_str(NVS_NS, NVS_KEY_AP_PASS, pass);
 }
 
 esp_err_t config_svc_set_sta_enabled(bool enabled)

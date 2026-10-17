@@ -83,6 +83,7 @@ typedef enum {
     MENU_ITEM_STOP_ENERGY,   // 充入電量目標（stop_mode=ENERGY 時顯示，0.1–20.0 kWh）
     MENU_ITEM_BEACON,
     MENU_ITEM_WIFI_INFO,
+    MENU_ITEM_AP_PASS,       // 自動熱點的密碼（唯讀；連不上 WiFi 時手機用它連進來）
     MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
     MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
     MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
@@ -243,12 +244,19 @@ static void item_label(int item, char *buf, size_t bufsz)
     case MENU_ITEM_WIFI_INFO: {
         char ip[20];
         network_svc_get_ip_str(ip, sizeof(ip));
-        if (network_svc_is_ap_mode())
-            snprintf(buf, bufsz, "AP: %s", ip);
-        else if (ip[0] != '\0')
+        // 熱點可能跟 WiFi 同時開著：連著 WiFi 就顯示那個位址
+        if (network_svc_is_connected())
             snprintf(buf, bufsz, "IP: %s", ip);
+        else if (network_svc_is_ap_mode())
+            snprintf(buf, bufsz, "AP: %s", ip);
         else
             snprintf(buf, bufsz, "WiFi: ---");
+        break;
+    }
+    case MENU_ITEM_AP_PASS: {
+        char pass[WIFI_PASS_MAX_LEN + 1];
+        config_svc_get_ap_pass(pass);
+        snprintf(buf, bufsz, "%s%s", L("AP pass: ", ZH("熱點密碼:")), pass);
         break;
     }
     case MENU_ITEM_DEVICE_ID: {

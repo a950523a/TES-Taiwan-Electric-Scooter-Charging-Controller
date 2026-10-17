@@ -31,6 +31,8 @@
 #include "services/scheduler_svc.h"
 #include "services/hwtest_svc.h"
 #include "services/factory_svc.h"
+#include "services/wifi_list.h"
+#include "services/wifi_plan.h"
 #include "drivers/display_driver.h"
 #include "hal/hal_gpio.h"
 #include "tes_protocol/tes_types.h"
@@ -69,13 +71,34 @@ extern QueueHandle_t     g_btn_event_queue;
 static httpd_handle_t s_server    = NULL;
 static int            s_httpd_max_sockets;   // /hw.json 回報用
 static bool           s_connected = false;
-static bool           s_ap_mode   = false;
+static bool           s_ap_mode   = false;   // 熱點開著（首次設定、固定熱點，或連不上 WiFi 自動開的）
 static bool           s_mdns_ok   = false;
 static char           s_ip_str[20] = "";   // "" = not yet known
 static char           s_hostname[24] = ""; // "tes-<id>"，唯一
 static char           s_ap_ssid[32]  = ""; // "TES-Charger-<id>"
 
 static bool           s_legacy_svc_ok = false;
+
+// WiFi 管理的狀態（說明在 network_svc_wifi_tick() 那一節）
+static wifi_plan_t       s_plan;
+static SemaphoreHandle_t s_scan_lock;
+static volatile bool     s_mgr_scanning;
+static volatile bool     s_connecting;
+static volatile bool     s_retry_req;
+static volatile bool     s_scan_ready;       // 背景掃描做完了，等 task_network 讀結果
+static volatile int      s_disc_reason = -1; // 上次斷線／連失敗的原因（log 在 tick 印，事件任務堆疊太小）
+static volatile bool     s_disc_was_try;
+static volatile uint32_t s_fail_mask;        // 這一輪連失敗的清單索引
+static int               s_try_idx = -1;
+static char              s_try_ssid[33];
+static char              s_sta_ssid[33];     // 目前連上的
+static bool              s_ap_secure;        // 目前這個熱點有沒有加密
+static bool              s_sta_enabled_boot;
+static bool              s_wifi_started;
+static uint32_t          s_wifi_gen_seen;
+static uint32_t          s_connect_start_ms;
+static int  ap_client_count(void);
+static bool wifi_hold(void);
 
 #define LEGACY_HOSTNAME "tes-charger"      // 相容用的別名，見檔頭說明
 #define MDNS_DEV_MARKER "tes-charger"      // mDNS TXT "dev=" 的值，用來辨識本產品
@@ -264,6 +287,9 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "stop_reason",       snap.stop_reason);    // stop_reason_t
     cJSON_AddBoolToObject  (root, "wifi_connected",    s_connected);
     cJSON_AddStringToObject(root, "ip",                s_ip_str);
+    cJSON_AddStringToObject(root, "sta_ssid",          s_connected ? s_sta_ssid : "");
+    cJSON_AddBoolToObject  (root, "ap_on",             s_ap_mode);
+    cJSON_AddNumberToObject(root, "ap_clients",        ap_client_count());
 
     // 裝置識別（多台同網段時用來分辨是哪一台）
     {
@@ -423,6 +449,19 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "charge_timer_min", cfg->charge_timer_min);
     cJSON_AddStringToObject(root, "wifi_ssid",      cfg->wifi_ssid);
     cJSON_AddBoolToObject  (root, "sta_enabled",    cfg->sta_enabled);
+    // 記住的 WiFi（2026-10-17）：只給 SSID，密碼不出這台
+    {
+        static wifi_list_t wl;   // httpd 只有一個 worker，static 不會被同時用
+        config_svc_wifi_get(&wl);
+        cJSON *nets = cJSON_AddArrayToObject(root, "wifi_nets");
+        for (int i = 0; i < wifi_list_count(&wl); i++)
+            cJSON_AddItemToArray(nets, cJSON_CreateString(wl.e[i].ssid));
+        cJSON_AddNumberToObject(root, "wifi_max", WIFI_LIST_MAX);
+        // 自動熱點的密碼：OLED 也看得到；區網上的人本來就能控制這台，給 App 記下來用
+        char ap_pass[WIFI_PASS_MAX_LEN + 1];
+        config_svc_get_ap_pass(ap_pass);
+        cJSON_AddStringToObject(root, "ap_pass", ap_pass);
+    }
     cJSON_AddBoolToObject  (root, "beacon",         cfg->beacon_unlocked);
     cJSON_AddStringToObject(root, "notify_url",        cfg->notify_url);
     cJSON_AddNumberToObject(root, "push_tokens",       push_svc_count());   // 只給數量，不給 token
@@ -564,6 +603,9 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         device_name_changed = true;
     }
 
+    // 舊網頁／舊 App 只有一組 SSID＋密碼：當成「加入（或更新）這一組」。沒帶密碼 = 保留原本的。
+    // 加進清單馬上就會去試，不用重開機
+    bool legacy_pass = false;
     item = cJSON_GetObjectItem(root, "wifi_ssid");
     if (cJSON_IsString(item) && item->valuestring) {
         strncpy(new_ssid, item->valuestring, sizeof(new_ssid) - 1);
@@ -575,14 +617,33 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         strncpy(new_pass, item->valuestring, sizeof(new_pass) - 1);
         new_pass[sizeof(new_pass) - 1] = '\0';
         wifi_changed = true;
+        legacy_pass = true;
     }
-    // STA 開關：切換等同 WiFi 模式變更，要走同一條「需重啟」的回報路徑
+    // {"wifi_add":{"ssid":"...","pass":"..."}}：pass 省略 = 已有的保留密碼、新的當開放網路
+    const char *wifi_err = NULL;
+    item = cJSON_GetObjectItem(root, "wifi_add");
+    if (cJSON_IsObject(item)) {
+        const cJSON *ws = cJSON_GetObjectItem(item, "ssid");
+        const cJSON *wp = cJSON_GetObjectItem(item, "pass");
+        esp_err_t we = cJSON_IsString(ws)
+            ? config_svc_wifi_add(ws->valuestring, cJSON_IsString(wp) ? wp->valuestring : NULL)
+            : ESP_ERR_INVALID_ARG;
+        if (we == ESP_ERR_NO_MEM)    wifi_err = "wifi list full";
+        else if (we != ESP_OK)       wifi_err = "invalid wifi ssid or password (8-63 chars, or empty for open)";
+    }
+    item = cJSON_GetObjectItem(root, "wifi_remove");
+    if (cJSON_IsString(item)) config_svc_wifi_remove(item->valuestring);
+    item = cJSON_GetObjectItem(root, "ap_pass");
+    if (cJSON_IsString(item) && config_svc_set_ap_pass(item->valuestring) != ESP_OK)
+        wifi_err = "invalid hotspot password (8-63 visible ASCII characters)";
+    // STA 開關：只在開機時讀（關掉 = 固定熱點），要重開機
+    bool sta_changed = false;
     item = cJSON_GetObjectItem(root, "sta_enabled");
     if (cJSON_IsBool(item)) {
         bool en = cJSON_IsTrue(item);
         if (en != cur->sta_enabled) {
             config_svc_set_sta_enabled(en);
-            wifi_changed = true;
+            sta_changed = true;
         }
     }
     item = cJSON_GetObjectItem(root, "beacon");
@@ -744,7 +805,9 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         }
     }
     if (charging_changed)     config_svc_set_charging(new_voltage, new_current, new_soc);
-    if (wifi_changed)         config_svc_set_wifi(new_ssid, new_pass);
+    // 空 SSID（以前的「清掉 WiFi」）不做事：要刪用 wifi_remove
+    if (wifi_changed && new_ssid[0] && config_svc_wifi_add(new_ssid, legacy_pass ? new_pass : NULL) != ESP_OK && !wifi_err)
+        wifi_err = "invalid wifi ssid or password, or wifi list full";
     if (beacon_changed)       config_svc_set_beacon(new_beacon);
     if (auto_voltage_changed) config_svc_set_auto_voltage(new_auto_voltage);
     if (notify_url_changed)   config_svc_set_notify_url(new_notify_url);
@@ -757,17 +820,26 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     if (psu_transport_changed)
         config_svc_set_psu(new_psu_transport, cur->psu_peer_mac, cur->psu_paired);
 
-    // 這三項都只在開機時被讀取一次（WiFi 在 network_svc_init、MQTT 在 task_mqtt
+    // 這三項都只在開機時被讀取一次（STA 開關在 network_svc_init、MQTT 在 task_mqtt
     // 啟動時、PSU transport 在 app_main 末端），改完必須重開機才會生效。
-    bool reboot_required = wifi_changed || mqtt_changed || psu_transport_changed;
+    // WiFi 清單不用：network_svc_wifi_tick() 看到變更就重新掃描。
+    bool reboot_required = sta_changed || mqtt_changed || psu_transport_changed;
     if (reboot_required)
-        ESP_LOGI(TAG, "WiFi/MQTT/PSU-transport config updated — reboot to apply");
+        ESP_LOGI(TAG, "STA/MQTT/PSU-transport config updated — reboot to apply");
 
     httpd_resp_set_type(req, "application/json");
     set_cors(req);
+    if (wifi_err) {
+        // 其他欄位照樣存了；只有 WiFi 那一項沒成功
+        char out[160];
+        snprintf(out, sizeof out, "{\"ok\":false,\"error\":\"%s\",\"reboot_required\":%s}",
+                 wifi_err, reboot_required ? "true" : "false");
+        httpd_resp_sendstr(req, out);
+        return ESP_OK;
+    }
     httpd_resp_sendstr(req, reboot_required
         ? "{\"ok\":true,\"reboot_required\":true,"
-          "\"note\":\"reboot to apply wifi / mqtt / psu_transport changes\"}"
+          "\"note\":\"reboot to apply sta_enabled / mqtt / psu_transport changes\"}"
         : "{\"ok\":true,\"reboot_required\":false}");
     return ESP_OK;
 }
@@ -1006,7 +1078,20 @@ static esp_err_t handle_get_wifi_scan(httpd_req_t *req)
         .scan_time.active.max   = 300,
     };
 
+    if (wifi_hold()) {
+        // 掃描會換頻道，ESP-NOW 的 PSU 會斷線而讓充電故障
+        httpd_resp_set_status(req, "409 Conflict");
+        set_cors(req);
+        httpd_resp_sendstr(req, "charging with an ESP-NOW PSU: scan after charging");
+        return ESP_OK;
+    }
+    // 背景正在掃就等它做完（幾秒），不然兩個掃描會互相打斷
+    if (xSemaphoreTake(s_scan_lock, pdMS_TO_TICKS(8000)) != pdTRUE) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scan busy");
+        return ESP_FAIL;
+    }
     esp_err_t err = esp_wifi_scan_start(&scan_cfg, true);   // blocking ~300 ms
+    xSemaphoreGive(s_scan_lock);
     if (err != ESP_OK) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scan failed");
         return ESP_FAIL;
@@ -2195,23 +2280,217 @@ static void mdns_publish(uint32_t ip4_addr)
     }
 }
 
+// ── WiFi：記住的網路、自動熱點（2026-10-17）─────────────────────────────────
+// 什麼時候掃描、什麼時候開熱點由 wifi_plan.c 決定（純函式、有主機測試）；這裡是 ESP-IDF 的手腳。
+// 掃描是非同步的：network_svc_wifi_tick()（task_network）開始掃；SCAN_DONE 事件只立旗標，
+// 下一圈 tick 讀結果、挑網路、連線（事件任務只有 2.3 KB 堆疊）。
+// s_scan_lock 讓背景掃描與 GET /wifi/scan 輪流用掃描器。
+
+#define WIFI_CONNECT_TIMEOUT_MS 20000
+#define WIFI_SCAN_MAX_RECORDS   16
+
+static int ap_client_count(void)
+{
+    if (!s_ap_mode) return 0;
+    wifi_sta_list_t l;
+    return esp_wifi_ap_get_sta_list(&l) == ESP_OK ? l.num : 0;
+}
+
+// PSU 走 ESP-NOW 而且正在充電：不准掃描（掃描會換頻道，PSU 斷線超過 2 秒就故障）
+static bool wifi_hold(void)
+{
+    if (config_svc_get()->psu_transport != PSU_TRANSPORT_ESPNOW) return false;
+    tes_state_t st = TES_STATE_IDLE;
+    if (xSemaphoreTake(g_snapshot_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        st = g_snapshot.state;
+        xSemaphoreGive(g_snapshot_mutex);
+    } else {
+        return true;   // 讀不到就當在充電：寧可晚一點掃
+    }
+    return st != TES_STATE_IDLE && st != TES_STATE_FAULT && st != TES_STATE_EMERGENCY;
+}
+
+// 開／關熱點。已經開著就不改設定（加密方式也不變）：正在用熱點的手機不能被踢掉
+static void ap_apply(bool on, bool secure)
+{
+    if (on == s_ap_mode) return;
+    if (on) {
+        wifi_config_t ap = { .ap = { .max_connection = 4 } };
+        size_t n = strlen(s_ap_ssid);
+        memcpy(ap.ap.ssid, s_ap_ssid, n);
+        ap.ap.ssid_len = (uint8_t)n;
+        // 用目前的頻道：STA 連著就只能同一個；沒連著也不換，ESP-NOW 的 PSU 不用重新找
+        uint8_t ch = 1;
+        wifi_second_chan_t sc;
+        if (s_wifi_started && esp_wifi_get_channel(&ch, &sc) != ESP_OK) ch = 1;
+        ap.ap.channel = ch ? ch : 1;
+        if (secure) {
+            config_svc_get_ap_pass((char *)ap.ap.password);
+            ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        } else {
+            ap.ap.authmode = WIFI_AUTH_OPEN;
+        }
+        s_ap_secure = secure;
+        esp_wifi_set_mode(WIFI_MODE_APSTA);
+        esp_wifi_set_config(WIFI_IF_AP, &ap);
+        ESP_LOGI(TAG, "hotspot on: %s ch%u (%s)", s_ap_ssid, (unsigned)ap.ap.channel, secure ? "WPA2" : "open");
+    } else {
+        esp_wifi_set_mode(WIFI_MODE_STA);
+        ESP_LOGI(TAG, "hotspot off");
+    }
+    s_ap_mode = on;
+}
+
+static void start_scan(void)
+{
+    if (xSemaphoreTake(s_scan_lock, 0) != pdTRUE) return;   // GET /wifi/scan 在用
+    wifi_scan_config_t sc = {
+        .scan_type            = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time.active.min = 100,
+        .scan_time.active.max = 300,
+    };
+    s_mgr_scanning = true;
+    if (esp_wifi_scan_start(&sc, false) != ESP_OK) {
+        s_mgr_scanning = false;
+        xSemaphoreGive(s_scan_lock);
+    }
+}
+
+// 背景掃描做完（task_network）：記住的網路裡挑訊號最強、這一輪還沒失敗過的，連過去
+static void wifi_scan_done(void)
+{
+    static wifi_ap_record_t rec[WIFI_SCAN_MAX_RECORDS];
+    static wifi_list_t      wl;
+    static const char      *seen[WIFI_SCAN_MAX_RECORDS];
+    static int8_t           rssi[WIFI_SCAN_MAX_RECORDS];
+    uint16_t n = WIFI_SCAN_MAX_RECORDS;
+    if (esp_wifi_scan_get_ap_records(&n, rec) != ESP_OK) n = 0;   // 也會釋放掃描結果
+    if (s_connected || !s_sta_enabled_boot) return;
+    config_svc_wifi_get(&wl);
+    for (int i = 0; i < n; i++) { seen[i] = (const char *)rec[i].ssid; rssi[i] = rec[i].rssi; }
+    int idx = wifi_list_pick(&wl, seen, rssi, n, s_fail_mask);
+    if (idx < 0 && s_fail_mask) {
+        s_fail_mask = 0;                 // 都試過了：下一輪重新來
+        return;
+    }
+    if (idx < 0) return;
+    uint8_t ch = 0;
+    for (int i = 0; i < n; i++) if (strcmp(seen[i], wl.e[idx].ssid) == 0) { ch = rec[i].primary; break; }
+
+    wifi_config_t w = {0};
+    strcpy((char *)w.sta.ssid, wl.e[idx].ssid);
+    strcpy((char *)w.sta.password, wl.e[idx].pass);
+    w.sta.channel = ch;                  // 剛掃到的頻道，連線時不必再掃一遍
+    esp_wifi_set_config(WIFI_IF_STA, &w);
+    s_try_idx = idx;
+    strcpy(s_try_ssid, wl.e[idx].ssid);
+    s_connect_start_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    s_connecting = true;
+    ESP_LOGI(TAG, "connecting to \"%s\" (ch%u)", s_try_ssid, (unsigned)ch);
+    if (esp_wifi_connect() != ESP_OK) {
+        s_connecting = false;
+        s_fail_mask |= 1u << idx;
+        s_retry_req = true;
+    }
+}
+
+void network_svc_wifi_tick(void)
+{
+    static uint32_t last;
+    if (!s_wifi_started) return;
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    if (s_scan_ready) {
+        s_scan_ready = false;
+        s_mgr_scanning = false;
+        wifi_scan_done();
+        xSemaphoreGive(s_scan_lock);
+    }
+    if (s_disc_reason >= 0) {
+        int r = s_disc_reason;
+        s_disc_reason = -1;
+        if (s_disc_was_try) ESP_LOGW(TAG, "WiFi \"%s\" failed (reason %d)", s_try_ssid, r);
+        else                ESP_LOGW(TAG, "WiFi lost (reason %d)", r);
+    }
+    if ((uint32_t)(now - last) < 500) return;
+    last = now;
+
+    static wifi_list_t wl;
+    config_svc_wifi_get(&wl);
+    uint32_t gen = config_svc_wifi_gen();
+    if (gen != s_wifi_gen_seen) {
+        // 清單改了：重新來過；連著的那組被刪掉就斷開
+        s_wifi_gen_seen = gen;
+        s_fail_mask = 0;
+        wifi_plan_retry_soon(&s_plan, now - WIFI_PLAN_RETRY_MS);
+        if (s_connected && wifi_list_find(&wl, s_sta_ssid) < 0) esp_wifi_disconnect();
+    }
+    if (s_retry_req) {
+        s_retry_req = false;
+        wifi_plan_retry_soon(&s_plan, now);
+    }
+    if (s_connecting && (uint32_t)(now - s_connect_start_ms) > WIFI_CONNECT_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "WiFi \"%s\" connect timeout", s_try_ssid);
+        esp_wifi_disconnect();           // 會收到 DISCONNECTED，走失敗的路
+    }
+
+    wifi_plan_in_t in = {
+        .now_ms     = now,
+        .sta_wanted = s_sta_enabled_boot && wifi_list_count(&wl) > 0,
+        .sta_up     = s_connected,
+        .sta_busy   = s_mgr_scanning || s_connecting,
+        .hold       = wifi_hold(),
+        .ap_on      = s_ap_mode,
+        .ap_clients = ap_client_count(),
+    };
+    wifi_plan_out_t out;
+    wifi_plan_tick(&s_plan, &in, &out);
+    ap_apply(out.ap_on, out.ap_secure);
+    if (out.scan) start_scan();
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t base,
                                 int32_t id, void *data)
 {
     if (base == WIFI_EVENT) {
         if (id == WIFI_EVENT_AP_START) {
-            // AP mode is up — our IP is always 192.168.4.1
-            strncpy(s_ip_str, "192.168.4.1", sizeof(s_ip_str) - 1);
-            ESP_LOGI(TAG, "AP \"%s\" started @ %s", s_ap_ssid, s_ip_str);
-            mdns_publish(ESP_IP4TOADDR(192, 168, 4, 1));
+            // 熱點的位址固定 192.168.4.1；STA 連著的話對外仍用 STA 的位址
+            ESP_LOGI(TAG, "AP \"%s\" started (%s)", s_ap_ssid, s_ap_secure ? "WPA2" : "open");
+            if (!s_connected) {
+                strncpy(s_ip_str, "192.168.4.1", sizeof(s_ip_str) - 1);
+                mdns_publish(ESP_IP4TOADDR(192, 168, 4, 1));
+            }
+        } else if (id == WIFI_EVENT_AP_STOP) {
+            if (!s_connected) s_ip_str[0] = '\0';
+            ESP_LOGI(TAG, "AP stopped");
+        } else if (id == WIFI_EVENT_SCAN_DONE) {
+            // 事件任務只有 2.3 KB 堆疊：讀結果、挑網路、連線都交給 task_network。
+            // GET /wifi/scan 的阻塞掃描自己讀結果
+            if (s_mgr_scanning) s_scan_ready = true;
         } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+            const wifi_event_sta_disconnected_t *d = data;
+            bool was = s_connected;
             s_connected  = false;
-            s_ip_str[0]  = '\0';
-            if (!s_ap_mode) esp_wifi_connect();  // auto-reconnect (not in AP-only setup mode)
+            s_sta_ssid[0] = '\0';
+            strcpy(s_ip_str, s_ap_mode ? "192.168.4.1" : "");
+            if (s_connecting) {
+                // 這組連不上（密碼錯、訊號太弱…）：這一輪先跳過，換下一組
+                s_connecting = false;
+                if (s_try_idx >= 0) s_fail_mask |= 1u << s_try_idx;
+                s_retry_req = true;
+                s_disc_was_try = true;
+                s_disc_reason = d ? d->reason : 0;
+            } else if (was) {
+                s_retry_req = true;          // 斷線：馬上找一次，不等完整間隔
+                s_disc_was_try = false;
+                s_disc_reason = d ? d->reason : 0;
+            }
         }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *ev = (ip_event_got_ip_t *)data;
-        s_connected = true;
+        s_connected  = true;
+        s_connecting = false;
+        s_fail_mask  = 0;
+        strcpy(s_sta_ssid, s_try_ssid);
         snprintf(s_ip_str, sizeof(s_ip_str), IPSTR, IP2STR(&ev->ip_info.ip));
 
         // DHCP 換過 IP 也會再進來一次，delegated hostname 的位址要跟著更新
@@ -2319,35 +2598,26 @@ esp_err_t network_svc_init(void)
     snprintf(s_hostname, sizeof(s_hostname), "tes-%s",         cfg->device_id);
     snprintf(s_ap_ssid,  sizeof(s_ap_ssid),  "TES-Charger-%s", cfg->device_id);
 
-    // 兩種情況都走 AP：沒有 SSID（首次設定），或使用者主動關掉 STA。
-    // 後者保留 SSID／密碼不清除 —— 開關再打開就能直接連回去。
-    if (cfg->wifi_ssid[0] == '\0' || !cfg->sta_enabled) {
-        // No SSID: start open AP for initial WiFi configuration via POST /config
-        esp_netif_create_default_wifi_ap();
-        esp_netif_create_default_wifi_sta();   // STA interface needed for /wifi/scan
-        wifi_config_t ap_cfg = {
-            .ap = {
-                .channel        = 1,
-                .authmode       = WIFI_AUTH_OPEN,
-                .max_connection = 4,
-            }
-        };
-        size_t ssid_len = strlen(s_ap_ssid);
-        memcpy(ap_cfg.ap.ssid, s_ap_ssid, ssid_len);
-        ap_cfg.ap.ssid_len = (uint8_t)ssid_len;
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));   // APSTA enables scanning
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
-        s_ap_mode = true;
-        ESP_LOGI(TAG, "no SSID — AP+STA mode: %s (open)", s_ap_ssid);
+    // 熱點隨時可能要開（連不上 WiFi 時），兩個介面一開始就都建好
+    esp_netif_create_default_wifi_ap();
+    esp_netif_create_default_wifi_sta();
+    s_scan_lock = xSemaphoreCreateBinary();
+    xSemaphoreGive(s_scan_lock);
+    s_sta_enabled_boot = cfg->sta_enabled;
+    s_wifi_gen_seen    = config_svc_wifi_gen();
+
+    // 首次設定（沒記住網路）或使用者固定熱點：一開機就開不加密的熱點，跟以前一樣。
+    // 其他情況先只開 STA，連不上才由 network_svc_wifi_tick() 開熱點
+    static wifi_list_t wl;
+    config_svc_wifi_get(&wl);
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    if (wifi_list_count(&wl) == 0 || !cfg->sta_enabled) {
+        ap_apply(true, false);
+        ESP_LOGI(TAG, "%s — AP %s (open)", cfg->sta_enabled ? "no WiFi saved" : "STA off", s_ap_ssid);
     } else {
-        esp_netif_create_default_wifi_sta();
-        wifi_config_t wcfg = {};
-        strncpy((char *)wcfg.sta.ssid,     cfg->wifi_ssid, sizeof(wcfg.sta.ssid) - 1);
-        strncpy((char *)wcfg.sta.password, cfg->wifi_pass,  sizeof(wcfg.sta.password) - 1);
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wcfg));
-        ESP_LOGI(TAG, "STA mode: SSID=%s", cfg->wifi_ssid);
+        ESP_LOGI(TAG, "STA mode: %d network(s) saved", wifi_list_count(&wl));
     }
+    wifi_plan_init(&s_plan, (uint32_t)(esp_timer_get_time() / 1000));
     return ESP_OK;
 }
 
@@ -2364,7 +2634,6 @@ void network_svc_start(void)
         ESP_LOGW(TAG, "esp_wifi_set_ps(NONE) failed: %s", esp_err_to_name(ps));
     }
 
-    if (!s_ap_mode) {
-        esp_wifi_connect();
-    }
+    // 連線由 network_svc_wifi_tick() 處理：先掃描，挑記住的網路裡訊號最強的
+    s_wifi_started = true;
 }

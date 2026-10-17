@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "tes_protocol/tes_types.h"
+#include "services/wifi_list.h"
 
 // 充入電量停止條件的範圍（Wh）：0.1–20.0 kWh。網頁、App、OLED 選單與 POST /config 都照這個
 #define STOP_ENERGY_MIN_WH  100
@@ -22,6 +23,7 @@ typedef struct {
     uint16_t max_voltage_01v;    // e.g. 1000 = 100.0 V
     uint16_t max_current_01a;    // e.g.  100 =  10.0 A
     int8_t   target_soc;         // 0-100 %
+    // 清單裡最前面那組（相容用：舊韌體、舊 App 只認得一組）。真正的清單在 config_svc_wifi_get()
     char     wifi_ssid[33];
     char     wifi_pass[64];
     // false = 不連線至路由器，固定開熱點，但 SSID／密碼保留不清除。
@@ -70,7 +72,21 @@ void                     config_svc_get_copy     (charger_config_t *out);
 
 esp_err_t config_svc_set_device_name    (const char *name);
 esp_err_t config_svc_set_charging       (uint16_t v_01v, uint16_t a_01a, int8_t soc);
+// 舊介面：加入／更新一組並排到最前面（pass == NULL 保留原密碼）。空 SSID 不做事
 esp_err_t config_svc_set_wifi           (const char *ssid, const char *pass);
+
+// ── 記住的 WiFi（最多 WIFI_LIST_MAX 組，2026-10-17）────────────────────────────
+// NVS blob "wifi_nets"；第一組同時寫回舊的 wifi_ssid／wifi_pass，降版韌體還連得上。
+// 密碼只在這裡與 network_svc 之間流動，GET /config 只給 SSID。
+void      config_svc_wifi_get           (wifi_list_t *out);
+esp_err_t config_svc_wifi_add           (const char *ssid, const char *pass);   // INVALID_ARG／NO_MEM（滿了）
+esp_err_t config_svc_wifi_remove        (const char *ssid);                      // NOT_FOUND
+uint32_t  config_svc_wifi_gen           (void);   // 清單每改一次 +1，network_svc 用它發現變更
+
+// 連不上 WiFi 時自動開的熱點的密碼（WPA2）。第一次開機隨機產生 10 碼，存 NVS "ap_pass"；
+// OLED 設定選單「熱點密碼」顯示。首次設定（沒記住任何網路）的熱點仍然不加密。
+void      config_svc_get_ap_pass        (char out[WIFI_PASS_MAX_LEN + 1]);
+esp_err_t config_svc_set_ap_pass        (const char *pass);   // 8–63 個可見 ASCII，否則 INVALID_ARG
 esp_err_t config_svc_set_sta_enabled    (bool enabled);   // false = 固定 AP 模式，保留憑證
 esp_err_t config_svc_set_beacon         (bool unlocked);
 esp_err_t config_svc_set_auto_voltage   (bool enabled);

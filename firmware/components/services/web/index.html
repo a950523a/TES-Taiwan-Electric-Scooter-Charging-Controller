@@ -137,6 +137,12 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 .b-scan{flex:none;padding:9px 12px;background:#2a2a2a;color:#aaa;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:.85em;white-space:nowrap;font-weight:bold;transition:opacity .15s}
 .b-scan:active{opacity:.65}
 .b-scan:disabled{opacity:.4;cursor:default}
+.wn-list{margin-bottom:6px}
+.wn-row{display:flex;align-items:center;gap:8px;padding:7px 8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;margin-bottom:4px;font-size:.85em}
+.wn-row .wn-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wn-row .wn-on{color:#4d4;font-size:.85em}
+.wn-row button{background:none;border:none;color:#f66;cursor:pointer;font-size:.9em;padding:2px 4px}
+.wn-ap{font-size:.75em;color:#888;margin:8px 0 4px;padding:6px 8px;background:#161616;border-radius:4px;line-height:1.6}
 .scan-list{background:#222;border:1px solid #3a3a3a;border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;display:none}
 .scan-item{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;font-size:.9em}
 .scan-item:last-child{border-bottom:none}
@@ -352,16 +358,24 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     ⚠️ 目前設定為<b>不連線至路由器</b>。下次重新開機後將固定開啟熱點
     <b id="sta-ap-name">TES-Charger-xxxxxx</b>，這個網址會失效 —— 需要把手機 WiFi
     改連上述熱點，再開啟 <span style="color:#6a8">192.168.4.1</span> 才回得來。<br>
-    目前的連線不受影響。SSID 與密碼已保留，開關打開即可連回。
+    目前的連線不受影響。記住的 WiFi 都會保留，開關打開即可連回。
   </div>
-  <label class="lbl2">WiFi SSID</label>
+  <label class="lbl2">記住的 WiFi（最多 5 組，會連訊號最強的那組）</label>
+  <div id="wn-list" class="wn-list"></div>
   <div class="wifi-row">
-    <input type="text" id="ci" autocomplete="off" placeholder="路由器名稱">
+    <input type="text" id="wn-ssid" autocomplete="off" placeholder="WiFi 名稱">
     <button class="b-scan" id="scan-btn" onclick="scanWifi()">🔍 掃描</button>
   </div>
   <div class="scan-list" id="scan-list"></div>
-  <label class="lbl2">WiFi 密碼（留空保持不變）</label>
-  <input type="password" id="cp" placeholder="••••••••">
+  <input type="password" id="wn-pass" placeholder="WiFi 密碼（開放網路留空）" style="margin-top:6px">
+  <button class="b-scan" id="wn-add" onclick="addWifi()" style="width:100%;margin-top:6px">＋ 加入這組 WiFi</button>
+  <div id="wn-msg" style="font-size:.78em;margin-top:6px;line-height:1.5"></div>
+  <div class="wn-ap">
+    連不上記住的 WiFi 時（開機 30 秒、斷線 60 秒後）會自動開熱點
+    <b id="wn-ap-ssid">TES-Charger-xxxxxx</b>，密碼 <b id="wn-ap-pass" style="font-family:monospace">--</b>
+    （OLED 設定選單的「熱點密碼」也看得到）。手機連上後開 <span style="color:#6a8">192.168.4.1</span>。
+    出門充電時先把當地的 WiFi 加進來，之後去那裡就會自動連上，推播與遠端監控照常。
+  </div>
   <div class="chk-row">
     <input type="checkbox" id="cb">
     <span>LuxBeacon SOC 燈號</span>
@@ -891,9 +905,11 @@ async function poll(){
     }else vo.style.display='none';
 
     const dot=d.wifi_connected?'#4d4':'#f55';
-    const txt=d.wifi_connected?'已連線':'未連線';
+    // 熱點可能同時開著（連不上 WiFi 時自動開的）
+    const txt=(d.wifi_connected?'已連線':'未連線')+(d.ap_on?' · 熱點開著':'');
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
     document.getElementById('ip').textContent=d.ip||'--';
+    if(d.sta_ssid!==undefined&&d.sta_ssid!==STA_SSID){STA_SSID=d.sta_ssid;renderWifiNets();}
     document.getElementById('ts').textContent=new Date().toLocaleTimeString(window.I18N?I18N.locale:undefined);
     // 同網段多台時，標題與分頁名稱要能直接分辨是哪一台
     if(d.display_name&&d.display_name!==lastDevName){
@@ -1167,7 +1183,11 @@ async function loadCfg(){
       document.getElementById('ceff').value=d.psu_eff;
       document.getElementById('cprice').value=d.kwh_price||0;
     }
-    document.getElementById('ci').value=d.wifi_ssid;
+    WIFI_NETS=d.wifi_nets||(d.wifi_ssid?[d.wifi_ssid]:[]);
+    WIFI_MAX=d.wifi_max||5;
+    document.getElementById('wn-ap-ssid').textContent=d.ap_ssid||('TES-Charger-'+(d.device_id||'xxxxxx'));
+    document.getElementById('wn-ap-pass').textContent=d.ap_pass||'--';
+    renderWifiNets();
     // 舊韌體的 /config 沒有這個欄位，undefined 要當成「開啟」，否則畫面會謊報成關閉
     document.getElementById('csta').checked=(d.sta_enabled!==false);
     document.getElementById('sta-ap-name').textContent='TES-Charger-'+(d.device_id||'xxxxxx');
@@ -1330,7 +1350,7 @@ function updateStaUI(){
   // 已經在 AP 模式（192.168.4.1）操作的人關掉它不會有任何影響。
   const onAp=location.hostname==='192.168.4.1';
   document.getElementById('sta-off-warn').style.display=(!on&&!onAp)?'block':'none';
-  ['ci','cp','scan-btn'].forEach(id=>{
+  ['wn-ssid','wn-pass','scan-btn','wn-add'].forEach(id=>{
     const el=document.getElementById(id);
     if(el){el.disabled=!on;el.style.opacity=on?'':'0.45';}
   });
@@ -1347,7 +1367,7 @@ let HAS_OLED=false;
 // key → 要標記的元素 id。單一欄位就是它自己，選項群組標在外框上。
 const CFG_ANCHOR={
   device_name:'cdn', auto_voltage:'cav', max_voltage:'cv', max_current:'ca',
-  target_soc:'cs', stop_voltage:'csv', charge_timer_min:'ctm', wifi_ssid:'ci',
+  target_soc:'cs', stop_voltage:'csv', charge_timer_min:'ctm',
   sta_enabled:'csta', beacon:'cb',
   stop_mode:'stop-mode-row', notify_url:'notify-mode-row',
   mqtt_broker_url:'mqtt-url', mqtt_topic_prefix:'mqtt-topic',
@@ -1380,7 +1400,6 @@ function collectCfg(){
     stop_mode:stopMode,
     stop_voltage:capV(num(document.getElementById('csv').value,null),'csv'),
     charge_timer_min:num(document.getElementById('ctm').value,120),
-    wifi_ssid:document.getElementById('ci').value,
     sta_enabled:document.getElementById('csta').checked,
     beacon:document.getElementById('cb').checked,
     notify_url:getNotifyUrl(),
@@ -1440,9 +1459,7 @@ function refreshCfgBar(){
   if(cfgBarLock)return;
   document.getElementById('cfg-txt').innerHTML='<b id="cfg-n">0</b> 項設定未儲存';
   const keys=cfgChangedKeys();
-  // 密碼欄有輸入也算一項變更，但它不在 CFG_BASE 裡（裝置不會回傳密碼）
-  const pw=document.getElementById('cp').value?1:0;
-  const n=keys.length+pw;
+  const n=keys.length;
 
   document.querySelectorAll('.cfg-chg,.cfg-chg-grp')
           .forEach(e=>e.classList.remove('cfg-chg','cfg-chg-grp'));
@@ -1450,7 +1467,6 @@ function refreshCfgBar(){
     const el=document.getElementById(CFG_ANCHOR[k]);
     if(el)el.classList.add(el.tagName==='INPUT'?'cfg-chg':'cfg-chg-grp');
   });
-  if(pw)document.getElementById('cp').classList.add('cfg-chg');
 
   document.getElementById('cfg-n').textContent=n;
   document.getElementById('cfg-bar').classList.toggle('on',n>0);
@@ -1458,7 +1474,6 @@ function refreshCfgBar(){
 }
 
 async function revertCfg(){
-  document.getElementById('cp').value='';
   await loadCfg();               // 直接向裝置重讀，不猜測
   document.getElementById('msg').textContent='';
 }
@@ -1466,19 +1481,15 @@ async function revertCfg(){
 async function save(){
   const now=collectCfg();
   const keys=cfgChangedKeys();
-  const p=document.getElementById('cp').value;
   const m=document.getElementById('msg');
 
-  if(!keys.length&&!p)return;   // 浮動列只在有變更時出現，正常情況走不到這裡
+  if(!keys.length)return;   // 浮動列只在有變更時出現，正常情況走不到這裡
 
   // /config 接受部分更新，所以只送真的改過的欄位。整包送出會連 wifi_ssid
   // 一起重寫，讓「只調個電流」也走進 WiFi 變更的判斷，並無謂地磨損 NVS。
   const b={};
   keys.forEach(k=>{ if(now[k]!==null) b[k]=now[k]; });
-  if(p)b.wifi_pass=p;
 
-  // 只有這次真的改了 SSID 或輸入了密碼，才需要提示重新連線
-  const ssid=('wifi_ssid' in b)?b.wifi_ssid:'';
   const psuChanged=('psu_transport' in b);
   const staChanged=('sta_enabled' in b);
 
@@ -1501,21 +1512,14 @@ async function save(){
     CFG_BASE=now;
     s_psu_transport_loaded=now.psu_transport;
     if('psu_eff' in b||'kwh_price' in b)loadEnergy();   // 月圖表的換算跟著更新
-    document.getElementById('cp').value='';
 
     // 需要使用者接手處理的情況，訊息要留著、而且要讓人看得到 ——
     // 這幾種都會斷線或需要重啟，看不到說明就等於失聯。
-    if(ssid&&p){
-      m.className='ok';
-      m.innerHTML='✓ 已儲存。設備將重啟連接至 <b>'+ssid+'</b>。<br>'
-        +'請將手機 WiFi 切換至相同網路，再開啟 <a href="http://tes-charger.local" style="color:#4a9eff">tes-charger.local</a>';
-      cfgBarSay('✓ 已儲存 — 見下方重新連線說明',true);
-      m.scrollIntoView({block:'center'});
-    }else if(staChanged){
+    if(staChanged){
       const on=now.sta_enabled;
       m.className='ok';
       m.innerHTML=on
-        ? '✓ 已儲存。重啟後將連線至 <b>'+(now.wifi_ssid||'已儲存的 WiFi')+'</b>。'
+        ? '✓ 已儲存。重啟後將連線至記住的 WiFi。'
         : '✓ 已儲存。重啟後將<b>固定開啟熱點</b>，請改連 <b>'
           +document.getElementById('sta-ap-name').textContent
           +'</b>，再開啟 <span style="color:#6a8">192.168.4.1</span>。';
@@ -1672,13 +1676,71 @@ function openPhoneWifi(){
   }
 }
 
+// ── 記住的 WiFi（2026-10-17）：加入、移除都馬上生效，不經過浮動儲存列 ──────────
+let WIFI_NETS=[], STA_SSID='', WIFI_MAX=5;
+function renderWifiNets(){
+  const box=document.getElementById('wn-list');
+  box.innerHTML='';
+  if(!WIFI_NETS.length){
+    box.innerHTML='<div class="wn-row" style="color:#666">還沒有記住的 WiFi</div>';
+    return;
+  }
+  WIFI_NETS.forEach(ssid=>{
+    const row=document.createElement('div');
+    row.className='wn-row';
+    const nm=document.createElement('span');
+    nm.className='wn-name';nm.textContent='📶 '+ssid;
+    row.appendChild(nm);
+    if(ssid===STA_SSID){const on=document.createElement('span');on.className='wn-on';on.textContent='● 連線中';row.appendChild(on);}
+    const del=document.createElement('button');
+    del.textContent='移除';del.onclick=()=>removeWifi(ssid);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+function wifiSay(t,ok){const e=document.getElementById('wn-msg');e.style.color=ok?'#6c6':'#f66';e.textContent=t;}
+async function addWifi(){
+  const ssid=document.getElementById('wn-ssid').value.trim();
+  const pass=document.getElementById('wn-pass').value;
+  if(!ssid){wifiSay('請輸入 WiFi 名稱',false);return;}
+  if(pass&&(pass.length<8||pass.length>63)){wifiSay('密碼要 8–63 個字（開放網路請留空）',false);return;}
+  const known=WIFI_NETS.includes(ssid);
+  if(!known&&WIFI_NETS.length>=WIFI_MAX){wifiSay('已經記住 5 組了，先移除一組',false);return;}
+  const w={ssid};
+  if(pass||!known)w.pass=pass;   // 已記住的留空 = 保留原本的密碼
+  try{
+    const r=await(await fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wifi_add:w})})).json();
+    if(!r.ok){wifiSay('✗ '+(r.error||'加入失敗'),false);return;}
+    document.getElementById('wn-ssid').value='';
+    document.getElementById('wn-pass').value='';
+    wifiSay(known?'✓ 已更新「'+ssid+'」':'✓ 已加入「'+ssid+'」，不用重開機；在範圍內的話幾秒內就會去連',true);
+    await loadCfg();
+  }catch(e){wifiSay('✗ 加入失敗',false);}
+}
+async function removeWifi(ssid){
+  const cur=ssid===STA_SSID;
+  if(!confirm(cur?'目前就是連著「'+ssid+'」，移除後會馬上斷線、改找其他記住的 WiFi（都沒有就開熱點）。確定移除？'
+                :'移除「'+ssid+'」？'))return;
+  try{
+    const r=await(await fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wifi_remove:ssid})})).json();
+    if(!r.ok){wifiSay('✗ 移除失敗',false);return;}
+    wifiSay('✓ 已移除「'+ssid+'」',true);
+    await loadCfg();
+  }catch(e){wifiSay('✗ 移除失敗',false);}
+}
+
 async function scanWifi(){
   const btn=document.getElementById('scan-btn');
   const list=document.getElementById('scan-list');
   btn.disabled=true;btn.textContent='掃描中…';
   list.style.display='none';list.innerHTML='';
   try{
-    const nets=await(await fetch('/wifi/scan')).json();
+    const rs=await fetch('/wifi/scan');
+    if(rs.status===409){
+      list.innerHTML='<div class="scan-item" style="color:#c90;cursor:default">充電中（PSU 走 ESP-NOW）不能掃描，充完再掃</div>';
+      list.style.display='block';btn.disabled=false;btn.textContent='🔍 掃描';return;
+    }
+    const nets=await rs.json();
     if(!nets.length){
       list.innerHTML='<div class="scan-item" style="color:#666;cursor:default">未找到網路</div>';
     }else{
@@ -1689,9 +1751,9 @@ async function scanWifi(){
         el.className='scan-item';
         el.innerHTML=`<span>${n.secured?'🔒':'🔓'} ${n.ssid||'(隱藏網路)'}</span><span class="scan-rssi">${bar} ${n.rssi} dBm</span>`;
         el.onclick=()=>{
-          document.getElementById('ci').value=n.ssid;
+          document.getElementById('wn-ssid').value=n.ssid;
           list.style.display='none';
-          document.getElementById('cp').focus();
+          document.getElementById('wn-pass').focus();
         };
         list.appendChild(el);
       });
