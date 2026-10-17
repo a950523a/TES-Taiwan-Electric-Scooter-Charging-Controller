@@ -351,6 +351,12 @@
   });
   subs.sort(function (a, b) { return b[0].length - a[0].length; });   // 長的先換
 
+  function fill(v, g) {
+    if (typeof v === 'function') return v.apply(null, g);
+    var j = 0;
+    return v.replace(/\{\}/g, function () { return g[j++]; });
+  }
+
   function tr(s) {
     if (!s || !CJK.test(s)) return s;
     var lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], n = norm(s);
@@ -360,14 +366,18 @@
       if (tail) e = e.replace(/\s+$/, '');
       return lead + e + tail;
     }
+    // 樣式：抓到的部分都沒有中文的，直接用；否則每個對得上的都試（抓到的部分再翻一次），
+    // 挑翻完剩最少中文字的，一樣時用 {} 少的（最外層）。例：「剩 2 時 30 分」套「剩 {}」
+    var best = null, bestLeft = 1e9, bestN = 1e9;
     for (var i = 0; i < pats.length; i++) {
       var m = n.match(pats[i][0]);
-      if (m) {
-        var v = pats[i][1], j = 1;
-        if (typeof v === 'function') return lead + v.apply(null, m.slice(1)) + tail;
-        return lead + v.replace(/\{\}/g, function () { return m[j++]; }) + tail;
-      }
+      if (!m) continue;
+      var g = m.slice(1);
+      if (!g.some(function (x) { return CJK.test(x); })) return lead + fill(pats[i][1], g) + tail;
+      var cand = fill(pats[i][1], g.map(tr)), left = (cand.match(/[一-鿿]/g) || []).length;
+      if (left < bestLeft || (left === bestLeft && g.length < bestN)) { best = cand; bestLeft = left; bestN = g.length; }
     }
+    if (best !== null) return lead + best + tail;   // 剩下的中文是抓到的資料（例如裝置名稱），照原樣
     // 長句：多行（alert）逐行，其餘把認得的片段換掉
     if (s.indexOf('\n') >= 0) return s.split('\n').map(tr).join('\n');
     var out = s;
@@ -379,8 +389,10 @@
     for (var k = 0; k < subs.length && CJK.test(out); k++)
       if (out.indexOf(subs[k][0]) >= 0) out = out.split(subs[k][0]).join(subs[k][1]);
     // 剩下的全形標點（組字串時夾在中間的）換成半形
-    return out.replace(/\u3000/g, ' ').replace(/\uff08/g, ' (').replace(/\uff09/g, ')')
-              .replace(/\uff1a/g, ': ').replace(/\uff0c/g, ', ').replace(/\u3002/g, '. ');
+    out = out.replace(/\u3000/g, ' ').replace(/\uff08/g, ' (').replace(/\uff09/g, ')')
+             .replace(/\uff1a/g, ': ').replace(/\uff0c/g, ', ').replace(/\u3002/g, '. ');
+    // \u9084\u6709\u4e2d\u6587\u5b57\u6c92\u7ffb\u5230\uff1a\u6574\u6bb5\u7dad\u6301\u4e2d\u6587\u3002\u534a\u4e2d\u534a\u82f1\u6bd4\u54ea\u4e00\u7a2e\u90fd\u96e3\u8b80
+    return /[\u4e00-\u9fff]/.test(out) ? s : out;
   }
 
   var ATTRS = ['placeholder', 'title', 'aria-label'];
