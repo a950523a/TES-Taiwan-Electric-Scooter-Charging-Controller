@@ -2475,6 +2475,10 @@ void network_svc_wifi_tick(void)
     wifi_plan_tick(&s_plan, &in, &out);
     ap_apply(out.ap_on, out.ap_secure);
     if (out.scan) start_scan();
+
+    // 頻道還沒定（掃描中、連線中、要連卻還沒連上也還沒開熱點）：ESP-NOW 先別握手
+    psu_driver_set_radio_busy(s_mgr_scanning || s_connecting ||
+                              (in.sta_wanted && !s_connected && !s_ap_mode));
 }
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
@@ -2663,6 +2667,8 @@ void network_svc_start(void)
         ESP_LOGW(TAG, "esp_wifi_set_ps(NONE) failed: %s", esp_err_to_name(ps));
     }
 
-    // 連線由 network_svc_wifi_tick() 處理：先掃描，挑記住的網路裡訊號最強的
+    // 連線由 network_svc_wifi_tick() 處理：先掃描，挑記住的網路裡訊號最強的。
+    // 第一次 tick 前就先擋住 ESP-NOW 握手：開機掃描會路過每個頻道
+    if (s_sta_enabled_boot && !s_ap_mode) psu_driver_set_radio_busy(true);
     s_wifi_started = true;
 }

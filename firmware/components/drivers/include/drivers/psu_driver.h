@@ -94,6 +94,11 @@ uint16_t     psu_driver_current_cap_01a(const psu_status_t *s, uint16_t fallback
 // 「最大電流」設定（OLED、網頁、App、POST /config）最多只能調到這裡（2026-10-17）
 uint16_t     psu_driver_rated_current_01a(void);
 
+// WiFi 正在掃描或連線、頻道還沒定下來（network_svc 每 100 ms 告訴我們，2026-10-18）。這段時間不做
+// ESP-NOW 握手：掃描會路過每個頻道，節點可能在路過的頻道上握手成功，然後我們就移到路由器的頻道去了。
+// 定下來後才握手，握手一完成就送 $CHN
+void         psu_driver_set_radio_busy(bool busy);
+
 // 節點是否接受電壓／電流設定。還不知道節點能力（尚未收到 CAP）時回傳 true，
 // 讓 SET 照送 —— 不支援的節點會回 ACK UNSUPPORTED，不會有副作用。
 bool psu_driver_can_set_voltage(void);

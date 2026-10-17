@@ -32,6 +32,7 @@ static bool            s_have_st          = false;
 static uint32_t        s_last_hello_ticks = 0;
 static uint32_t        s_last_chn_ticks   = 0;
 static uint8_t         s_last_chn         = 0;   // 上次送出的頻道；變了就馬上再送
+static volatile bool   s_radio_busy       = false; // WiFi 掃描／連線中，頻道還沒定（psu_driver_set_radio_busy）
 static psu_transport_t s_transport        = PSU_TRANSPORT_UART;
 
 // s_status 由 task_hal_poll 寫入，由 task_tes_sm / HTTP / display 讀取。
@@ -213,6 +214,12 @@ static void on_power(const psu_msg_power_t *p)
         ESP_LOGI(TAG, "PSU power: AC %u.%uV, max %uW, AC limit %u.%uA (src %u)",
                  p->vac_dv / 10u, p->vac_dv % 10u, p->pmax_w, p->ilim_da / 10u, p->ilim_da % 10u, p->src);
     }
+}
+
+void psu_driver_set_radio_busy(bool busy)
+{
+    if (s_radio_busy && !busy) s_last_chn = 0;   // 頻道定下來了：下一圈馬上送 $CHN
+    s_radio_busy = busy;
 }
 
 uint16_t psu_driver_rated_current_01a(void)
@@ -530,8 +537,9 @@ static void poll_espnow(void)
     pair_step();
     pair_publish();
 
-    // 握手訊息（SH1 重送、SH3）。在鎖內送：跟 send_msg() 的計數器順序一致
-    if (s_sess_on) {
+    // 握手訊息（SH1 重送、SH3）。在鎖內送：跟 send_msg() 的計數器順序一致。
+    // WiFi 還在掃描／連線時不送：見 psu_driver_set_radio_busy()
+    if (s_sess_on && !s_radio_busy) {
         psu_msg_t m;
         xSemaphoreTake(s_link_lock, portMAX_DELAY);
         while (psu_sess_poll(&s_sess, now_ms(), &m)) send_plain(s_peer_mac, &m);
@@ -687,7 +695,7 @@ void psu_driver_poll(void)
     // ESP-NOW：告訴節點我們在哪個頻道（$CHN，2026-10-18）。節點停在隔壁頻道時，漏過來的封包讓握手
     // 照樣成功、之後時通時斷，它自己的「連續送不出去才重找」又被偶爾的成功歸零 —— 實機卡過。
     // 握手完成後每 5 s 送一次，頻道變了（路由器換頻道）就馬上送；它在隔壁頻道也收得到一部分，夠用了
-    if (s_transport == PSU_TRANSPORT_ESPNOW && s_sess_on && psu_sess_ready(&s_sess)) {
+    if (s_transport == PSU_TRANSPORT_ESPNOW && s_sess_on && !s_radio_busy && psu_sess_ready(&s_sess)) {
         uint8_t ch = 0;
         wifi_second_chan_t sc;
         if (esp_wifi_get_channel(&ch, &sc) == ESP_OK && ch >= 1 && ch <= 14 &&
