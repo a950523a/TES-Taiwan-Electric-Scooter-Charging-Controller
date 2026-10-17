@@ -4,6 +4,7 @@ idf_component_register(
         "adc_driver.c"
         "psu_driver.c"
         "display_driver.c"
+        "oled_font_zh12.c"
         "led_driver.c"
     INCLUDE_DIRS
         "include"

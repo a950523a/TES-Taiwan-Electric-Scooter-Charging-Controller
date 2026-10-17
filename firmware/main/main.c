@@ -23,14 +23,16 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdatomic.h>
+#include <stdio.h>
 #include <string.h>
 
 
 // ── Boot logo (auto-voltage settle screen) ───────────────────────────────────
 // Turtle mark on left (cx=30, cy=36), "Auto Setting Voltage..." on right.
 // Shell: double circle ring. Lightning bolt inside. Head, 4 flippers, tail.
+// 開機偵測電壓要等 2～10 秒，畫面每 100 ms 重畫一格：閃電閃爍、後面的點點跳動（2026-10-17）
 
-static void draw_auto_volt_screen(void)
+static void draw_auto_volt_screen(uint32_t frame)
 {
     if (!display_driver_is_ok()) return;
     display_driver_clear();
@@ -56,17 +58,29 @@ static void draw_auto_volt_screen(void)
     // Tail
     display_driver_draw_triangle(30, 54, 25, 63, 35, 63);
 
-    // Lightning bolt — two filled triangles forming a Z-zigzag
-    // Upper part: top-right → middle-left → middle step
-    display_driver_draw_triangle(35, 24, 27, 35, 31, 35);
-    // Lower part: middle step → bottom
-    display_driver_draw_triangle(27, 35, 31, 35, 23, 46);
+    // Lightning bolt — two filled triangles forming a Z-zigzag（每秒閃 6 格亮、4 格暗）
+    if (frame % 10 < 6) {
+        // Upper part: top-right → middle-left → middle step
+        display_driver_draw_triangle(35, 24, 27, 35, 31, 35);
+        // Lower part: middle step → bottom
+        display_driver_draw_triangle(27, 35, 31, 35, 23, 46);
+    }
 
-    // Text (right side)
-    display_driver_font_bold();
-    display_driver_draw_str(65, 20, "Auto");
-    display_driver_draw_str(65, 36, "Setting");
-    display_driver_draw_str(65, 52, "Voltage...");
+    // Text (right side)，後面的點 0～3 個輪流
+    static const char *const dots[] = { "", ".", "..", "..." };
+    char buf[24];
+    if (config_svc_get()->oled_lang == OLED_LANG_ZH) {
+        display_driver_font_zh();
+        display_driver_draw_utf8(66, 26, ZH("海龜電能"));
+        snprintf(buf, sizeof buf, "%s%s", ZH("偵測電壓"), dots[frame % 4]);
+        display_driver_draw_utf8(66, 46, buf);
+    } else {
+        display_driver_font_bold();
+        display_driver_draw_str(65, 20, "Auto");
+        display_driver_draw_str(65, 36, "Setting");
+        snprintf(buf, sizeof buf, "Voltage%s", dots[frame % 4]);
+        display_driver_draw_str(65, 52, buf);
+    }
 
     display_driver_flush();
 }
@@ -87,6 +101,8 @@ atomic_bool      g_emergency_stop;
 QueueHandle_t    g_btn_event_queue;
 QueueHandle_t    g_display_btn_queue;
 volatile bool    g_menu_open = false;
+volatile bool    g_screen_saver = false;
+volatile bool    g_screen_wake  = false;
 task_entry_t     g_tasks[G_TASK_MAX];
 int              g_task_count = 0;
 
@@ -257,14 +273,21 @@ void app_main(void)
     // Auto-voltage：等電源電壓不再上升（最多 10 秒），取最高的 1 秒平均，更新 max_voltage
     // （僅 RAM）。之後在 IDLE 由 task_tes_sm 持續往上追蹤 —— 演算法見 services/auto_volt.h
     if (config_svc_get()->auto_voltage) {
-        draw_auto_volt_screen();
         auto_volt_t av;
         uint16_t v01 = 0;
         uint32_t t0 = platform_tick_ms();
+        uint32_t frame = 0, last_draw = 0;
+        draw_auto_volt_screen(frame++);
+        last_draw = t0;
         auto_volt_init(&av, AUTO_VOLT_MIN_01V, vmax, t0);
         while (!auto_volt_boot_step(&av, (uint16_t)(adc_driver_read_voltage() * 10.0f + 0.5f),
                                     platform_tick_ms(), &v01)) {
             vTaskDelay(pdMS_TO_TICKS(10));
+            // 送一整個畫面約 25 ms，100 ms 畫一格：取樣照樣每 100 ms 進得去（auto_volt 自己控取樣時間）
+            if (platform_tick_ms() - last_draw >= 100) {
+                last_draw = platform_tick_ms();
+                draw_auto_volt_screen(frame++);
+            }
         }
         config_svc_set_volt_over(av.over_01v);
         if (v01) {

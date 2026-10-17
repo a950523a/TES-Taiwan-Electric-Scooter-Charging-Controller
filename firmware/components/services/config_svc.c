@@ -34,6 +34,10 @@ static const char *TAG = "config_svc";
 #define NVS_KEY_PSU_MAC       "psu_mac"
 #define NVS_KEY_PSU_LTK       "psu_ltk"   // 32 B，配對的長期金鑰（不進 RAM 快取）
 #define NVS_KEY_DEV_NAME      "dev_name"
+#define NVS_KEY_OLED_LANG     "oled_lang"
+#define NVS_KEY_OLED_ANIM     "oled_anim"
+#define NVS_KEY_SS_MIN        "ss_min"
+#define NVS_KEY_SS_STYLE      "ss_style"
 
 #define DEFAULT_MAX_V   1000   // 100.0 V
 #define DEFAULT_MAX_A   100    // 10.0 A
@@ -165,6 +169,19 @@ esp_err_t config_svc_init(void)
                                              s_cfg.psu_peer_mac, &mac_len) == ESP_OK && mac_len == 6);
     }
 
+    {
+        // 沒有這幾個鍵（OTA 上來的舊機器）= 中文、動畫全開、5 分鐘烏龜螢幕保護
+        uint32_t tmp;
+        s_cfg.oled_lang = (hal_nvs_get_u32(NVS_NS, NVS_KEY_OLED_LANG, &tmp) == ESP_OK && tmp <= OLED_LANG_EN)
+                          ? (uint8_t)tmp : OLED_LANG_ZH;
+        s_cfg.oled_anim = (hal_nvs_get_u32(NVS_NS, NVS_KEY_OLED_ANIM, &tmp) == ESP_OK && tmp <= OLED_ANIM_OFF)
+                          ? (uint8_t)tmp : OLED_ANIM_BOTH;
+        s_cfg.ss_min    = (hal_nvs_get_u32(NVS_NS, NVS_KEY_SS_MIN, &tmp) == ESP_OK && OLED_SS_MIN_VALID(tmp))
+                          ? (uint8_t)tmp : 5;
+        s_cfg.ss_style  = (hal_nvs_get_u32(NVS_NS, NVS_KEY_SS_STYLE, &tmp) == ESP_OK && tmp <= OLED_SS_DARK)
+                          ? (uint8_t)tmp : OLED_SS_TURTLE;
+    }
+
     ESP_LOGI(TAG, "device: id=%s name=\"%s\"", s_cfg.device_id, s_cfg.device_name);
     ESP_LOGI(TAG, "loaded: V=%u A=%u SOC=%d beacon=%d auto_v=%d stop=%d stpV=%u timer=%u",
              s_cfg.max_voltage_01v, s_cfg.max_current_01a, s_cfg.target_soc,
@@ -244,6 +261,23 @@ esp_err_t config_svc_set_stop(stop_mode_t mode, uint16_t stop_voltage_01v, uint1
     esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_M, (uint32_t)mode);
     r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_STOP_V, stop_voltage_01v);
     r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_TIMER_M, charge_timer_min);
+    return r;
+}
+
+esp_err_t config_svc_set_oled(uint8_t lang, uint8_t anim, uint8_t ss_min, uint8_t ss_style)
+{
+    if (lang > OLED_LANG_EN || anim > OLED_ANIM_OFF || !OLED_SS_MIN_VALID(ss_min) || ss_style > OLED_SS_DARK)
+        return ESP_ERR_INVALID_ARG;
+    CFG_WRITE_BEGIN();
+    s_cfg.oled_lang = lang;
+    s_cfg.oled_anim = anim;
+    s_cfg.ss_min    = ss_min;
+    s_cfg.ss_style  = ss_style;
+    CFG_WRITE_END();
+    esp_err_t r = hal_nvs_set_u32(NVS_NS, NVS_KEY_OLED_LANG, lang);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_OLED_ANIM, anim);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_SS_MIN, ss_min);
+    r |= hal_nvs_set_u32(NVS_NS, NVS_KEY_SS_STYLE, ss_style);
     return r;
 }
 

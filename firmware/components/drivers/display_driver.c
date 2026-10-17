@@ -18,6 +18,14 @@ static const char *TAG = "display_driver";
 static u8g2_t  s_u8g2;
 static bool    s_ok = false;
 
+// 整個畫面的位移（待機防烙印：每隔一段時間偏 1 px）。所有繪圖函式都加上它
+static int     s_ox, s_oy;
+#define X(x) ((u8g2_uint_t)((x) + s_ox))
+#define Y(y) ((u8g2_uint_t)((y) + s_oy))
+
+// 中文字型（只含韌體用到的字，見 tools/gen_oled_font.py）
+extern const uint8_t u8g2_font_tes_zh12[];
+
 // u8g2 byte-level I2C callback — buffer bytes between START and END TRANSFER
 static uint8_t s_tx_buf[I2C_TX_BUF_MAX];
 static int     s_tx_len;
@@ -101,6 +109,20 @@ void display_driver_font_large (void) { u8g2_SetFont(&s_u8g2, u8g2_font_8x13_tr)
 void display_driver_font_bold  (void) { u8g2_SetFont(&s_u8g2, u8g2_font_7x13B_tr); }
 // 大號數字（約 20 px 高），只有數字與少數符號 —— 配對碼用
 void display_driver_font_digits(void) { u8g2_SetFont(&s_u8g2, u8g2_font_logisoso20_tn); }
+// 12 px 中文（efont b12，含半形 ASCII 6 px）。字串要用 display_driver_draw_utf8 畫
+void display_driver_font_zh    (void) { u8g2_SetFont(&s_u8g2, u8g2_font_tes_zh12); }
+
+void display_driver_set_offset(int dx, int dy) { s_ox = dx; s_oy = dy; }
+
+void display_driver_draw_utf8(int x, int y, const char *s)
+{
+    u8g2_DrawUTF8(&s_u8g2, X(x), Y(y), s);
+}
+
+uint16_t display_driver_utf8_width(const char *s)
+{
+    return (uint16_t)u8g2_GetUTF8Width(&s_u8g2, s);
+}
 
 void display_driver_set_color(uint8_t color)
 {
@@ -109,22 +131,22 @@ void display_driver_set_color(uint8_t color)
 
 void display_driver_draw_str(int x, int y, const char *s)
 {
-    u8g2_DrawStr(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, s);
+    u8g2_DrawStr(&s_u8g2, X(x), Y(y), s);
 }
 
 void display_driver_draw_hline(int x, int y, int w)
 {
-    u8g2_DrawHLine(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)w);
+    u8g2_DrawHLine(&s_u8g2, X(x), Y(y), (u8g2_uint_t)w);
 }
 
 void display_driver_draw_box(int x, int y, int w, int h)
 {
-    u8g2_DrawBox(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)w, (u8g2_uint_t)h);
+    u8g2_DrawBox(&s_u8g2, X(x), Y(y), (u8g2_uint_t)w, (u8g2_uint_t)h);
 }
 
 void display_driver_draw_frame(int x, int y, int w, int h)
 {
-    u8g2_DrawFrame(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)w, (u8g2_uint_t)h);
+    u8g2_DrawFrame(&s_u8g2, X(x), Y(y), (u8g2_uint_t)w, (u8g2_uint_t)h);
 }
 
 uint16_t display_driver_str_width(const char *s)
@@ -134,25 +156,25 @@ uint16_t display_driver_str_width(const char *s)
 
 void display_driver_draw_circle(int x, int y, int r)
 {
-    u8g2_DrawCircle(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)r, U8G2_DRAW_ALL);
+    u8g2_DrawCircle(&s_u8g2, X(x), Y(y), (u8g2_uint_t)r, U8G2_DRAW_ALL);
 }
 
 void display_driver_draw_disc(int x, int y, int r)
 {
-    u8g2_DrawDisc(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, (u8g2_uint_t)r, U8G2_DRAW_ALL);
+    u8g2_DrawDisc(&s_u8g2, X(x), Y(y), (u8g2_uint_t)r, U8G2_DRAW_ALL);
 }
 
 void display_driver_draw_line(int x1, int y1, int x2, int y2)
 {
-    u8g2_DrawLine(&s_u8g2, (u8g2_uint_t)x1, (u8g2_uint_t)y1, (u8g2_uint_t)x2, (u8g2_uint_t)y2);
+    u8g2_DrawLine(&s_u8g2, X(x1), Y(y1), X(x2), Y(y2));
 }
 
 void display_driver_draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2)
 {
-    u8g2_DrawTriangle(&s_u8g2, x0, y0, x1, y1, x2, y2);
+    u8g2_DrawTriangle(&s_u8g2, x0 + s_ox, y0 + s_oy, x1 + s_ox, y1 + s_oy, x2 + s_ox, y2 + s_oy);
 }
 
 void display_driver_draw_glyph(int x, int y, uint16_t g)
 {
-    u8g2_DrawGlyph(&s_u8g2, (u8g2_uint_t)x, (u8g2_uint_t)y, g);
+    u8g2_DrawGlyph(&s_u8g2, X(x), Y(y), g);
 }

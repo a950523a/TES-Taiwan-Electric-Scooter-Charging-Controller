@@ -47,7 +47,17 @@ typedef struct {
     uint8_t     psu_transport;        // 0=UART, 1=ESP-NOW
     uint8_t     psu_peer_mac[6];      // ESP-NOW peer MAC (PSU 的 MAC 地址)
     bool        psu_paired;           // 已完成 ESP-NOW 配對
+    // ── OLED 顯示（2026-10-17）────────────────────────────────────────────
+    uint8_t     oled_lang;            // OLED_LANG_ZH / OLED_LANG_EN
+    uint8_t     oled_anim;            // 充電中動畫：OLED_ANIM_*
+    uint8_t     ss_min;               // 螢幕保護等待分鐘：0（關）／5／15／30
+    uint8_t     ss_style;             // 螢幕保護樣式：OLED_SS_*
 } charger_config_t;
+
+enum { OLED_LANG_ZH = 0, OLED_LANG_EN = 1 };
+enum { OLED_ANIM_BOTH = 0, OLED_ANIM_BATTERY = 1, OLED_ANIM_ARROWS = 2, OLED_ANIM_OFF = 3 };
+enum { OLED_SS_TURTLE = 0, OLED_SS_DARK = 1 };
+#define OLED_SS_MIN_VALID(m) ((m) == 0 || (m) == 5 || (m) == 15 || (m) == 30)
 
 esp_err_t                config_svc_init         (void);
 const charger_config_t  *config_svc_get          (void);  // pointer to RAM cache
@@ -72,6 +82,8 @@ esp_err_t config_svc_set_mqtt_cmd      (bool enabled);   // false = 只發佈狀
 esp_err_t config_svc_set_scheduler     (bool enabled, uint16_t start_min, bool stop_en, uint16_t stop_min);
 esp_err_t config_svc_set_auto_start    (bool enabled);
 esp_err_t config_svc_set_psu           (uint8_t transport, const uint8_t *peer_mac_6, bool paired);
+// OLED 語言、充電動畫、螢幕保護。範圍外的值不寫（回 INVALID_ARG）
+esp_err_t config_svc_set_oled          (uint8_t lang, uint8_t anim, uint8_t ss_min, uint8_t ss_style);
 
 // ESP-NOW 配對的長期金鑰（32 B）。刻意不放進 charger_config_t：那個結構會整包
 // 被 GET /config 送出去，金鑰是秘密。沒有金鑰（從未配對、或舊版只存了 MAC）回傳 false。

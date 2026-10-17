@@ -99,6 +99,20 @@ void task_hal_poll(void *arg)
         g_btn_stable = held;
         if (held) atomic_fetch_or(&g_btn_latch, held);
 
+        // 螢幕保護中：剛按下的 START／STOP／SETTING 只用來喚醒，這一下放開之前的事件全部丟掉。
+        // 短按在放開那一拍才觸發，所以「吞到放開為止」才擋得住。緊急停止（bit2）永遠照常
+        static uint8_t s_prev_held, s_swallow;
+        uint8_t pressed = held & (uint8_t)~s_prev_held & 0x0Bu;
+        s_prev_held = held;
+        if (pressed && g_screen_saver) {
+            s_swallow    |= pressed;
+            g_screen_wake = true;
+        }
+        if (s_swallow & 0x01u) ev_start = BTN_NONE;
+        if (s_swallow & 0x02u) ev_stop  = BTN_NONE;
+        if (s_swallow & 0x08u) ev_set   = BTN_NONE;
+        s_swallow &= held;   // 放開的那一顆不再吞（這一拍的事件已經丟了）
+
         // EMERGENCY: short press → atomic set (long press also counts)
         if (ev_emerg == BTN_SHORT || ev_emerg == BTN_LONG)
             atomic_store(&g_emergency_stop, true);

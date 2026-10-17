@@ -763,6 +763,10 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 | WiFi Info | read-only display | — | — |
 | Scheduler | ON / OFF | toggle | toggle |
 | [Beta] Auto | ON / OFF | toggle | toggle |
+| Language | 中文 / English（兩種都用本身的語言寫，選錯也認得回去） | toggle | toggle |
+| Charge anim | All / Battery / Arrows / OFF | next / previous | same |
+| Screensaver | 5 / 15 / 30 min / OFF | next / previous | same |
+| Saver style | Turtle / Dark（Screensaver=OFF 時不顯示） | toggle | toggle |
 | Reset Fault | 手動復歸緊急停止 | confirm | — |
 | Restart | 重新啟動：**按兩次**（第一次顯示 `Restart? press again`，3 秒內再按才執行，移動游標就取消）；充電流程中顯示 `Restart (stop first)`、不可用。未儲存的設定變更會丟掉 | confirm ×2 | — |
 | About | 韌體版本 + 作者（唯讀） | — | — |
@@ -775,6 +779,48 @@ OLED status screen:
 - **Volt 模式**：第二行 `54.2V/100.0V`（即時/目標電壓），第三行 `SOC:72%  1h23m`
 - **Timer 模式**：第二行 `54.2V  12.3A`，第三行 `SOC:72%  1h23m/2h00m`（已充時間/目標充電時長）
 - **kWh 模式**：第二行 `54.2V  12.3A`，第三行 `0.85/1.5kWh  1h23m`（已充入/目標＋剩餘時間；沒接 PSU 時 `~0.85/1.5kWh`，≥10 kWh 改一位小數）。SOC 放不下，網頁與 App 有
+
+### OLED: Chinese, animations, screensaver (2026-10-17)
+
+**Language** — NVS `oled_lang` (0 中文, default; 1 English). Every Chinese string is written
+`ZH("...")` (a no-op macro in `display_driver.h`); `firmware/tools/gen_oled_font.py` collects
+them and runs u8g2's `bdfconv` (compiled from the submodule on first use) to write
+`components/drivers/oled_font_zh12.c`: printable ASCII + only the ~180 characters used,
+~17 KB. **Re-run it after adding or changing a `ZH()` string** — a missing character draws as
+nothing, with no build error. The source font is **efont b12** (12 px, Unicode incl.
+Traditional Chinese, `u8g2/tools/font/bdf/b12.bdf`, BSD-style licence). Layout: Chinese is
+12 px, 10 characters per line; numbers (V, A, kWh, SOC) keep the English fonts in both
+languages. `L(en, zh)` and `text()`/`header()` in `display_svc.c` pick per language; the
+English screens are unchanged. The bench-test screen stays English.
+
+**Animations** (display task, every 50 ms, 100 ms per frame):
+
+| Where | What | Setting |
+|---|---|---|
+| Boot (Auto Volt on) | lightning blinks, dots after 偵測電壓 / Voltage cycle — `main.c` redraws every 100 ms while `auto_volt_boot_step()` runs | always |
+| CHARGING | battery icon top right fills from the SOC segment upward; a row of `>` under the voltage line flows right (lines 3 and 4 move down 8 px) | NVS `oled_anim`: 0 both (default), 1 battery, 2 arrows, 3 off |
+| Charge complete | IDLE + `led_state == COMPLETE`: check mark drawn in 1.2 s, then SOC / duration / kWh of that session (latched while CHARGING — the snapshot zeroes them in IDLE). Stays until **SETTING short press** (which then means "back", not the quick-SOC cycle) or the next session | always |
+| IDLE | whole screen offset by 1 px, four positions, one per minute (`display_driver_set_offset()`) — burn-in | always |
+| Fault | never animated | — |
+
+**Screensaver** — NVS `ss_min` (0 off, 5 default, 15, 30) and `ss_style` (0 turtle, 1 dark).
+Entered in IDLE (standby, completion or a fault left on screen) after `ss_min` minutes with no
+activity: button state, SM state, CP state, menu, pairing, bench test. Shows a two-line block
+— state + clock (once NTP has synced), PSU voltage + "按鍵喚醒 / any key" — that moves corner
+every minute; "turtle" adds a small turtle swimming across with bubbles. **The key that wakes
+it does nothing else:** `task_hal_poll` swallows START/STOP/SETTING pressed while
+`g_screen_saver` is set until released and raises `g_screen_wake`; E-STOP is never swallowed.
+Any SM change (plug-in, remote start, fault) wakes it by itself.
+
+All four settings: OLED menu (Language / Charge anim / Screensaver / Saver style, after
+`[Beta]Auto`), `GET/POST /config` (`oled_lang`, `oled_anim`, `ss_min`, `ss_style`), the web
+UI's 🖥 螢幕 card and the app's 螢幕 page. Web and app hide them on firmware that lacks the
+fields.
+
+**Checking the screens without hardware:** compile `display_svc.c` + `display_driver.c` +
+u8g2 + the font on the PC with stub headers and dump `u8g2_GetBufferPtr()` (remember the
+panel is mounted with `U8G2_R2`: rotate 180° to get what the user sees). That is how the
+2026-10-17 layouts were checked; the harness lives outside the repo.
 
 Web UI voltage/SOC display mirrors OLED: Volt mode shows `voltage / stop_voltage`; SOC mode shows `soc% / target_soc%`; Timer mode shows single voltage and reference SOC only.
 
@@ -902,6 +948,10 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `stop_v` | uint32 | 1000 | Stop voltage × 10 (i.e. 100.0 V) |
 | `timer_m` | uint32 | 120 | Charge timer (minutes, 1–600) |
 | `stop_e` | uint32 | 1000 | Energy stop target (Wh, 100–20000), stop mode 3 |
+| `oled_lang` | uint32 | 0 | OLED language: 0 中文, 1 English |
+| `oled_anim` | uint32 | 0 | Charging animation: 0 battery+arrows, 1 battery, 2 arrows, 3 off |
+| `ss_min` | uint32 | 5 | Screensaver delay in minutes: 0 (off), 5, 15, 30 |
+| `ss_style` | uint32 | 0 | Screensaver style: 0 turtle, 1 dark |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
 | `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
 | `chg_mark` | u32 | 0 | Charging-in-progress mark for the post-reboot notice: `0x100 \| start SOC`, 0 = not charging |
@@ -1154,9 +1204,8 @@ the iE125 sends 0x5F0 after every normal charge end, so a red alarm there would 
 The panel shows whenever `fault_source > 0`; the old condition also required `fault_flags`,
 which hid every fault that doesn't set one (PSU lost, CP lost, voltage limit).
 
-OLED keeps English — u8g2 `*_tr` fonts are ASCII-only and adding a CJK font is a large
-change — but now shows a two-line description plus the context values, with the raw code
-demoted to a footnote.
+The OLED shows a two-line description plus the context values, with the raw code demoted to
+a footnote — in Chinese or English (`oled_lang`, see **OLED: Chinese, animations, screensaver**).
 
 **Visibility is keyed to `fault_source`, never `fault_latched` (v3.5.0).** The SM clears
 `fault_latched` when FAULT auto-recovers — after `fault_timeout_ms`, which is 10 s for most
@@ -1677,7 +1726,7 @@ shows 離線 without affecting the others.
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
 | GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
-| POST | `/config` | Partial update (any subset); WiFi changes require reboot. Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc` |
+| POST | `/config` | Partial update (any subset); WiFi changes require reboot. Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc`, and the OLED settings `oled_lang` / `oled_anim` / `ss_min` / `ss_style` |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |

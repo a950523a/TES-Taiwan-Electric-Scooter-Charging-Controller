@@ -467,6 +467,78 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div id="msg"></div>
 </div>
 
+<!-- 螢幕（OLED）：語言、充電動畫、螢幕保護（2026-10-17）。舊韌體沒有這幾個欄位 → 整張卡不顯示 -->
+<div class="card" id="oled-card" style="display:none">
+  <section-title>🖥 螢幕（OLED）</section-title>
+  <label class="lbl2">顯示語言</label>
+  <div class="chk-row" id="oled-lang-row" style="gap:16px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="olang" id="olang-0" value="0" style="accent-color:#48f">
+      <span>中文</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="olang" id="olang-1" value="1" style="accent-color:#48f">
+      <span>English</span>
+    </label>
+  </div>
+  <label class="lbl2">充電中動畫</label>
+  <div class="chk-row" id="oled-anim-row" style="gap:16px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oanim" id="oanim-0" value="0" style="accent-color:#48f">
+      <span>電池＋箭頭</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oanim" id="oanim-1" value="1" style="accent-color:#48f">
+      <span>只要電池</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oanim" id="oanim-2" value="2" style="accent-color:#48f">
+      <span>只要箭頭</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oanim" id="oanim-3" value="3" style="accent-color:#48f">
+      <span>關閉</span>
+    </label>
+  </div>
+  <label class="lbl2">螢幕保護（待機多久沒人碰）</label>
+  <div class="chk-row" id="oled-ss-row" style="gap:16px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oss" id="oss-5" value="5" style="accent-color:#48f">
+      <span>5 分鐘</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oss" id="oss-15" value="15" style="accent-color:#48f">
+      <span>15 分鐘</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oss" id="oss-30" value="30" style="accent-color:#48f">
+      <span>30 分鐘</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="oss" id="oss-0" value="0" style="accent-color:#48f">
+      <span>關閉</span>
+    </label>
+  </div>
+  <div id="oled-style-wrap">
+    <label class="lbl2">螢幕保護樣式</label>
+    <div class="chk-row" id="oled-style-row" style="gap:16px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="ostyle" id="ostyle-0" value="0" style="accent-color:#48f">
+      <span>游泳的烏龜</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="radio" name="ostyle" id="ostyle-1" value="1" style="accent-color:#48f">
+      <span>全黑</span>
+    </label>
+    </div>
+  </div>
+  <div style="color:#666;font-size:.75em;margin-top:8px;line-height:1.6">
+    待機時畫面每分鐘會偏移 1 像素防烙印（一律開著）。螢幕保護會顯示狀態、時間、電源電壓，每分鐘換位置；
+    喚醒的那一下按鍵只會喚醒，不會開始或停止充電。故障一發生會立刻蓋過動畫與螢幕保護。
+    改完按下方的「儲存」。
+  </div>
+</div>
+
 <!-- 儲存入口只有這一個。設定區塊很長，固定在底部才不用為了存檔捲到最下面；
      原本卡片底部那顆按鈕已移除，兩個做同一件事的按鈕只會讓人猶豫按哪個。 -->
 <div id="pair-ov" role="dialog" aria-live="polite">
@@ -1073,6 +1145,13 @@ async function loadCfg(){
     document.getElementById('cv').value=d.max_voltage;
     document.getElementById('ca').value=d.max_current;
     document.getElementById('cs').value=d.target_soc;
+    // 螢幕（OLED）設定：舊韌體沒有就整張卡藏起來
+    HAS_OLED=(d.oled_lang!==undefined);
+    document.getElementById('oled-card').style.display=HAS_OLED?'':'none';
+    if(HAS_OLED){
+      setRadio('olang',d.oled_lang);setRadio('oanim',d.oled_anim);
+      setRadio('oss',d.ss_min);setRadio('ostyle',d.ss_style);updateOledUI();
+    }
     // 舊韌體沒有電量停止條件：選項藏起來，collectCfg 也不送 stop_energy
     HAS_ENERGY=(d.stop_energy!==undefined);
     document.getElementById('sm3-lbl').style.display=HAS_ENERGY?'flex':'none';
@@ -1225,6 +1304,8 @@ function onCfgEdit(e){
 }
 document.getElementById('cfg-card').addEventListener('input',onCfgEdit);
 document.getElementById('cfg-card').addEventListener('change',onCfgEdit);
+// 螢幕（OLED）卡片也走同一條浮動儲存列
+document.getElementById('oled-card').addEventListener('change',e=>{updateOledUI();onCfgEdit(e);});
 
 // ntfy 頻道重新產生會改動 notify_url，但不經過任何 input 事件
 const _genNtfyTopic=genNtfyTopic;
@@ -1260,6 +1341,7 @@ function updateStaUI(){
 let CFG_BASE=null;
 let HAS_COST=false;
 let HAS_ENERGY=false;
+let HAS_OLED=false;
 
 // key → 要標記的元素 id。單一欄位就是它自己，選項群組標在外框上。
 const CFG_ANCHOR={
@@ -1272,13 +1354,19 @@ const CFG_ANCHOR={
   sched_enabled:'sched-en', sched_start_min:'sched-start',
   sched_stop_en:'sched-stop-en', sched_stop_min:'sched-stop',
   auto_start:'auto-start-en', psu_transport:'psu-transport-row',
-  psu_eff:'ceff', kwh_price:'cprice', stop_energy:'cse'
+  psu_eff:'ceff', kwh_price:'cprice', stop_energy:'cse',
+  oled_lang:'oled-lang-row', oled_anim:'oled-anim-row', ss_min:'oled-ss-row', ss_style:'oled-style-row'
 };
 
 // 空欄位的 parseFloat 會是 NaN，而 NaN !== NaN 會讓該欄永遠顯示為「已變更」
 function num(v,dflt){const n=parseFloat(v);return isFinite(n)?n:dflt;}
 // 手打超過這塊板上限的電壓：直接用上限（韌體也會夾，這裡先夾，畫面才不會顯示一個存不進去的值）
 function capV(v,id){const m=parseFloat(document.getElementById(id).max);return v!==null&&isFinite(m)&&v>m?m:v;}
+
+// 一組 radio 目前選的值（數字）；都沒選就用預設
+function radioVal(name,dflt){const r=document.querySelector(`input[name="${name}"]:checked`);return r?+r.value:dflt;}
+function setRadio(name,v){const r=document.getElementById(name+'-'+v);if(r)r.checked=true;}
+function updateOledUI(){document.getElementById('oled-style-wrap').style.display=radioVal('oss',5)?'':'none';}
 
 function collectCfg(){
   const stopMode=document.getElementById('sm3').checked?3:document.getElementById('sm2').checked?2:document.getElementById('sm1').checked?1:0;
@@ -1305,6 +1393,10 @@ function collectCfg(){
     auto_start:document.getElementById('auto-start-en').checked,
     psu_transport:document.getElementById('pt1').checked?1:0,
     ...(HAS_ENERGY?{stop_energy:num(document.getElementById('cse').value,null)}:{}),
+    ...(HAS_OLED?{
+      oled_lang:radioVal('olang',0), oled_anim:radioVal('oanim',0),
+      ss_min:radioVal('oss',5), ss_style:radioVal('ostyle',0)
+    }:{}),
     ...(HAS_COST?{
       psu_eff:num(document.getElementById('ceff').value,null),
       kwh_price:num(document.getElementById('cprice').value,null)

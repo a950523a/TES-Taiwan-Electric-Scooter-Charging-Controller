@@ -442,6 +442,12 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     }
     cJSON_AddStringToObject(root, "psu_peer_mac",    mac_str);
     cJSON_AddBoolToObject  (root, "psu_pairing",     psu_driver_is_pairing());
+    // OLED：語言（0 中文、1 English）、充電動畫（0 全部、1 電池、2 箭頭、3 關）、
+    // 螢幕保護分鐘（0 關／5／15／30）、樣式（0 烏龜、1 全黑）
+    cJSON_AddNumberToObject(root, "oled_lang",       cfg->oled_lang);
+    cJSON_AddNumberToObject(root, "oled_anim",       cfg->oled_anim);
+    cJSON_AddNumberToObject(root, "ss_min",          cfg->ss_min);
+    cJSON_AddNumberToObject(root, "ss_style",        cfg->ss_style);
     // 月充電量的電費換算（存在 log_svc，不在 charger_config_t）
     cJSON_AddNumberToObject(root, "psu_eff",         log_svc_psu_eff_pct());
     cJSON_AddNumberToObject(root, "kwh_price",       log_svc_kwh_price_c() / 100.0);
@@ -477,6 +483,10 @@ static const httpd_uri_t s_uri_get_config = {
 //   kwh_price    float 元 (0–20，0 = 不換算電費)
 //   stop_mode    int     (0 SOC、1 電壓、2 時間、3 充入電量)
 //   stop_energy  float kWh (0.1–20.0，stop_mode=3 時用)
+//   oled_lang    int     (0 中文、1 English)
+//   oled_anim    int     (充電動畫 0 全部、1 電池、2 箭頭、3 關)
+//   ss_min       int     (螢幕保護分鐘 0 關／5／15／30)
+//   ss_style     int     (0 烏龜、1 全黑)
 //   beacon       bool
 
 static esp_err_t handle_post_config(httpd_req_t *req)
@@ -681,6 +691,27 @@ static esp_err_t handle_post_config(httpd_req_t *req)
         if (t == 0 || t == 1) { new_psu_transport = (uint8_t)t; psu_transport_changed = true; }
     }
 
+    // OLED 顯示設定：四個值一起存，沒送的沿用目前值；範圍外的不採用
+    uint8_t oled_lang = cur->oled_lang, oled_anim = cur->oled_anim;
+    uint8_t ss_min = cur->ss_min, ss_style = cur->ss_style;
+    bool    oled_changed = false;
+    item = cJSON_GetObjectItem(root, "oled_lang");
+    if (cJSON_IsNumber(item) && item->valueint >= 0 && item->valueint <= OLED_LANG_EN) {
+        oled_lang = (uint8_t)item->valueint; oled_changed = true;
+    }
+    item = cJSON_GetObjectItem(root, "oled_anim");
+    if (cJSON_IsNumber(item) && item->valueint >= 0 && item->valueint <= OLED_ANIM_OFF) {
+        oled_anim = (uint8_t)item->valueint; oled_changed = true;
+    }
+    item = cJSON_GetObjectItem(root, "ss_min");
+    if (cJSON_IsNumber(item) && item->valueint >= 0 && OLED_SS_MIN_VALID(item->valueint)) {
+        ss_min = (uint8_t)item->valueint; oled_changed = true;
+    }
+    item = cJSON_GetObjectItem(root, "ss_style");
+    if (cJSON_IsNumber(item) && item->valueint >= 0 && item->valueint <= OLED_SS_DARK) {
+        ss_style = (uint8_t)item->valueint; oled_changed = true;
+    }
+
     // 電費換算：psu_eff 50–100 %、kwh_price 0–20 元（0 = 不換算）。範圍外的值不採用
     uint8_t  new_eff   = log_svc_psu_eff_pct();
     uint16_t new_price = log_svc_kwh_price_c();
@@ -697,6 +728,7 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     cJSON_Delete(root);
 
     if (cost_changed)         log_svc_set_cost(new_eff, new_price);
+    if (oled_changed)         config_svc_set_oled(oled_lang, oled_anim, ss_min, ss_style);
     if (device_name_changed) {
         config_svc_set_device_name(new_device_name);
         // mDNS 的 instance name 與 TXT 是廣告出去的內容，改名要立刻反映，

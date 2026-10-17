@@ -17,6 +17,17 @@ void display_driver_font_medium (void);  // 8pt
 void display_driver_font_large  (void);  // 10-12pt
 void display_driver_font_bold   (void);  // 7x13B
 void display_driver_font_digits (void);  // 大號數字（logisoso20，只有數字）
+void display_driver_font_zh     (void);  // 12 px 中文＋半形 ASCII（只含韌體用到的字）
+
+// OLED 上的中文字串一律寫成 ZH("...")：它就是字串本身，但 tools/gen_oled_font.py 靠它
+// 找出要放進字型的字。直接寫 "中文" 不會報錯，只會在 OLED 上畫不出來
+#define ZH(s) s
+
+// 整個畫面位移 dx/dy px（待機防烙印）。之後的所有繪圖都會加上，畫完記得設回 0
+void     display_driver_set_offset  (int dx, int dy);
+// UTF-8 字串（中文）。英文字型也能用，但中文只有 font_zh 有
+void     display_driver_draw_utf8   (int x, int y, const char *str);
+uint16_t display_driver_utf8_width  (const char *str);
 
 // 繪圖
 void     display_driver_set_color  (uint8_t color);            // 0=clear 1=set 2=XOR

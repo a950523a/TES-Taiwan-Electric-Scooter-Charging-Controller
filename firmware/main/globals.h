@@ -28,6 +28,11 @@ extern QueueHandle_t g_display_btn_queue;
 // Set true by display_svc when menu is open; task_hal_poll gates TES SM button routing
 extern volatile bool g_menu_open;
 
+// 螢幕保護（display_svc）。保護中按下的那一顆鍵只喚醒螢幕：task_hal_poll 把它吞掉直到放開，
+// 並設 g_screen_wake 通知 display_svc 退出保護 —— 摸黑按到 START 不會就開始充電。緊急停止不吞
+extern volatile bool g_screen_saver;
+extern volatile bool g_screen_wake;
+
 // 任務清單，供 task_monitor 監看各自的堆疊餘裕。
 // 建立時就保存 handle，不依賴 INCLUDE_xTaskGetHandle 之類的 FreeRTOS 設定。
 typedef struct {
