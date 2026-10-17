@@ -55,4 +55,4 @@ __pycache__/
 # 擋在這裡，避免在這個公開 repo 又被加回來；公開的只有 docs/schematic/ 的原理圖 PDF。
 hardware/
 docs/PCB/
-tools/
+/tools/
