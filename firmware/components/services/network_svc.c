@@ -187,6 +187,8 @@ extern const uint8_t s_manifest_json_start[] asm("_binary_manifest_json_start");
 extern const uint8_t s_manifest_json_end[]   asm("_binary_manifest_json_end");
 extern const uint8_t s_sw_js_start[]        asm("_binary_sw_js_start");
 extern const uint8_t s_sw_js_end[]          asm("_binary_sw_js_end");
+extern const uint8_t s_i18n_js_start[]      asm("_binary_i18n_js_start");
+extern const uint8_t s_i18n_js_end[]        asm("_binary_i18n_js_end");
 extern const uint8_t s_icon_svg_start[]     asm("_binary_icon_svg_start");
 extern const uint8_t s_icon_svg_end[]       asm("_binary_icon_svg_end");
 extern const uint8_t s_hw_html_start[]      asm("_binary_hw_html_start");
@@ -947,6 +949,33 @@ static esp_err_t handle_get_sw(httpd_req_t *req)
 
 static const httpd_uri_t s_uri_get_sw = {
     .uri = "/sw.js", .method = HTTP_GET, .handler = handle_get_sw
+};
+
+// ── GET /i18n.js ──────────────────────────────────────────────────────────────
+// 網頁的中／英對照表與切換（2026-10-17）。/control、/、/hw 都載入，約 40 KB。
+// ETag = 韌體映像的 SHA-256 前 8 bytes：瀏覽器每次都問，但 OTA 之前都只回 304，不用重傳
+
+static esp_err_t handle_get_i18n(httpd_req_t *req)
+{
+    const esp_app_desc_t *app = esp_app_get_description();
+    char etag[20];
+    snprintf(etag, sizeof etag, "\"%02x%02x%02x%02x%02x%02x%02x%02x\"",
+             app->app_elf_sha256[0], app->app_elf_sha256[1], app->app_elf_sha256[2], app->app_elf_sha256[3],
+             app->app_elf_sha256[4], app->app_elf_sha256[5], app->app_elf_sha256[6], app->app_elf_sha256[7]);
+    char inm[24];
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+    httpd_resp_set_hdr(req, "ETag", etag);
+    if (httpd_req_get_hdr_value_str(req, "If-None-Match", inm, sizeof inm) == ESP_OK && strcmp(inm, etag) == 0) {
+        httpd_resp_set_status(req, "304 Not Modified");
+        return httpd_resp_send(req, NULL, 0);
+    }
+    httpd_resp_set_type(req, "application/javascript; charset=utf-8");
+    // EMBED_TXTFILES 在最後補了一個 NUL，不要送出去
+    return httpd_resp_send(req, (const char *)s_i18n_js_start, s_i18n_js_end - s_i18n_js_start - 1);
+}
+
+static const httpd_uri_t s_uri_get_i18n = {
+    .uri = "/i18n.js", .method = HTTP_GET, .handler = handle_get_i18n
 };
 
 // ── GET /icon.svg ─────────────────────────────────────────────────────────────
@@ -2217,7 +2246,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 32;   // 目前註冊 29 個，留餘裕
+    cfg.max_uri_handlers  = 32;   // 目前註冊 30 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     // 名額滿了就關掉最久沒用的那條，而不是拒絕新的。沒開時（2026-10-14 前）幾支手機進出家門
@@ -2243,6 +2272,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_ota_upload);
     httpd_register_uri_handler(s_server, &s_uri_get_manifest);
     httpd_register_uri_handler(s_server, &s_uri_get_sw);
+    httpd_register_uri_handler(s_server, &s_uri_get_i18n);
     httpd_register_uri_handler(s_server, &s_uri_get_icon);
     httpd_register_uri_handler(s_server, &s_uri_get_wifi_scan);
     httpd_register_uri_handler(s_server, &s_uri_get_history);

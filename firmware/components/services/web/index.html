@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TES Charger</title>
+<script src="/i18n.js"></script>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#4a9eff">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -189,7 +190,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 <body>
 
 <h1><a href="/?list" style="text-decoration:none;color:#666;font-size:.8em;margin-right:2px" title="裝置列表">‹</a>
-⚡ <span id="devname">TES Charger</span> <span class="ts" id="ts">--:--:--</span></h1>
+⚡ <span id="devname">TES Charger</span> <span style="display:flex;gap:8px;align-items:center"><span class="ts" id="ts">--:--:--</span><span id="lang-sw"></span></span></h1>
 
 <!-- 狀態卡 -->
 <div class="card">
@@ -893,7 +894,7 @@ async function poll(){
     const txt=d.wifi_connected?'已連線':'未連線';
     document.getElementById('ws').innerHTML=`<span class="dot" style="background:${dot}"></span>${txt}`;
     document.getElementById('ip').textContent=d.ip||'--';
-    document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+    document.getElementById('ts').textContent=new Date().toLocaleTimeString(window.I18N?I18N.locale:undefined);
     // 同網段多台時，標題與分頁名稱要能直接分辨是哪一台
     if(d.display_name&&d.display_name!==lastDevName){
       lastDevName=d.display_name;
@@ -1941,7 +1942,7 @@ function paintDetail(sid){
 /* ── 清單 ───────────────────────────────────────────────────────────────── */
 
 function fmtWhen(ep){
-  return new Date(ep*1000).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  return new Date(ep*1000).toLocaleString(window.I18N?I18N.locale:'zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 }
 
 /* ── 月充電量（/energy）──────────────────────────────────────────────────── */

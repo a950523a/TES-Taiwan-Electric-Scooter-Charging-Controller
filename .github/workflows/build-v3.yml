@@ -127,6 +127,7 @@ jobs:
           cp docs/manifest.json _pages/
           cp docs/monitor.html  _pages/
           cp docs/monitor-icon.png _pages/
+          cp firmware/components/services/web/i18n.js _pages/   # monitor.html 的中／英切換
           cp firmware/build/tes_charger_flash.bin _pages/tes_charger_flash.bin
           echo "--- Pages 內容 ---"; ls -lh _pages/
 

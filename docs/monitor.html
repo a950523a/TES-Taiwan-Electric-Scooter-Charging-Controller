@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>TES 遠端監控</title>
+<!-- 中／英切換：和充電樁網頁同一份（firmware/components/services/web/i18n.js，Pages workflow 複製過來） -->
+<script src="i18n.js"></script>
 <meta name="theme-color" content="#4a9eff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TES監控">
@@ -57,7 +59,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 
 <!-- 設定面板（未連線時顯示） -->
 <div id="cfg-panel">
-  <h1>📡 TES 遠端監控設定</h1>
+  <h1>📡 TES 遠端監控設定 <span class="lang-sw" style="float:right"></span></h1>
   <!-- iPhone／iPad：主畫面上的網頁 App 和 Safari 是分開的儲存空間，在 Safari 填的設定帶不過去 -->
   <div class="card tip" id="ios-tip" style="display:none">
     <b>iPhone／iPad：先加入主畫面再設定</b><br>
@@ -90,7 +92,7 @@ section-title{font-weight:bold;font-size:.95em;color:#aaa;display:block;margin-b
 
 <!-- 監控面板（連線後顯示） -->
 <div id="mon-panel" style="display:none">
-  <h1>⚡ TES Charger <span class="ts" id="ts">--:--:--</span></h1>
+  <h1>⚡ TES Charger <span class="ts" id="ts">--:--:--</span> <span class="lang-sw"></span></h1>
 
   <!-- 連線狀態 -->
   <div class="card" style="padding:10px 14px">
@@ -299,7 +301,7 @@ function updateButtons(){
 }
 
 function updateDisplay(d){
-  document.getElementById('ts').textContent=new Date().toLocaleTimeString();
+  document.getElementById('ts').textContent=new Date().toLocaleTimeString(window.I18N?I18N.locale:undefined);
 
   const state=d.state||'idle';
   lastState=state;

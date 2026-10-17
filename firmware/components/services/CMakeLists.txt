@@ -28,6 +28,7 @@ idf_component_register(
         "web/icon.svg"
         "web/hw.html"
         "web/hw_board_base.svg"
+        "web/i18n.js"
     REQUIRES
         tes_protocol
         tes_sm

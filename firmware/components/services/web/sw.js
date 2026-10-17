@@ -1,6 +1,6 @@
 // v3: "/" 改為裝置列表頁，控制介面移到 "/control"，兩者都要進 app shell
 const CACHE_NAME = 'tes-v3';
-const SHELL = ['/', '/control', '/manifest.json', '/icon.svg'];
+const SHELL = ['/', '/control', '/manifest.json', '/icon.svg', '/i18n.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

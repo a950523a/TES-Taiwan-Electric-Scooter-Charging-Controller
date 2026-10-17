@@ -1589,6 +1589,29 @@ HTTP cache.
 `X-TES-Request` header — see **Security** above. Reads need nothing.
 
 
+### Web UI language — `web/i18n.js` (2026-10-17)
+
+The pages are still written in Chinese; `i18n.js` holds a Chinese → English dictionary and, in
+English mode, translates text nodes, `placeholder`/`title`/`aria-label`, `document.title` and
+`alert`/`confirm` text — including everything rendered later, through a `MutationObserver`.
+Lookup order: whole fragment → `{}` patterns (numbers and other variable parts) → known phrases
+replaced inside longer composed strings → leftover full-width punctuation made half-width. A
+string with no entry just stays Chinese in English mode; nothing breaks. **When adding Chinese UI
+text, add its English to `EN`.** Language: `localStorage.tes_lang`, else the browser language;
+the 中/EN button sits in each page's `#lang-sw`/`.lang-sw` slot (fixed top-right if a page has
+none) and reloads the page (translation is one-way). Dates use `I18N.locale`.
+
+Loaded by `/control`, `/`, `/hw`, and by `docs/monitor.html` (the Pages workflow copies
+`i18n.js` next to it). ~52 KB; served with `Cache-Control: no-cache` + ETag of the firmware
+image hash, so after the first load it costs a 304 until the next OTA.
+
+Gotcha fixed while writing it: never re-set an attribute or text node to the same value inside
+the observer — that fires the observer again and hangs the page.
+
+To find what is still untranslated: open the page in English (`localStorage.tes_lang='en'`) and
+walk `document.body` text nodes for CJK characters; the device name and the 中文 label are the
+only expected hits.
+
 ### Settings UI convention (v3.5.x) — don't undo this by accident
 
 **Sliding switches save immediately. Typed values need the save button.**
@@ -1735,6 +1758,7 @@ shows 離線 without affecting the others.
 | GET | `/energy` | Monthly energy `{"months":[{"ym","wh","est_wh","sessions","est_sessions"}],"undated","psu_eff","kwh_price"}`, oldest first, ≤ 36 months |
 | GET | `/trace` | Charge-curve samples for a session + session list (chunked) |
 | GET | `/tracelog` | Timestamped value-change log for a session (chunked) |
+| GET | `/i18n.js` | Chinese → English dictionary + language switch for the web pages (ETag = firmware hash, 304 until an OTA) |
 | GET | `/manifest.json` | PWA manifest |
 | GET | `/sw.js` | Service Worker |
 | GET | `/icon.svg` | App icon |
@@ -1753,7 +1777,7 @@ shows 離線 without affecting the others.
 **CMake notes for embedded web UI:**
 - HTML embedded via `EMBED_TXTFILES "web/index.html"`; symbol `_binary_index_html_start` / `_binary_index_html_end`
 - mDNS: managed component `espressif/mdns` in `idf_component.yml`; CMakeLists REQUIRES entry `espressif__mdns` (double underscore)
-- `max_uri_handlers = 32`; currently 29 handlers registered
+- `max_uri_handlers = 32`; currently 30 handlers registered
 - `web/devices.html` is a second `EMBED_TXTFILES` entry → `_binary_devices_html_start/_end`
 - `sw.js` cache bumped to `tes-v3`; app shell is now `/` **and** `/control`
 - `drivers` component REQUIRES `esp_wifi` (for ESP-NOW in `psu_driver.c`)
