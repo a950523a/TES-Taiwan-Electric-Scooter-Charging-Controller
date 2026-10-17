@@ -317,6 +317,19 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         psu_status_t psu_st = psu_driver_get_status();
         cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
         cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
+        // 電源節點回報的 AC 輸入與可用功率（PWR）。沒收到就不放，網頁與 App 看欄位在不在
+        if (psu_st.connected && psu_st.pwr_known) {
+            cJSON_AddNumberToObject(root, "psu_ac_v",       psu_st.ac_vac_dv / 10.0);
+            cJSON_AddNumberToObject(root, "psu_pmax_w",     psu_st.pmax_w);
+            cJSON_AddNumberToObject(root, "psu_ac_limit_a", psu_st.ac_ilim_da / 10.0);
+            cJSON_AddNumberToObject(root, "psu_ac_src",     psu_st.ac_src);
+            // 電源能給的電流上限（額定、功率 ÷ 輸出電壓；跟 task_tes_sm 同一個函式）
+            uint16_t cap = psu_driver_current_cap_01a(&psu_st, cfg_snap->max_voltage_01v);
+            if (cap) {
+                cJSON_AddNumberToObject(root, "psu_power_current", cap / 10.0);
+                cJSON_AddBoolToObject  (root, "psu_power_limited", cap < cfg_snap->max_current_01a);
+            }
+        }
     }
     psu_pair_json(root);   // 配對進度與配對碼：/control 的配對畫面靠它
 

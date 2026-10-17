@@ -260,6 +260,10 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <span class="lbl">PSU 電源</span>
     <span id="psu-status"><span class="dot" style="background:#555"></span>讀取中</span>
   </div>
+  <div class="row" id="psu-pwr-row" style="display:none">
+    <span class="lbl">AC 輸入／可用功率</span>
+    <span id="psu-pwr" style="text-align:right"></span>
+  </div>
   <button class="b-wifi-sw" onclick="openPhoneWifi()">📶 切換手機 WiFi</button>
 </div>
 
@@ -948,6 +952,18 @@ async function poll(){
       }
       psEl.innerHTML=`<span class="dot" style="background:${pdot}"></span>${ptxt}`;
     }
+    // 電源節點回報的 AC 輸入與可用功率：電流會被收到「功率 ÷ 最大電壓」
+    const pwrRow=document.getElementById('psu-pwr-row');
+    if(d.psu_pmax_w!==undefined){
+      pwrRow.style.display='';
+      const src=d.psu_ac_src===2?'AC 樁 {} A':d.psu_ac_limit_a>0?'插座 {} A':'插座不限';
+      let t=(d.psu_ac_v>0?d.psu_ac_v.toFixed(0)+' V':'-- V')+' · ';
+      t+=d.psu_pmax_w>0?(d.psu_pmax_w/1000).toFixed(2)+' kW（'+src.replace('{}',d.psu_ac_limit_a)+'）':'AC 還沒讀到，不限';
+      if(d.psu_power_limited)
+        t+='\n電流上限 '+d.psu_power_current.toFixed(1)+' A（比最大電流設定小）';
+      const el=document.getElementById('psu-pwr');
+      el.style.whiteSpace='pre-line';el.textContent=t;
+    }else pwrRow.style.display='none';
 
     // NTP 狀態
     const ntpEl=document.getElementById('ntp-status');

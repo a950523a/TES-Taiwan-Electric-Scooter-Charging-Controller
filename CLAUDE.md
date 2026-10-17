@@ -860,6 +860,19 @@ it; before `CAP` arrives they return true and an unsupported node answers `ACK 2
 **The state machine does not use node type or capabilities yet** — that is the next
 step (measured current in 0x509, following a manual current knob, over-current stop).
 
+**Except the current ceiling (2026-10-17).** `psu_driver_current_cap_01a()` = min(the node's
+rated current from `CAP` `imax`, its available power from `PWR` `pmax` ÷ output voltage). The
+voltage is the node's measured output while it is outputting, else Max Voltage (the VLIM2 sent to
+the vehicle) — so a low-voltage vehicle gets more current, and the 0x508 figure during the handshake
+is conservative. `task_tes_sm` feeds `min(Max Current setting, cap)` into the SM as
+`max_current_01a`, updated only when it moved by 0.5 A so 0x508 does not jitter; no PSU, or a node
+that reports neither → the setting as before (every unit in the field). The node clamps again on its
+side with its own measured voltage. `/status`: `psu_ac_v`, `psu_pmax_w`, `psu_ac_limit_a`,
+`psu_ac_src` (0 unknown, 1 outlet setting, 2 AC charging station — reserved for J1772 / Type-2 on
+the node), `psu_power_current`, `psu_power_limited`; the web status card and the app show them as
+可用功率. LianMing: 1.3 kW on 110 V, 6 kW on 220 V, outlet limit (default 15 A) set on the LianMing,
+module 60 A rated / 66 A max — see that repo's **Available power**.
+
 **`psu_status_t` kept its first five fields** (`voltage`, `current`, `connected`, `rssi`,
 `fail_streak`) with the same meaning, so `task_tes_sm`, `display_svc` and `network_svc`
 did not change. Everything after them (node identity, last `ST`, `SET`/`ACK` sequence,

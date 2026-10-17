@@ -318,6 +318,18 @@ static void execute_outputs(const tes_sm_outputs_t *out)
     }
 }
 
+// 電源節點能給的電流上限（額定電流、可用功率 ÷ 輸出電壓，psu_driver_current_cap_01a）跟
+// 最大電流設定取小的（2026-10-17）。輸出電壓會跟著電池慢慢爬，上限每 tick 都可能差一點：
+// 差 0.5 A 以上才更新，0x508 的可用電流不會一直抖。節點那邊也會照它量到的電壓再收一次。
+// 沒有 PSU、或節點沒給上限：照舊用設定值 —— 現場所有機器都是這樣
+static uint16_t power_capped_current(uint16_t max_01a, uint16_t max_v_01v, const psu_status_t *psu)
+{
+    static uint16_t s_cap;
+    uint16_t cap = psu_driver_current_cap_01a(psu, max_v_01v);
+    if (cap == 0 || s_cap == 0 || cap + 5 <= s_cap || cap >= s_cap + 5) s_cap = cap;
+    return s_cap && s_cap < max_01a ? s_cap : max_01a;
+}
+
 void task_tes_sm(void *arg)
 {
     (void)arg;
@@ -386,7 +398,7 @@ void task_tes_sm(void *arg)
         // 不能出現「新電壓 + 舊電流」這種被 setter 寫到一半的組合。
         config_svc_get_copy(&cfg);
         inputs.max_voltage_01v    = cfg.max_voltage_01v;
-        inputs.max_current_01a    = cfg.max_current_01a;
+        inputs.max_current_01a    = power_capped_current(cfg.max_current_01a, cfg.max_voltage_01v, &psu);
         inputs.target_soc         = cfg.target_soc;
         inputs.stop_mode          = cfg.stop_mode;
         inputs.stop_voltage_01v   = cfg.stop_voltage_01v;

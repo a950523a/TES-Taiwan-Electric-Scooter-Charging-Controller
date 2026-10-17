@@ -104,6 +104,8 @@ static void link_down(void)
     s_status.voltage    = 0.f;
     s_status.current    = 0.f;
     s_status.caps_known = false;
+    s_status.pwr_known  = false;
+    s_status.pmax_w     = 0;
     s_status.mode       = PSU_MODE_UNKNOWN;
     s_status.flags      = 0;
     taskEXIT_CRITICAL(&s_status_mux);
@@ -194,6 +196,39 @@ static void on_cap(const psu_msg_cap_t *cap)
     }
 }
 
+static void on_power(const psu_msg_power_t *p)
+{
+    bool changed = !s_status.pwr_known || p->pmax_w != s_status.pmax_w;
+    taskENTER_CRITICAL(&s_status_mux);
+    s_status.pwr_known  = true;
+    s_status.ac_vac_dv  = p->vac_dv;
+    s_status.pmax_w     = p->pmax_w;
+    s_status.ac_ilim_da = p->ilim_da;
+    s_status.ac_src     = p->src;
+    taskEXIT_CRITICAL(&s_status_mux);
+    if (changed) {
+        ESP_LOGI(TAG, "PSU power: AC %u.%uV, max %uW, AC limit %u.%uA (src %u)",
+                 p->vac_dv / 10u, p->vac_dv % 10u, p->pmax_w, p->ilim_da / 10u, p->ilim_da % 10u, p->src);
+    }
+}
+
+uint16_t psu_driver_current_cap_01a(const psu_status_t *s, uint16_t fallback_v_01v)
+{
+    if (!s->connected) return 0;
+    uint32_t cap = UINT32_MAX;
+    if (s->caps_known && s->i_max_ca) cap = s->i_max_ca / 10u;
+    if (s->pwr_known && s->pmax_w) {
+        uint32_t v01 = s->voltage >= 10.0f ? (uint32_t)(s->voltage * 10.0f + 0.5f) : fallback_v_01v;
+        if (v01 >= 100) {
+            uint32_t p = (uint32_t)s->pmax_w * 100u / v01;   // W ÷ V → 0.1 A
+            if (p < cap) cap = p;
+        }
+    }
+    if (cap == UINT32_MAX) return 0;
+    if (cap < 10) cap = 10;          // 至少 1 A：0 在這裡代表「不限」
+    return cap > 65535u ? 65535u : (uint16_t)cap;
+}
+
 static void on_ack(const psu_msg_ack_t *ack)
 {
     taskENTER_CRITICAL(&s_status_mux);
@@ -236,6 +271,7 @@ static void handle_line(const char *line, size_t len)
     case PSU_MSG_STATUS: link_alive(); on_status(&m.u.status); break;
     case PSU_MSG_CAP:    link_alive(); on_cap(&m.u.cap);       break;
     case PSU_MSG_ACK:    link_alive(); on_ack(&m.u.ack);       break;
+    case PSU_MSG_POWER:  link_alive(); on_power(&m.u.power);   break;
     default:             break;   // HELO / SET 是控制板送出的方向，收到就忽略
     }
 }

@@ -46,6 +46,15 @@ typedef struct {
     bool     link_auth;       // 已跟配對的節點完成握手，訊框驗證中
     bool     needs_repair;    // 有舊版配對（只有 MAC、沒有金鑰）—— 必須重新配對
     uint32_t auth_rejects;    // 被擋下的訊框：驗證碼不符、重送、沒帶驗證碼的偽造
+
+    // ── AC 輸入與可用功率（PWR，2026-10-17；斷線時清除）─────────────────────
+    // 節點自己算出「現在能給多少 DC 功率」（模組在這個 AC 電壓下的額定、插座或 AC 樁的電流上限）。
+    // task_tes_sm 用它收最大電流：I ≤ pmax_w / 最大電壓
+    bool     pwr_known;
+    uint16_t ac_vac_dv;       // 0.1 V，0 = 節點還沒讀到
+    uint16_t pmax_w;          // 0 = 不知道 → 不限（照舊）
+    uint16_t ac_ilim_da;      // AC 端電流上限，0.1 A，0 = 不限／不知道
+    uint8_t  ac_src;          // psu_ac_src_t：插座設定、AC 樁 pilot…
 } psu_status_t;
 
 // 配對進度，給 OLED 與網頁顯示（值見 psu_link/psu_pair.h）
@@ -74,6 +83,12 @@ void         psu_driver_poll        (void);   // 非阻塞，由 task_hal_poll �
 void         psu_driver_set_voltage (float v);
 void         psu_driver_set_current (float a);
 psu_status_t psu_driver_get_status  (void);
+
+// 電源節點現在能給的電流上限（0.1 A），0 = 節點沒給任何上限資訊（照舊用最大電流設定）。
+//   min(節點的額定電流（CAP imax）, 可用功率（PWR pmax）÷ 電壓)
+// 電壓用節點量到的輸出電壓：車子電壓低就能多給電流。還沒在輸出（ST 的電壓無效）時用
+// fallback_v_01v（task_tes_sm 給最大電壓 = 送給車子的 VLIM2），偏保守
+uint16_t     psu_driver_current_cap_01a(const psu_status_t *s, uint16_t fallback_v_01v);
 
 // 節點是否接受電壓／電流設定。還不知道節點能力（尚未收到 CAP）時回傳 true，
 // 讓 SET 照送 —— 不支援的節點會回 ACK UNSUPPORTED，不會有副作用。
