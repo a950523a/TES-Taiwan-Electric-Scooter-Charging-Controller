@@ -98,6 +98,10 @@ static bool              s_sta_enabled_boot;
 static bool              s_wifi_started;
 static uint32_t          s_wifi_gen_seen;
 static uint32_t          s_connect_start_ms;
+static bool              s_boot_try_done;    // 開機先直接連上次那組（不先掃描），只試一次
+static uint32_t          s_wifi_attempts;    // 開機以來的連線嘗試次數（/status，診斷用）
+static int               s_wifi_last_reason; // 最近一次斷線／連線失敗的原因碼（wifi_err_reason_t），0 = 沒有
+static esp_err_t         s_wifi_last_err;    // 最近一次 esp_wifi_connect() 的回傳值
 static int  ap_client_count(void);
 static bool wifi_hold(void);
 
@@ -291,6 +295,9 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddStringToObject(root, "sta_ssid",          s_connected ? s_sta_ssid : "");
     cJSON_AddBoolToObject  (root, "ap_on",             s_ap_mode);
     cJSON_AddNumberToObject(root, "ap_clients",        ap_client_count());
+    cJSON_AddNumberToObject(root, "wifi_attempts",     s_wifi_attempts);
+    cJSON_AddNumberToObject(root, "wifi_last_reason",  s_wifi_last_reason);
+    cJSON_AddStringToObject(root, "wifi_last_err",     esp_err_to_name(s_wifi_last_err));
 
     // 裝置識別（多台同網段時用來分辨是哪一台）
     {
@@ -2386,6 +2393,8 @@ static void start_scan(void)
 }
 
 // 背景掃描做完（task_network）：記住的網路裡挑訊號最強、這一輪還沒失敗過的，連過去
+static void wifi_try_connect(const wifi_list_t *wl, int idx, uint8_t ch);
+
 static void wifi_scan_done(void)
 {
     static wifi_ap_record_t rec[WIFI_SCAN_MAX_RECORDS];
@@ -2399,24 +2408,36 @@ static void wifi_scan_done(void)
     for (int i = 0; i < n; i++) { seen[i] = (const char *)rec[i].ssid; rssi[i] = rec[i].rssi; }
     int idx = wifi_list_pick(&wl, seen, rssi, n, s_fail_mask);
     if (idx < 0 && s_fail_mask) {
-        s_fail_mask = 0;                 // 都試過了：下一輪重新來
-        return;
+        // 掃到的都試過了：清掉重來，這一輪就連（以前在這裡 return，只有一組網路時每次失敗要多等一整輪 ——
+        // 熱點開了以後是 60 s × 2）
+        s_fail_mask = 0;
+        idx = wifi_list_pick(&wl, seen, rssi, n, 0);
     }
     if (idx < 0) return;
     uint8_t ch = 0;
     for (int i = 0; i < n; i++) if (strcmp(seen[i], wl.e[idx].ssid) == 0) { ch = rec[i].primary; break; }
+    wifi_try_connect(&wl, idx, ch);
+}
 
+// 連 wl.e[idx]。ch = 掃描看到的頻道（0 = 不知道，交給驅動自己找）
+static void wifi_try_connect(const wifi_list_t *wl, int idx, uint8_t ch)
+{
     wifi_config_t w = {0};
-    strcpy((char *)w.sta.ssid, wl.e[idx].ssid);
-    strcpy((char *)w.sta.password, wl.e[idx].pass);
+    strcpy((char *)w.sta.ssid, wl->e[idx].ssid);
+    strcpy((char *)w.sta.password, wl->e[idx].pass);
     w.sta.channel = ch;                  // 剛掃到的頻道，連線時不必再掃一遍
     esp_wifi_set_config(WIFI_IF_STA, &w);
     s_try_idx = idx;
-    strcpy(s_try_ssid, wl.e[idx].ssid);
+    strcpy(s_try_ssid, wl->e[idx].ssid);
     s_connect_start_ms = (uint32_t)(esp_timer_get_time() / 1000);
     s_connecting = true;
-    ESP_LOGI(TAG, "connecting to \"%s\" (ch%u)", s_try_ssid, (unsigned)ch);
-    if (esp_wifi_connect() != ESP_OK) {
+    s_wifi_attempts++;
+    ESP_LOGI(TAG, "connecting to \"%s\" (ch%u, attempt %lu)", s_try_ssid, (unsigned)ch,
+             (unsigned long)s_wifi_attempts);
+    esp_err_t e = esp_wifi_connect();
+    s_wifi_last_err = e;
+    if (e != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_connect: %s", esp_err_to_name(e));
         s_connecting = false;
         s_fail_mask |= 1u << idx;
         s_retry_req = true;
@@ -2460,6 +2481,14 @@ void network_svc_wifi_tick(void)
     if (s_connecting && (uint32_t)(now - s_connect_start_ms) > WIFI_CONNECT_TIMEOUT_MS) {
         ESP_LOGW(TAG, "WiFi \"%s\" connect timeout", s_try_ssid);
         esp_wifi_disconnect();           // 會收到 DISCONNECTED，走失敗的路
+    }
+
+    // 開機第一次：不先掃描，直接連清單第一組（最近加入／上次用的）—— 跟舊版一樣快。
+    // 連不上（不在範圍、密碼錯）才由下面的計畫掃描、挑訊號最強的
+    if (!s_boot_try_done) {
+        s_boot_try_done = true;
+        if (s_sta_enabled_boot && wifi_list_count(&wl) > 0 && !s_connected && !s_connecting && !s_mgr_scanning)
+            wifi_try_connect(&wl, 0, 0);
     }
 
     wifi_plan_in_t in = {
@@ -2512,10 +2541,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
                 s_retry_req = true;
                 s_disc_was_try = true;
                 s_disc_reason = d ? d->reason : 0;
+                s_wifi_last_reason = s_disc_reason;
             } else if (was) {
                 s_retry_req = true;          // 斷線：馬上找一次，不等完整間隔
                 s_disc_was_try = false;
                 s_disc_reason = d ? d->reason : 0;
+                s_wifi_last_reason = s_disc_reason;
             }
         }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {

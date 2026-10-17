@@ -7,14 +7,14 @@
 // 以前設定過 WiFi 的機器帶出門，會一直重連家裡、永遠不開熱點，手機完全連不上。現在：
 //   - 沒有記住的網路，或使用者關掉 STA → 熱點常開、不加密（首次設定要用；跟以前一樣）
 //   - 有記住的網路：開機 30 秒內沒連上、或連上後斷線 60 秒 → 開熱點（WPA2，密碼在 OLED）
-//     背景照樣掃描：熱點還沒開時每 10 秒、開了之後每 60 秒（掃描要換頻道，連在熱點上的手機會頓一下）
+//     背景照樣掃描：熱點還沒開時每 5 秒、開了之後每 60 秒（掃描要換頻道，連在熱點上的手機會頓一下）
 //   - 連上了：熱點上沒有手機超過 30 秒就關掉；有人在用就留著，不把人踢掉
 //   - hold（PSU 走 ESP-NOW 且正在充電）：不掃描——換頻道會讓 PSU 連線斷掉而觸發故障
 // 熱點開著時不改它的加密方式：設定流程中剛加好網路的手機不能被踢掉。
 
 #define WIFI_PLAN_AP_DELAY_BOOT_MS   30000
 #define WIFI_PLAN_AP_DELAY_LOST_MS   60000
-#define WIFI_PLAN_SCAN_FAST_MS       10000
+#define WIFI_PLAN_SCAN_FAST_MS        5000
 #define WIFI_PLAN_SCAN_SLOW_MS       60000
 #define WIFI_PLAN_AP_IDLE_OFF_MS     30000
 #define WIFI_PLAN_RETRY_MS            2000   // 一組連失敗，換下一組前等這麼久
