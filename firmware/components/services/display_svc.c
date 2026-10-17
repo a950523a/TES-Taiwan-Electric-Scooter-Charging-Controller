@@ -432,8 +432,11 @@ static void value_step(int item, int delta)
     }
     case MENU_ITEM_MAX_CURRENT: {
         int a = (int)s_edit_current + delta;
+        // 接著會回報額定電流的電源（LianMing 66 A）時，最多調到那裡
+        int amax = psu_driver_rated_current_01a();
+        if (amax < 10 || amax > 1000) amax = 1000;
         if (a < 10)   a = 10;
-        if (a > 1000) a = 1000;
+        if (a > amax) a = amax;
         s_edit_current = (uint16_t)a;
         break;
     }

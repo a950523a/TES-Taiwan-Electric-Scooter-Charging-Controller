@@ -44,6 +44,7 @@
     '充電中（PSU 走 ESP-NOW）不能掃描，充完再掃': 'Cannot scan while charging with an ESP-NOW PSU; scan after charging',
     '已連線 · 熱點開著': 'Connected · hotspot on',
     'AC 輸入／可用功率': 'AC input / available power',
+    '電源最多 {} A。插座功率不夠時，充電中會依實際電壓自動再降（見狀態卡的「可用功率」）': 'The power supply gives at most {} A. When the outlet cannot supply enough power, charging lowers it further by the actual voltage (see "available power" on the status card)',
     'AC 還沒讀到，不限': 'AC not read yet, no limit',
     'AC 樁 {} A': 'AC station {} A',
     '插座 {} A': 'outlet {} A',

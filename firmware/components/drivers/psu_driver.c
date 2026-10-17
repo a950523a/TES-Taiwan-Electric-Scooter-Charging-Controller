@@ -212,6 +212,14 @@ static void on_power(const psu_msg_power_t *p)
     }
 }
 
+uint16_t psu_driver_rated_current_01a(void)
+{
+    taskENTER_CRITICAL(&s_status_mux);
+    uint16_t ca = (s_status.connected && s_status.caps_known) ? s_status.i_max_ca : 0;
+    taskEXIT_CRITICAL(&s_status_mux);
+    return ca / 10u;
+}
+
 uint16_t psu_driver_current_cap_01a(const psu_status_t *s, uint16_t fallback_v_01v)
 {
     if (!s->connected) return 0;

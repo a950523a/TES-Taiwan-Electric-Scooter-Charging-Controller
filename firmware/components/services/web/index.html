@@ -310,6 +310,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <input type="number" id="cv" step="0.1" min="40" max="120">
   <label class="lbl2">最大電流 (A)</label>
   <input type="number" id="ca" step="0.1" min="1" max="100" oninput="checkAutoStart()">
+  <div id="ca-hint" style="display:none;font-size:.75em;color:#888;margin-top:4px;line-height:1.5"></div>
   <label class="lbl2">充電停止條件</label>
   <div class="chk-row" id="stop-mode-row" style="gap:16px;flex-wrap:wrap">
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -1180,6 +1181,12 @@ async function loadCfg(){
     document.getElementById('cv').max=vlim;
     document.getElementById('csv').max=vlim;
     document.getElementById('cv').value=d.max_voltage;
+    // 最大電流的上限：電源回報的額定電流（LianMing 66 A），沒有就 100
+    const ilim=d.current_limit||100;
+    document.getElementById('ca').max=ilim;
+    const cah=document.getElementById('ca-hint');
+    cah.textContent=ilim<100?'電源最多 '+ilim+' A。插座功率不夠時，充電中會依實際電壓自動再降（見狀態卡的「可用功率」）':'';
+    cah.style.display=ilim<100?'':'none';
     document.getElementById('ca').value=d.max_current;
     document.getElementById('cs').value=d.target_soc;
     // 螢幕（OLED）設定：舊韌體沒有就整張卡藏起來

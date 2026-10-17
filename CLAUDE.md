@@ -753,7 +753,7 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 |------|-------|-----------------|-----------------|
 | Auto Volt | ON / OFF | toggle | toggle |
 | Max Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（顯示為 "V Cap" when Auto ON） | ±0.1 V | ±1 V (auto-repeat) |
-| Max Current | 1.0 A -- 100.0 A | ±0.1 A | ±1 A (auto-repeat) |
+| Max Current | 1.0 A -- 100.0 A，**接著會回報額定電流的電源時最多到那裡**（LianMing 66 A；`psu_driver_rated_current_01a()`，網頁／App 用 `/config` `current_limit`，`POST /config` 超過就夾住） | ±0.1 A | ±1 A (auto-repeat) |
 | Stop Mode | SOC / Volt / Timer / kWh | toggle | toggle |
 | Target SOC | 20% -- 100%（Stop Mode=SOC 時顯示） | ±1% | ±5% (auto-repeat) |
 | Stop Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |
@@ -870,7 +870,7 @@ that reports neither → the setting as before (every unit in the field). The no
 side with its own measured voltage. `/status`: `psu_ac_v`, `psu_pmax_w`, `psu_ac_limit_a`,
 `psu_ac_src` (0 unknown, 1 outlet setting, 2 AC charging station — reserved for J1772 / Type-2 on
 the node), `psu_power_current`, `psu_power_limited`; the web status card and the app show them as
-可用功率. LianMing: 1.3 kW on 110 V, 6 kW on 220 V, outlet limit (default 15 A) set on the LianMing,
+可用功率. The **Max Current setting** itself can only go up to the node's rated current (`current_limit` in `/config`; decided 2026-10-17 — the power limit stays automatic, so a low-voltage vehicle still gets more). LianMing: 1.3 kW on 110 V, 6 kW on 220 V (by band), outlet limit (default 15 A) set on the LianMing,
 module 60 A rated / 66 A max — see that repo's **Available power**.
 
 **`psu_status_t` kept its first five fields** (`voltage`, `current`, `connected`, `rssi`,

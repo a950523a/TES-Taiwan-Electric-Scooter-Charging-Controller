@@ -455,6 +455,11 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     // 最大電壓與停止電壓能設到多高（依板子：舊板 110、V1.3 120）。網頁、App 的輸入上限照這個
     cJSON_AddNumberToObject(root, "voltage_limit",  (double)adc_driver_board()->max_volt_01v / 10.0);
     cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
+    // 最大電流能設到多高：接著會回報額定電流的電源（LianMing 66 A）就是它，否則 100 A
+    {
+        uint16_t r = psu_driver_rated_current_01a();
+        cJSON_AddNumberToObject(root, "current_limit", (r >= 10 && r <= 1000 ? r : 1000) / 10.0);
+    }
     cJSON_AddNumberToObject(root, "target_soc",     cfg->target_soc);
     cJSON_AddNumberToObject(root, "stop_mode",        (int)cfg->stop_mode);
     cJSON_AddNumberToObject(root, "stop_voltage",     (double)cfg->stop_voltage_01v / 10.0);
@@ -601,7 +606,10 @@ static esp_err_t handle_post_config(httpd_req_t *req)
     item = cJSON_GetObjectItem(root, "max_current");
     if (cJSON_IsNumber(item)) {
         int a = (int)(item->valuedouble * 10.0 + 0.5);
-        if (a >= 10 && a <= 1000) { new_current = (uint16_t)a; charging_changed = true; }
+        // 超過電源的額定電流：夾到額定（跟電壓超過板子上限一樣，不整筆丟掉）
+        int amax = psu_driver_rated_current_01a();
+        if (amax < 10 || amax > 1000) amax = 1000;
+        if (a >= 10 && a <= 1000) { new_current = (uint16_t)(a > amax ? amax : a); charging_changed = true; }
     }
     item = cJSON_GetObjectItem(root, "target_soc");
     if (cJSON_IsNumber(item)) {

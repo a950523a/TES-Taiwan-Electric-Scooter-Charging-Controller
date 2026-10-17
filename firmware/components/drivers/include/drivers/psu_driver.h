@@ -90,6 +90,10 @@ psu_status_t psu_driver_get_status  (void);
 // fallback_v_01v（task_tes_sm 給最大電壓 = 送給車子的 VLIM2），偏保守
 uint16_t     psu_driver_current_cap_01a(const psu_status_t *s, uint16_t fallback_v_01v);
 
+// 電源節點的額定電流（CAP imax，0.1 A）；沒連上、還沒收到 CAP、或節點沒說回傳 0。
+// 「最大電流」設定（OLED、網頁、App、POST /config）最多只能調到這裡（2026-10-17）
+uint16_t     psu_driver_rated_current_01a(void);
+
 // 節點是否接受電壓／電流設定。還不知道節點能力（尚未收到 CAP）時回傳 true，
 // 讓 SET 照送 —— 不支援的節點會回 ACK UNSUPPORTED，不會有副作用。
 bool psu_driver_can_set_voltage(void);
