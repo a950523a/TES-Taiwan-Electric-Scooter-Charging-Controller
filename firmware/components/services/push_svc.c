@@ -15,6 +15,8 @@ static const char *TAG = "push_svc";
 #define NVS_NS          "tes_cfg"
 #define NVS_KEY_PHONES  "push_v2"       // blob：PUSH_MAX_TOKENS × phone_t
 #define NVS_KEY_TOKS_V1 "push_toks"     // 舊格式（只有 token），開機時搬到 push_v2
+// 各 slot 的通知語言另存一個小 blob：push_v2 不必換格式；沒有這個 key（舊韌體升上來）就全部中文
+#define NVS_KEY_LANG    "push_lang"     // blob：PUSH_MAX_TOKENS × uint8_t
 #define EXPO_PUSH_URL   "https://exp.host/--/api/v2/push/send"
 // App 端建立的 Android 通知頻道（TurtlePower-App src/core/push.ts 的 CHANNEL_ID），兩邊要一致
 #define ANDROID_CHANNEL "charging"
@@ -28,11 +30,17 @@ typedef struct {
 } phone_t;
 
 static phone_t           s_phones[PUSH_MAX_TOKENS];
+static uint8_t           s_lang[PUSH_MAX_TOKENS];
 static SemaphoreHandle_t s_lock;
 
 static esp_err_t save_locked(void)
 {
     return hal_nvs_set_blob(NVS_NS, NVS_KEY_PHONES, s_phones, sizeof(s_phones));
+}
+
+static esp_err_t save_lang_locked(void)
+{
+    return hal_nvs_set_blob(NVS_NS, NVS_KEY_LANG, s_lang, sizeof(s_lang));
 }
 
 esp_err_t push_svc_init(void)
@@ -54,7 +62,11 @@ esp_err_t push_svc_init(void)
             ESP_LOGI(TAG, "migrated push tokens to push_v2");
         }
     }
+    size_t llen = sizeof(s_lang);
+    if (hal_nvs_get_blob(NVS_NS, NVS_KEY_LANG, s_lang, &llen) != ESP_OK || llen != sizeof(s_lang))
+        memset(s_lang, PUSH_LANG_ZH, sizeof(s_lang));
     for (int i = 0; i < PUSH_MAX_TOKENS; i++) {
+        if (s_lang[i] > PUSH_LANG_EN) s_lang[i] = PUSH_LANG_ZH;
         s_phones[i].token[PUSH_TOKEN_LEN - 1] = '\0';
         s_phones[i].name[PUSH_NAME_LEN - 1]   = '\0';
     }
@@ -109,9 +121,10 @@ static uint32_t now_epoch(void)
     return t > 1700000000 ? (uint32_t)t : 0;   // 還沒對時（1970 年起算）就記 0
 }
 
-esp_err_t push_svc_add(const char *token, const char *name)
+esp_err_t push_svc_add(const char *token, const char *name, int lang)
 {
     if (!token || !token_valid(token)) return ESP_ERR_INVALID_ARG;
+    if (lang != PUSH_LANG_KEEP && lang != PUSH_LANG_ZH && lang != PUSH_LANG_EN) return ESP_ERR_INVALID_ARG;
     char clean[PUSH_NAME_LEN];
     sanitize_name(clean, name);
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -122,6 +135,10 @@ esp_err_t push_svc_add(const char *token, const char *name)
             if (clean[0] && strcmp(s_phones[i].name, clean) != 0) {
                 strcpy(s_phones[i].name, clean);
                 r = save_locked();
+            }
+            if (lang != PUSH_LANG_KEEP && s_lang[i] != lang) {
+                s_lang[i] = (uint8_t)lang;
+                if (r == ESP_OK) r = save_lang_locked();
             }
             xSemaphoreGive(s_lock);
             return r;
@@ -134,6 +151,9 @@ esp_err_t push_svc_add(const char *token, const char *name)
         strcpy(s_phones[free_slot].name, clean);
         s_phones[free_slot].added = now_epoch();
         r = save_locked();
+        // 空出來的 slot 可能留著前一支手機的語言：新登記一律重寫
+        s_lang[free_slot] = lang == PUSH_LANG_EN ? PUSH_LANG_EN : PUSH_LANG_ZH;
+        if (r == ESP_OK) r = save_lang_locked();
     }
     xSemaphoreGive(s_lock);
     return r;
@@ -188,6 +208,7 @@ int push_svc_list(push_phone_info_t *out)
         push_phone_info_t *o = &out[n++];
         o->slot  = i;
         o->added = p->added;
+        o->lang  = s_lang[i];
         strcpy(o->name, p->name);
         // 括號內最後 6 碼：App 拿自己的 token 比對，認出「這支手機」
         size_t len = strlen(p->token);
@@ -205,6 +226,7 @@ typedef enum { SEND_OK, SEND_FAIL, SEND_GONE } send_result_t;
 // 緩衝區放 heap：task_notify 只有 6 KB 堆疊，TLS 握手本身就要用掉不少
 typedef struct {
     char toks[PUSH_MAX_TOKENS][PUSH_TOKEN_LEN];
+    uint8_t lang[PUSH_MAX_TOKENS];
     char json[512];
     char resp[192];
 } send_buf_t;
@@ -245,15 +267,19 @@ static send_result_t post_one(send_buf_t *b, int n)
     return result;
 }
 
-// 對每支登記的手機送一次。title 不為 NULL 是一般通知，否則是資料推播（data_json）。
-static esp_err_t send_each(const char *title, const char *body, const char *data_json)
+// 對每支登記的手機送一次。title 不為 NULL 是一般通知（依那支手機的語言挑 [0] 中文／[1] 英文），
+// 否則是資料推播（data_json：App 自己組文字，不分語言）。
+static esp_err_t send_each(const char *const *title, const char *const *body, const char *data_json)
 {
     if (!s_lock) return ESP_ERR_INVALID_STATE;
     send_buf_t *b = malloc(sizeof(*b));
     if (!b) return ESP_ERR_NO_MEM;
     // 先複製出來，送的時候（每支可能好幾秒）不要握著鎖
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    for (int i = 0; i < PUSH_MAX_TOKENS; i++) strcpy(b->toks[i], s_phones[i].token);
+    for (int i = 0; i < PUSH_MAX_TOKENS; i++) {
+        strcpy(b->toks[i], s_phones[i].token);
+        b->lang[i] = s_lang[i];
+    }
     xSemaphoreGive(s_lock);
 
     int sent = 0, tried = 0;
@@ -261,11 +287,12 @@ static esp_err_t send_each(const char *title, const char *body, const char *data
         const char *tok = b->toks[i];
         if (tok[0] == '\0') continue;
         tried++;
+        int l = b->lang[i] == PUSH_LANG_EN ? PUSH_LANG_EN : PUSH_LANG_ZH;
         int n = title
             ? snprintf(b->json, sizeof(b->json),
                        "{\"to\":\"%s\",\"title\":\"%s\",\"body\":\"%s\",\"priority\":\"high\","
                        "\"sound\":\"default\",\"channelId\":\"" ANDROID_CHANNEL "\"}",
-                       tok, title, body)
+                       tok, title[l], body[l])
             : snprintf(b->json, sizeof(b->json),
                        "{\"to\":\"%s\",\"data\":%s,\"priority\":\"high\",\"ttl\":%d}",
                        tok, data_json, DATA_TTL_S);
@@ -280,11 +307,11 @@ static esp_err_t send_each(const char *title, const char *body, const char *data
     }
     free(b);
     if (tried == 0) return ESP_ERR_NOT_FOUND;
-    ESP_LOGI(TAG, "push \"%s\": %d/%d", title ? title : "(data)", sent, tried);
+    ESP_LOGI(TAG, "push \"%s\": %d/%d", title ? title[PUSH_LANG_EN] : "(data)", sent, tried);
     return sent > 0 ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t push_svc_send_all(const char *title, const char *body)
+esp_err_t push_svc_send_all(const char *const title[2], const char *const body[2])
 {
     return send_each(title, body, NULL);
 }

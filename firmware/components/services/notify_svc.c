@@ -75,8 +75,8 @@ static bool s_mark_set;
 static bool s_new_session;      // 開機後開始過新的充電
 static bool s_boot_pending;
 static bool s_boot_live_end;
-static char s_boot_title[48];
-static char s_boot_body[200];
+static char s_boot_title[2][48];    // [0] 中文、[1] 英文
+static char s_boot_body[2][200];
 
 static boot_rst_t map_reset(esp_reset_reason_t r)
 {
@@ -115,10 +115,13 @@ esp_err_t notify_svc_init(void)
     s_mark_set = (mark & MARK_ACTIVE) != 0;
     bool was_charging = s_mark_set;
     boot_rst_t rst = map_reset(esp_reset_reason());
-    s_boot_pending = boot_notice_build(rst, was_charging, was_charging ? (int)(mark & 0xFF) : -1,
-                                       s_boot_title, sizeof s_boot_title, s_boot_body, sizeof s_boot_body);
+    int soc0 = was_charging ? (int)(mark & 0xFF) : -1;
+    s_boot_pending = boot_notice_build(rst, was_charging, soc0, false,
+                                       s_boot_title[0], sizeof s_boot_title[0], s_boot_body[0], sizeof s_boot_body[0]);
+    boot_notice_build(rst, was_charging, soc0, true,
+                      s_boot_title[1], sizeof s_boot_title[1], s_boot_body[1], sizeof s_boot_body[1]);
     s_boot_live_end = was_charging;   // App 的 Now Bar 進度還停在重開前，請它收掉
-    if (s_boot_pending) ESP_LOGW(TAG, "boot notice pending: %s / %s", s_boot_title, s_boot_body);
+    if (s_boot_pending) ESP_LOGW(TAG, "boot notice pending: %s / %s", s_boot_title[1], s_boot_body[1]);
     return r;
 }
 
@@ -132,7 +135,7 @@ static void boot_notice_tick(void)
         push_svc_send_data_all(data);
     }
     // 沒有任何通知對象也算處理完了；送失敗（例如暫時連不上）就下一圈再試
-    if (notify_svc_broadcast(s_boot_title, s_boot_body, 5) != ESP_FAIL) {
+    if (notify_svc_broadcast(s_boot_title[0], s_boot_body[0], s_boot_title[1], s_boot_body[1], 5) != ESP_FAIL) {
         s_boot_pending = false;
         if (!s_new_session) charge_mark_clear();
     }
@@ -140,15 +143,18 @@ static void boot_notice_tick(void)
 
 // 同一則通知送到兩條路：notify_url（webhook／ntfy）與 App 推播（Expo）。
 // 任一條成功就算成功；兩條都沒設定回 ESP_ERR_NOT_FOUND。
-esp_err_t notify_svc_broadcast(const char *title, const char *message, int priority)
+esp_err_t notify_svc_broadcast(const char *title_zh, const char *msg_zh,
+                               const char *title_en, const char *msg_en, int priority)
 {
     const char *url = config_svc_get()->notify_url;
     bool any_target = false, any_ok = false;
     if (url[0] != '\0') {
         any_target = true;
-        any_ok |= notify_svc_send(url, title, message, priority) == ESP_OK;
+        any_ok |= notify_svc_send(url, title_zh, msg_zh, priority) == ESP_OK;
     }
-    esp_err_t pr = push_svc_send_all(title, message);
+    const char *const titles[2] = { title_zh, title_en };
+    const char *const bodies[2] = { msg_zh, msg_en };
+    esp_err_t pr = push_svc_send_all(titles, bodies);
     if (pr != ESP_ERR_NOT_FOUND) {
         any_target = true;
         any_ok |= pr == ESP_OK;
@@ -279,7 +285,8 @@ void task_notify(void *arg)
         if (config_svc_get()->notify_url[0] == '\0' && push_svc_count() == 0) continue;
 
         if (started) {
-            notify_svc_broadcast("充電開始", "充電器已連接並開始充電", 3);
+            notify_svc_broadcast("充電開始", "充電器已連接並開始充電",
+                                 "Charging started", "The charger is connected and charging", 3);
 
         } else if (finished) {
             tes_snapshot_t snap = {0};
@@ -296,14 +303,16 @@ void task_notify(void *arg)
                 } else {
                     snprintf(msg, sizeof(msg), "SOC %d%%  %lum", snap.soc, (unsigned long)m);
                 }
-                notify_svc_broadcast("充電完成", msg, 3);
+                notify_svc_broadcast("充電完成", msg, "Charging complete", msg, 3);
             }
 
         } else if (new_state == TES_STATE_FAULT) {
-            notify_svc_broadcast("充電故障", "請確認設備狀態", 4);
+            notify_svc_broadcast("充電故障", "請確認設備狀態",
+                                 "Charging fault", "Please check the equipment", 4);
 
         } else if (new_state == TES_STATE_EMERGENCY) {
-            notify_svc_broadcast("緊急停止", "充電器觸發緊急停止", 5);
+            notify_svc_broadcast("緊急停止", "充電器觸發緊急停止",
+                                 "Emergency stop", "The charger triggered an emergency stop", 5);
         }
     }
 }

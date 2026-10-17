@@ -1444,7 +1444,8 @@ static esp_err_t handle_post_notify_test(httpd_req_t *req)
         return ESP_OK;
     }
     // notify_url 與 App 推播都送，跟真正的事件走同一條路
-    esp_err_t err = notify_svc_broadcast("TES 充電控制器", "推播通知測試成功 ✓", 3);
+    esp_err_t err = notify_svc_broadcast("TES 充電控制器", "推播通知測試成功 ✓",
+                                         "TES charge controller", "Test notification received ✓", 3);
     httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"send failed\"}");
     return ESP_OK;
 }
@@ -1455,7 +1456,8 @@ static const httpd_uri_t s_uri_post_notify_test = {
 
 // ── POST /push、GET /push ─────────────────────────────────────────────────────
 // 手機 App 管理推播：
-//   {"op":"add","token":"ExponentPushToken[...]","name":"Galaxy S26 Ultra"}  登記這支（已登記就只更新名稱）
+//   {"op":"add","token":"ExponentPushToken[...]","name":"Galaxy S26 Ultra","lang":"en"}
+//                                                                          登記這支（已登記就只更新名稱與語言）
 //   {"op":"remove","token":"..."}                                           取消這支
 //   {"op":"remove_slot","slot":2}                                           移除別支（App 不知道別人的完整 token）
 // 最多 PUSH_MAX_TOKENS 支手機。GET /push 列出名稱、登記時間、token 最後 6 碼，不給完整 token。
@@ -1478,10 +1480,14 @@ static esp_err_t handle_post_push(httpd_req_t *req)
     const cJSON *tok = in ? cJSON_GetObjectItem(in, "token") : NULL;
     const cJSON *nm  = in ? cJSON_GetObjectItem(in, "name") : NULL;
     const cJSON *sl  = in ? cJSON_GetObjectItem(in, "slot") : NULL;
+    const cJSON *lg  = in ? cJSON_GetObjectItem(in, "lang") : NULL;
+    // "lang":"en"／"zh"：這支手機的通知語言（App 2026-10-17 起帶）。沒帶就不改，新登記的當中文
+    int lang = !cJSON_IsString(lg) ? PUSH_LANG_KEEP
+             : strcmp(lg->valuestring, "en") == 0 ? PUSH_LANG_EN : PUSH_LANG_ZH;
     esp_err_t err = ESP_ERR_INVALID_ARG;
     if (cJSON_IsString(op)) {
         if (strcmp(op->valuestring, "add") == 0 && cJSON_IsString(tok)) {
-            err = push_svc_add(tok->valuestring, cJSON_IsString(nm) ? nm->valuestring : NULL);
+            err = push_svc_add(tok->valuestring, cJSON_IsString(nm) ? nm->valuestring : NULL, lang);
         } else if (strcmp(op->valuestring, "remove") == 0 && cJSON_IsString(tok)) {
             err = push_svc_remove(tok->valuestring);
         } else if (strcmp(op->valuestring, "remove_slot") == 0 && cJSON_IsNumber(sl)) {
@@ -1524,6 +1530,7 @@ static esp_err_t handle_get_push(httpd_req_t *req)
         cJSON_AddStringToObject(o, "name",  list[i].name);
         cJSON_AddNumberToObject(o, "added", list[i].added);
         cJSON_AddStringToObject(o, "tail",  list[i].tail);
+        cJSON_AddStringToObject(o, "lang",  list[i].lang == PUSH_LANG_EN ? "en" : "zh");
         cJSON_AddItemToArray(arr, o);
     }
     char *json = cJSON_PrintUnformatted(root);

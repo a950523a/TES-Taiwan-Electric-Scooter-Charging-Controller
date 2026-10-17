@@ -16,17 +16,24 @@
 #define PUSH_NAME_LEN   32    // 含 NUL；UTF-8，存入前已去掉 " \ 與控制字元
 #define PUSH_TAIL_LEN   7     // token 括號內最後 6 碼 + NUL
 
+// 每支手機自己的通知語言（App 登記時帶 "lang"，2026-10-17）。沒帶過的是中文
+#define PUSH_LANG_ZH    0
+#define PUSH_LANG_EN    1
+#define PUSH_LANG_KEEP  (-1)  // push_svc_add：不改（舊版 App 沒帶 lang）
+
 typedef struct {
     int      slot;
     char     name[PUSH_NAME_LEN];
     uint32_t added;               // Unix 秒；NTP 還沒對時就登記的是 0
     char     tail[PUSH_TAIL_LEN];
+    uint8_t  lang;                // PUSH_LANG_*
 } push_phone_info_t;
 
 esp_err_t push_svc_init(void);
 
-// 已登記就只更新名稱；格式不對 ESP_ERR_INVALID_ARG；滿了 ESP_ERR_NO_MEM
-esp_err_t push_svc_add(const char *token, const char *name);
+// 已登記就只更新名稱與語言；格式不對 ESP_ERR_INVALID_ARG；滿了 ESP_ERR_NO_MEM。
+// lang：PUSH_LANG_ZH／EN，或 PUSH_LANG_KEEP（新登記的當中文）
+esp_err_t push_svc_add(const char *token, const char *name, int lang);
 // 沒有這個 token 回 ESP_ERR_NOT_FOUND
 esp_err_t push_svc_remove(const char *token);
 // 依 GET /push 的 slot 移除（給「移除別支手機」用，App 不知道別人的完整 token）
@@ -38,7 +45,8 @@ int       push_svc_list(push_phone_info_t *out);
 // 送給所有登記的 token。至少一支成功回 ESP_OK；沒有 token 回 ESP_ERR_NOT_FOUND。
 // Expo 回 DeviceNotRegistered（App 被移除、token 失效）的 token 會自動移除。
 // 會做 HTTPS，只能在有足夠堆疊的任務裡呼叫（task_notify、httpd worker）。
-esp_err_t push_svc_send_all(const char *title, const char *body);
+// 每支手機收到它登記的語言：title[PUSH_LANG_ZH]／title[PUSH_LANG_EN]（body 同）。
+esp_err_t push_svc_send_all(const char *const title[2], const char *const body[2]);
 
 // 只有資料、沒有標題內文的推播（App 在背景收到後自己更新通知，例如充電進度）。
 // data_json 是一個 JSON 物件字串，呼叫端負責它是合法、免跳脫的 ASCII。

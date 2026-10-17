@@ -20,9 +20,9 @@ typedef enum {
     BOOT_RST_OTHER,
 } boot_rst_t;
 
-// 重開前在充電：soc_start 是開始時的 SOC，未知給 -1。
+// 重開前在充電：soc_start 是開始時的 SOC，未知給 -1。en：英文（給選英文的手機），否則中文。
 // 要通知回 true 並填好 title／body（UTF-8，不含 " 與 \，可直接放進 JSON）。
-bool boot_notice_build(boot_rst_t rst, bool was_charging, int soc_start,
+bool boot_notice_build(boot_rst_t rst, bool was_charging, int soc_start, bool en,
                        char *title, size_t title_len, char *body, size_t body_len);
 
-const char *boot_rst_label(boot_rst_t rst);
+const char *boot_rst_label(boot_rst_t rst, bool en);

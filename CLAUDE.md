@@ -954,6 +954,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `ss_style` | uint32 | 0 | Screensaver style: 0 turtle, 1 dark |
 | `notify_url` | str[128] | "" | ntfy/webhook URL; empty = disabled |
 | `push_v2` | blob[4×100] | empty | Mobile-app phones: Expo push token, name, registration time (`push_svc`, not in `charger_config_t`; migrated from the older token-only `push_toks`) |
+| `push_lang` | blob[4] | all 0 | Notification language per `push_v2` slot: 0 中文, 1 English (missing = all Chinese) |
 | `chg_mark` | u32 | 0 | Charging-in-progress mark for the post-reboot notice: `0x100 \| start SOC`, 0 = not charging |
 | `mqtt_url` | str[128] | "" | MQTT broker URL; empty = disabled |
 | `mqtt_topic` | str[64] | "" | MQTT topic prefix |
@@ -1078,6 +1079,15 @@ Sending is one HTTPS POST per phone to `https://exp.host/--/api/v2/push/send` wi
 containing `DeviceNotRegistered` removes that token. Buffers are heap-allocated because `task_notify`
 has 6 KB of stack — check its `stack free` in `task_monitor` after the first real push.
 A token can only push to the phone it came from, so it is not treated as a secret.
+
+**Each phone gets its own language (2026-10-17).** `POST /push` `add` takes `"lang":"zh"|"en"` (the app
+sends the language it is displaying, and re-registers when that changes); omitted = unchanged, a new
+phone without it is Chinese. It is kept per slot in a separate 4-byte NVS blob `push_lang`, so
+`push_v2` kept its format and a unit upgrading by OTA simply has every phone on Chinese. `GET /push`
+reports `lang` per phone. Every `notify_svc_broadcast()` call passes both texts (`title_zh, msg_zh,
+title_en, msg_en`), and `boot_notice_build()` takes an `en` flag and is built once per language at
+boot. `notify_url` (webhook / ntfy) has no language and stays Chinese. Data-only pushes (live progress)
+carry no text, so they are unaffected — the app formats those in its own language.
 
 **Notice after a reboot (`boot_notice.c`, host-tested).** A panic, watchdog, brownout or power cut gives the
 firmware no chance to say that charging stopped. So `task_notify` writes NVS `chg_mark` (`0x100 | start SOC`)
@@ -1764,8 +1774,8 @@ shows 離線 without affecting the others.
 | GET | `/icon.svg` | App icon |
 | GET | `/wifi/scan` | Scan nearby APs (max 20: ssid, rssi, secured) |
 | POST | `/notify/test` | Send a test notification to `notify_url` and every registered phone |
-| GET | `/push` | Registered phones: `{"max":4,"phones":[{"slot","name","added","tail"}]}` — never the full token |
-| POST | `/push` | Mobile app: `{"op":"add","token","name"}` / `{"op":"remove","token"}` / `{"op":"remove_slot","slot"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
+| GET | `/push` | Registered phones: `{"max":4,"phones":[{"slot","name","added","tail","lang"}]}` — never the full token |
+| POST | `/push` | Mobile app: `{"op":"add","token","name","lang"}` (`lang` `zh`/`en`, optional) / `{"op":"remove","token"}` / `{"op":"remove_slot","slot"}` → `{"ok":true,"count":n}`; 409 when 4 phones are already registered |
 | POST | `/reboot` | Restart after 500 ms. **409** while charging (PARAM_EXCHANGE … ENDING) — `restart_svc`, same reason as the OTA check; an unreadable state counts as busy. The web UI button confirms first, then waits for the unit to come back and reloads |
 | POST | `/psu/pair` | Start ESP-NOW pairing (requires psu_transport=1, charger idle); progress and code in `/status` → `psu_pair` |
 | POST | `/psu/pair/confirm` | `{"accept":true}` = codes match, `false` = cancel (same as START / STOP on the unit) |
