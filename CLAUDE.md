@@ -1581,6 +1581,11 @@ not: the phone leaves with the owner).
 new one), `{"wifi_remove":"ssid"}` (removing the connected one disconnects). Both apply live — no reboot.
 The old `wifi_ssid` + `wifi_pass` fields still work and mean "add this one"; an empty `wifi_ssid` is
 ignored. A WiFi error comes back as `{"ok":false,"error":...}` (other fields in the request are saved).
+SSIDs and passwords are UTF-8 and limited in **bytes**, as WiFi itself is: SSID ≤ 32 (about 10 Chinese
+characters), password 8–63; the web UI and app count bytes too. Old routers that broadcast a Chinese
+SSID in Big5/GBK will not match a name typed in UTF-8 — pick it from the scan list instead. SSIDs are
+chosen by anyone nearby, so the scan list renders them as text, never through `innerHTML` (it did
+until 2026-10-17).
 `GET /config` has `wifi_nets` (SSIDs only, never passwords), `wifi_max`, `ap_pass`; `/status` has
 `sta_ssid`, `ap_on`, `ap_clients`. `GET /wifi/scan` answers 409 while `hold`.
 

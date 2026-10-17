@@ -31,6 +31,7 @@
     '（OLED 設定選單的「熱點密碼」也看得到）。手機連上後開': '(also shown in the OLED settings menu as "AP pass"). Join it with the phone, then open',
     '出門充電時先把當地的 WiFi 加進來，之後去那裡就會自動連上，推播與遠端監控照常。': 'When charging away from home, add the local WiFi once; next time it connects by itself and notifications and remote monitoring keep working.',
     '請輸入 WiFi 名稱': 'Enter the WiFi name',
+    'WiFi 名稱太長：最多 32 bytes（中文約 10 個字）': 'The WiFi name is too long: at most 32 bytes (about 10 Chinese characters)',
     '密碼要 8–63 個字（開放網路請留空）': 'The password must be 8–63 characters (leave it empty for an open network)',
     '已經記住 5 組了，先移除一組': '5 networks are already saved; remove one first',
     '✓ 已更新「{}」': '✓ Updated "{}"',

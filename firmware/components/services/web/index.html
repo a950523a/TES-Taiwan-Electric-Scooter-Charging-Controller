@@ -1707,7 +1707,10 @@ async function addWifi(){
   const ssid=document.getElementById('wn-ssid').value.trim();
   const pass=document.getElementById('wn-pass').value;
   if(!ssid){wifiSay('請輸入 WiFi 名稱',false);return;}
-  if(pass&&(pass.length<8||pass.length>63)){wifiSay('密碼要 8–63 個字（開放網路請留空）',false);return;}
+  // WiFi 的限制是 bytes（UTF-8）：中文一個字 3 bytes，名稱最多 32 bytes ≈ 10 個中文字
+  const bytes=t=>new TextEncoder().encode(t).length;
+  if(bytes(ssid)>32){wifiSay('WiFi 名稱太長：最多 32 bytes（中文約 10 個字）',false);return;}
+  if(pass&&(bytes(pass)<8||bytes(pass)>63)){wifiSay('密碼要 8–63 個字（開放網路請留空）',false);return;}
   const known=WIFI_NETS.includes(ssid);
   if(!known&&WIFI_NETS.length>=WIFI_MAX){wifiSay('已經記住 5 組了，先移除一組',false);return;}
   const w={ssid};
@@ -1765,7 +1768,12 @@ async function scanWifi(){
         const bar=pct>66?'▂▄▆█':pct>33?'▂▄▆':'▂▄';
         const el=document.createElement('div');
         el.className='scan-item';
-        el.innerHTML=`<span>${n.secured?'🔒':'🔓'} ${n.ssid||'(隱藏網路)'}</span><span class="scan-rssi">${bar} ${n.rssi} dBm</span>`;
+        // SSID 是附近任何人都能取的名字：只能當文字放，不能進 innerHTML
+        const nm=document.createElement('span');
+        nm.textContent=(n.secured?'🔒':'🔓')+' '+(n.ssid||'(隱藏網路)');
+        const rs=document.createElement('span');
+        rs.className='scan-rssi';rs.textContent=`${bar} ${n.rssi} dBm`;
+        el.append(nm,rs);
         el.onclick=()=>{
           document.getElementById('wn-ssid').value=n.ssid;
           list.style.display='none';
