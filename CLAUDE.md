@@ -753,7 +753,7 @@ Accessible by **long-pressing SETTING** from the status screen. **Short-pressing
 |------|-------|-----------------|-----------------|
 | Auto Volt | ON / OFF | toggle | toggle |
 | Max Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（顯示為 "V Cap" when Auto ON） | ±0.1 V | ±1 V (auto-repeat) |
-| Max Current | 1.0 A -- 100.0 A，**接著會回報額定電流的電源時最多到那裡**（LianMing 66 A；`psu_driver_rated_current_01a()`，網頁／App 用 `/config` `current_limit`，`POST /config` 超過就夾住） | ±0.1 A | ±1 A (auto-repeat) |
+| Max Current | 1.0 A -- 100.0 A，**接上會回報額定電流的電源時最多到那裡**（LianMing 66 A；`psu_driver_rated_current_01a()`，網頁／App 用 `/config` `current_limit`，`POST /config` 超過就夾住） | ±0.1 A | ±1 A (auto-repeat) |
 | Stop Mode | SOC / Volt / Timer / kWh | toggle | toggle |
 | Target SOC | 20% -- 100%（Stop Mode=SOC 時顯示） | ±1% | ±5% (auto-repeat) |
 | Stop Voltage | 40.0 V -- 120.0 V，**V1.1/V1.2 只到 110.0 V**（Stop Mode=Volt 時顯示） | ±0.1 V | ±1 V (auto-repeat) |

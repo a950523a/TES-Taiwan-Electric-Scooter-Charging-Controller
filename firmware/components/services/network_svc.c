@@ -455,7 +455,7 @@ static esp_err_t handle_get_config(httpd_req_t *req)
     // 最大電壓與停止電壓能設到多高（依板子：舊板 110、V1.3 120）。網頁、App 的輸入上限照這個
     cJSON_AddNumberToObject(root, "voltage_limit",  (double)adc_driver_board()->max_volt_01v / 10.0);
     cJSON_AddNumberToObject(root, "max_current",    (double)cfg->max_current_01a / 10.0);
-    // 最大電流能設到多高：接著會回報額定電流的電源（LianMing 66 A）就是它，否則 100 A
+    // 最大電流能設到多高：接上會回報額定電流的電源（LianMing 66 A）就是它，否則 100 A
     {
         uint16_t r = psu_driver_rated_current_01a();
         cJSON_AddNumberToObject(root, "current_limit", (r >= 10 && r <= 1000 ? r : 1000) / 10.0);
