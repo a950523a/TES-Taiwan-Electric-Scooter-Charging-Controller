@@ -375,6 +375,10 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <b id="wn-ap-ssid">TES-Charger-xxxxxx</b>，密碼 <b id="wn-ap-pass" style="font-family:monospace">--</b>
     （OLED 設定選單的「熱點密碼」也看得到）。手機連上後開 <span style="color:#6a8">192.168.4.1</span>。
     出門充電時先把當地的 WiFi 加進來，之後去那裡就會自動連上，推播與遠端監控照常。
+    <div class="wifi-row" style="margin-top:8px">
+      <input type="text" id="wn-ap-new" autocomplete="off" placeholder="新的熱點密碼（8–63 字）">
+      <button class="b-scan" onclick="setApPass()">修改熱點密碼</button>
+    </div>
   </div>
   <div class="chk-row">
     <input type="checkbox" id="cb">
@@ -1727,6 +1731,18 @@ async function removeWifi(ssid){
     wifiSay('✓ 已移除「'+ssid+'」',true);
     await loadCfg();
   }catch(e){wifiSay('✗ 移除失敗',false);}
+}
+
+async function setApPass(){
+  const p=document.getElementById('wn-ap-new').value;
+  if(p.length<8||p.length>63||!/^[\x21-\x7e]+$/.test(p)){wifiSay('熱點密碼要 8–63 個英文字母、數字或符號（不能有空白）',false);return;}
+  try{
+    const r=await(await fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ap_pass:p})})).json();
+    if(!r.ok){wifiSay('✗ '+(r.error||'修改失敗'),false);return;}
+    document.getElementById('wn-ap-new').value='';
+    wifiSay('✓ 熱點密碼已改好。熱點正開著的話，下次開熱點才會用新密碼',true);
+    await loadCfg();
+  }catch(e){wifiSay('✗ 修改失敗',false);}
 }
 
 async function scanWifi(){
