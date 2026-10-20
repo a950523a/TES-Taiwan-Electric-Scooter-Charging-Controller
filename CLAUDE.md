@@ -1402,7 +1402,9 @@ Measured with `/hw.json` (the procedure below) on three units:
 - **Hypothesis 2 is ruled out**: TIME_WAIT stayed 0 and active PCBs ≤ 6 throughout.
 - **Sending (`/control`) is still slow and RAM is not why** — with 70 KB to spare it still stalls in roughly
   1 s steps, which looks like retransmission timeouts. Not diagnosed yet. Two things are known to make it
-  worse: `LWIP_TCP_SND_BUF` / `TCP_WND` are 5760 (4 segments), and httpd has one worker, so `/hw.json` and the
+  worse: `LWIP_TCP_SND_BUF` / `TCP_WND` were 5760 (4 segments) — **raised to 14400 (10 segments, receive mailbox 12)
+on 2026-10-20**, affordable because lwIP buffers are in PSRAM; not measured yet: compare an upload OTA and
+`/control` ×10 against a unit still on 5760, with `netlog` and the TCP card — and httpd has one worker, so `/hw.json` and the
   app's `/status` polls queue behind a slow page and time out (5 s) — the snapshot never shows the stall
   itself. Next: look at it from the PC side (packet capture) or give `/hw.json` its own path.
 

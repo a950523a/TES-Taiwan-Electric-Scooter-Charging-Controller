@@ -40,6 +40,14 @@ CONFIG_LOG_COLORS=y
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
 
+# --- TCP window (2026-10-20) ---
+# Default 5760 = 4 segments: one lost segment stalls the connection until the retransmit timer,
+# which looks like the ~1 s steps on /control and may be behind upload OTA stalling at 9x %.
+# 10 segments now that lwIP buffers live in PSRAM (above). Receive mailbox = WND/MSS + 2.
+CONFIG_LWIP_TCP_WND_DEFAULT=14400
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=14400
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=12
+
 # --- TWAI (CAN bus) ---
 CONFIG_TWAI_ERRATA_FIX_LISTEN_ONLY_DOM=y
 
