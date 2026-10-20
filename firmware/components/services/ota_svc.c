@@ -158,11 +158,16 @@ esp_err_t ota_svc_upload_write(const void *data, size_t len)
         return err;
     }
     s_upload_done += len;
+    int pct = s_progress;
     if (s_upload_total > 0)
-        s_progress = (int)((s_upload_done * 100) / s_upload_total);
-    charger_event_t evt = { .type = EVT_OTA_PROGRESS };
-    evt.payload[0] = (uint8_t)s_progress;
-    event_bus_publish(&evt);
+        pct = (int)((s_upload_done * 100) / s_upload_total);
+    // 百分比變了才發：每 4 KB 一則的話 1.5 MB 是 ~380 則，每則叫醒所有訂閱的任務
+    if (pct != s_progress) {
+        s_progress = pct;
+        charger_event_t evt = { .type = EVT_OTA_PROGRESS };
+        evt.payload[0] = (uint8_t)s_progress;
+        event_bus_publish(&evt);
+    }
     return ESP_OK;
 }
 

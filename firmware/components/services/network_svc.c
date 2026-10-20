@@ -972,6 +972,7 @@ static const httpd_uri_t s_uri_post_ota = {
 // Body: raw firmware binary (application/octet-stream), Content-Length required
 
 #define OTA_UPLOAD_BUF 4096
+#define OTA_RECV_TIMEOUTS 3   // 連續幾次 30 s 收不到資料才放棄
 
 static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 {
@@ -1002,21 +1003,38 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 
     static char buf[OTA_UPLOAD_BUF];
     int remaining = (int)req->content_len;
+    int timeouts = 0;
+    int last_tenth = -1;
     while (remaining > 0) {
         int to_recv = remaining < OTA_UPLOAD_BUF ? remaining : OTA_UPLOAD_BUF;
+        int64_t t0 = esp_timer_get_time();
         int received = httpd_req_recv(req, buf, (size_t)to_recv);
+        int32_t waited_ms = (int32_t)((esp_timer_get_time() - t0) / 1000);
+        int32_t done_kb = (int32_t)((req->content_len - remaining) / 1024);
+        if (waited_ms > 2000) netlog_add(NETLOG_OTA_STALL, waited_ms, done_kb);
+        // 逾時（recv_wait_timeout 30 s 沒資料）不代表連線斷了：再等，最多 OTA_RECV_TIMEOUTS 次。
+        // 以前一次逾時就放棄，到了 9x % 卡一下就前功盡棄（2026-10-20）
+        if (received == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= OTA_RECV_TIMEOUTS) continue;
         if (received <= 0) {
             ota_svc_upload_abort();
+            netlog_add(NETLOG_OTA_END, 1, done_kb);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
             return ESP_FAIL;
         }
         err = ota_svc_upload_write(buf, (size_t)received);
         if (err != ESP_OK) {
+            netlog_add(NETLOG_OTA_END, 2, done_kb);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA write failed");
             return ESP_FAIL;
         }
         remaining -= received;
+        int tenth = (int)((int64_t)(req->content_len - remaining) * 10 / req->content_len);
+        if (tenth != last_tenth) {
+            last_tenth = tenth;
+            netlog_add(NETLOG_OTA, tenth * 10, (int32_t)((req->content_len - remaining) / 1024));
+        }
     }
+    netlog_add(NETLOG_OTA_END, 0, (int32_t)(req->content_len / 1024));
 
     httpd_resp_set_type(req, "application/json");
     set_cors(req);

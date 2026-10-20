@@ -46,6 +46,9 @@ const char *netlog_name(uint8_t code)
     case NETLOG_PSU_DOWN:     return "psu_down";
     case NETLOG_SESS_READY:   return "sess_ready";
     case NETLOG_CHN:          return "chn";
+    case NETLOG_OTA:          return "ota";
+    case NETLOG_OTA_STALL:    return "ota_stall";
+    case NETLOG_OTA_END:      return "ota_end";
     default:                  return "?";
     }
 }

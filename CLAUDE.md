@@ -1406,6 +1406,17 @@ Measured with `/hw.json` (the procedure below) on three units:
   app's `/status` polls queue behind a slow page and time out (5 s) — the snapshot never shows the stall
   itself. Next: look at it from the PC side (packet capture) or give `/hw.json` its own path.
 
+### 🟡 Upload OTA stalling at 94–96 % (2026-10-18/20, cause not found)
+
+Seen twice on one unit (`0bdbe6f`, RAM fix already in): progress stopped at 94–96 %, curl got no
+answer for 300 s, the unit kept answering `/status`, did not reboot and ended with `ota_running` false on
+the old firmware — the TCP flow trickled, nothing crashed. Two things made it worse and are fixed
+(2026-10-20): one 30 s `httpd_req_recv` timeout aborted the whole upload (now up to
+`OTA_RECV_TIMEOUTS` = 3, as in ESP-IDF's own example), and `ota_svc_upload_write()` published an
+`EVT_OTA_PROGRESS` per 4 KB (~380 per image, each waking every subscriber; now on percent change).
+**Next time it stalls, read `/hw.json` right away**: `netlog` has `ota` / `ota_stall` with timestamps,
+and the TCP card shows the upload connection's window, retransmits and RTO.
+
 ### 🔴 Unresolved (original notes): `/control` throughput collapses after 1–2 loads
 
 Investigated 2026-09-11, **not fixed, cause not identified**. Reproducible and
@@ -1647,7 +1658,8 @@ until 2026-10-17).
 oldest first, `[t_ms, name, a, b]` (`drivers/netlog.h`): `wifi_try` (channel, attempt), `wifi_up`
 (channel), `wifi_down` (reason, 1 = a connect attempt failed), `wifi_timeout`, `scan` / `scan_done`
 (count), `ap_on` (channel, secure) / `ap_off`, `radio_busy` (1/0), `psu_up`, `psu_down` (1 timeout /
-2 no MAC ACK, fail streak), `sess_ready` (handshake count), `chn` (channel told to the node, on change).
+2 no MAC ACK, fail streak), `sess_ready` (handshake count), `chn` (channel told to the node, on change), and for `POST /ota/upload`: `ota` every 10 % (percent, KB),
+`ota_stall` when one receive waited over 2 s (ms, KB), `ota_end` (0 ok / 1 gave up / 2 write failed, KB).
 Added because WiFi and the ESP-NOW link affect each other and `/status` only keeps the last reason code —
 the order of events is what tells them apart. Read it right after a drop.
 

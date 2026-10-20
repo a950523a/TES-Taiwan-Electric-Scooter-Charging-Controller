@@ -21,6 +21,9 @@ typedef enum {
     NETLOG_PSU_DOWN,         // a = 1 逾時 / 2 連續沒有 MAC ACK，b = fail streak
     NETLOG_SESS_READY,       // a = 這次開機第幾次握手成功
     NETLOG_CHN,              // a = 告訴節點的頻道（只記變動）
+    NETLOG_OTA,              // 上傳 OTA 每 10 %：a = 百分比，b = 已收 KB
+    NETLOG_OTA_STALL,        // 上傳 OTA 一次收資料超過 2 s：a = 等了幾 ms，b = 已收 KB
+    NETLOG_OTA_END,          // a = 0 成功 / 1 收不到資料放棄 / 2 寫入失敗，b = 已收 KB
 } netlog_code_t;
 
 void netlog_add(netlog_code_t code, int32_t a, int32_t b);
