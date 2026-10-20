@@ -1,4 +1,5 @@
 #include "drivers/psu_driver.h"
+#include "drivers/netlog.h"
 #include "hal/hal_uart.h"
 #include "psu_link/psu_pair.h"
 #include "psu_link/psu_sess.h"
@@ -118,7 +119,10 @@ static void link_down(void)
 
 static void link_alive(void)
 {
-    if (!s_status.connected) ESP_LOGI(TAG, "PSU connected");
+    if (!s_status.connected) {
+        ESP_LOGI(TAG, "PSU connected");
+        if (s_transport == PSU_TRANSPORT_ESPNOW) netlog_add(NETLOG_PSU_UP, 0, 0);
+    }
     taskENTER_CRITICAL(&s_status_mux);
     s_status.connected = true;
     taskEXIT_CRITICAL(&s_status_mux);
@@ -219,6 +223,7 @@ static void on_power(const psu_msg_power_t *p)
 void psu_driver_set_radio_busy(bool busy)
 {
     if (s_radio_busy && !busy) s_last_chn = 0;   // 頻道定下來了：下一圈馬上送 $CHN
+    if (s_radio_busy != busy) netlog_add(NETLOG_RADIO_BUSY, busy, 0);
     s_radio_busy = busy;
 }
 
@@ -543,12 +548,16 @@ static void poll_espnow(void)
         psu_msg_t m;
         xSemaphoreTake(s_link_lock, portMAX_DELAY);
         while (psu_sess_poll(&s_sess, now_ms(), &m)) send_plain(s_peer_mac, &m);
+        uint32_t hs = s_sess.n_handshakes;
         xSemaphoreGive(s_link_lock);
+        static uint32_t s_hs_logged;
+        if (hs != s_hs_logged) { s_hs_logged = hs; netlog_add(NETLOG_SESS_READY, (int32_t)hs, 0); }
     }
 
     // 連續 MAC-ACK 失敗 → 立即斷線（不等 timeout）
     if (s_has_peer && s_send_fail_streak >= PSU_ESPNOW_FAIL_LIMIT && s_status.connected) {
         link_down();
+        netlog_add(NETLOG_PSU_DOWN, 2, s_send_fail_streak);
         ESP_LOGE(TAG, "ESP-NOW: %u consecutive MAC-ACK failures — PSU disconnected",
                  (unsigned)s_send_fail_streak);
     }
@@ -687,6 +696,7 @@ void psu_driver_poll(void)
     if (s_status.connected &&
         (s_poll_ticks - s_last_valid_ticks) >= timeout) {
         link_down();
+        if (s_transport == PSU_TRANSPORT_ESPNOW) netlog_add(NETLOG_PSU_DOWN, 1, s_send_fail_streak);
         ESP_LOGW(TAG, "PSU timeout — disconnected (%s, %lums)",
                  s_transport == PSU_TRANSPORT_ESPNOW ? "ESP-NOW" : "UART",
                  (unsigned long)(timeout * 10));
@@ -701,6 +711,8 @@ void psu_driver_poll(void)
         if (esp_wifi_get_channel(&ch, &sc) == ESP_OK && ch >= 1 && ch <= 14 &&
             (ch != s_last_chn || (s_poll_ticks - s_last_chn_ticks) >= PSU_CHN_INTERVAL_TICKS)) {
             s_last_chn_ticks = s_poll_ticks;
+            static uint8_t s_chn_logged;
+            if (ch != s_chn_logged) { s_chn_logged = ch; netlog_add(NETLOG_CHN, ch, 0); }
             s_last_chn = ch;
             psu_msg_t m = { .type = PSU_MSG_CHANNEL };
             m.u.channel.channel = ch;

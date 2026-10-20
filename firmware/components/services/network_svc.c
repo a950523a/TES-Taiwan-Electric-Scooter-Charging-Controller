@@ -21,6 +21,7 @@
 #include "services/network_svc.h"
 #include "services/config_svc.h"
 #include "drivers/psu_driver.h"
+#include "drivers/netlog.h"
 #include "drivers/adc_driver.h"
 #include "services/event_bus.h"
 #include "services/ota_svc.h"
@@ -2144,6 +2145,21 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
         cJSON_AddNumberToObject(o, "rssi",      p.rssi);
     }
 
+    // WiFi / ESP-NOW 事件，由舊到新：[t_ms, 名稱, a, b]（意義見 drivers/netlog.h）
+    {
+        static netlog_entry_t ev[NETLOG_LEN];   // static：httpd 堆疊只有 8 KB
+        size_t n = netlog_read(ev, NETLOG_LEN);
+        cJSON *arr = cJSON_AddArrayToObject(root, "netlog");
+        for (size_t i = 0; i < n; i++) {
+            cJSON *e = cJSON_CreateArray();
+            cJSON_AddItemToArray(e, cJSON_CreateNumber(ev[i].t_ms));
+            cJSON_AddItemToArray(e, cJSON_CreateString(netlog_name(ev[i].code)));
+            cJSON_AddItemToArray(e, cJSON_CreateNumber(ev[i].a));
+            cJSON_AddItemToArray(e, cJSON_CreateNumber(ev[i].b));
+            cJSON_AddItemToArray(arr, e);
+        }
+    }
+
     // CAN 控制器與收發活性（細節在 /control 的 CAN 診斷面板）
     {
         cJSON *o = cJSON_AddObjectToObject(root, "can");
@@ -2370,9 +2386,11 @@ static void ap_apply(bool on, bool secure)
         esp_wifi_set_mode(WIFI_MODE_APSTA);
         esp_wifi_set_config(WIFI_IF_AP, &ap);
         ESP_LOGI(TAG, "hotspot on: %s ch%u (%s)", s_ap_ssid, (unsigned)ap.ap.channel, secure ? "WPA2" : "open");
+        netlog_add(NETLOG_AP_ON, ap.ap.channel, secure);
     } else {
         esp_wifi_set_mode(WIFI_MODE_STA);
         ESP_LOGI(TAG, "hotspot off");
+        netlog_add(NETLOG_AP_OFF, 0, 0);
     }
     s_ap_mode = on;
 }
@@ -2386,6 +2404,7 @@ static void start_scan(void)
         .scan_time.active.max = 300,
     };
     s_mgr_scanning = true;
+    netlog_add(NETLOG_SCAN_START, 0, 0);
     if (esp_wifi_scan_start(&sc, false) != ESP_OK) {
         s_mgr_scanning = false;
         xSemaphoreGive(s_scan_lock);
@@ -2403,6 +2422,7 @@ static void wifi_scan_done(void)
     static int8_t           rssi[WIFI_SCAN_MAX_RECORDS];
     uint16_t n = WIFI_SCAN_MAX_RECORDS;
     if (esp_wifi_scan_get_ap_records(&n, rec) != ESP_OK) n = 0;   // 也會釋放掃描結果
+    netlog_add(NETLOG_SCAN_DONE, n, 0);
     if (s_connected || !s_sta_enabled_boot) return;
     config_svc_wifi_get(&wl);
     for (int i = 0; i < n; i++) { seen[i] = (const char *)rec[i].ssid; rssi[i] = rec[i].rssi; }
@@ -2432,6 +2452,7 @@ static void wifi_try_connect(const wifi_list_t *wl, int idx, uint8_t ch)
     s_connect_start_ms = (uint32_t)(esp_timer_get_time() / 1000);
     s_connecting = true;
     s_wifi_attempts++;
+    netlog_add(NETLOG_WIFI_TRY, ch, (int32_t)s_wifi_attempts);
     ESP_LOGI(TAG, "connecting to \"%s\" (ch%u, attempt %lu)", s_try_ssid, (unsigned)ch,
              (unsigned long)s_wifi_attempts);
     esp_err_t e = esp_wifi_connect();
@@ -2480,6 +2501,7 @@ void network_svc_wifi_tick(void)
     }
     if (s_connecting && (uint32_t)(now - s_connect_start_ms) > WIFI_CONNECT_TIMEOUT_MS) {
         ESP_LOGW(TAG, "WiFi \"%s\" connect timeout", s_try_ssid);
+        netlog_add(NETLOG_WIFI_TIMEOUT, 0, 0);
         esp_wifi_disconnect();           // 會收到 DISCONNECTED，走失敗的路
     }
 
@@ -2502,7 +2524,9 @@ void network_svc_wifi_tick(void)
     };
     wifi_plan_out_t out;
     wifi_plan_tick(&s_plan, &in, &out);
-    ap_apply(out.ap_on, out.ap_secure);
+    // 掃描或連線到一半不開熱點（2026-10-20）：開熱點要換模式、把無線電定在當下的頻道，
+    // 連線中的那一次會被打斷，又多等一輪。等這一次有結果（最多 WIFI_CONNECT_TIMEOUT_MS）再開
+    if (!(out.ap_on && !s_ap_mode && in.sta_busy)) ap_apply(out.ap_on, out.ap_secure);
     if (out.scan) start_scan();
 
     // 頻道還沒定（掃描中、連線中、要連卻還沒連上也還沒開熱點）：ESP-NOW 先別握手
@@ -2531,6 +2555,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
             const wifi_event_sta_disconnected_t *d = data;
             bool was = s_connected;
+            if (s_connecting || was) netlog_add(NETLOG_WIFI_DOWN, d ? d->reason : 0, s_connecting);
             s_connected  = false;
             s_sta_ssid[0] = '\0';
             strcpy(s_ip_str, s_ap_mode ? "192.168.4.1" : "");
@@ -2556,6 +2581,11 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         s_fail_mask  = 0;
         strcpy(s_sta_ssid, s_try_ssid);
         snprintf(s_ip_str, sizeof(s_ip_str), IPSTR, IP2STR(&ev->ip_info.ip));
+        {
+            uint8_t ch = 0; wifi_second_chan_t sc;
+            esp_wifi_get_channel(&ch, &sc);
+            netlog_add(NETLOG_WIFI_UP, ch, 0);
+        }
 
         // DHCP 換過 IP 也會再進來一次，delegated hostname 的位址要跟著更新
         mdns_publish(ev->ip_info.ip.addr);

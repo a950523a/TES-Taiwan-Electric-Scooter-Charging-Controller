@@ -1628,7 +1628,7 @@ not: the phone leaves with the owner).
 | Saved networks | `wifi_list.c` (pure): `wifi_list_t` = 5 × {ssid, pass}, newest first, NVS blob `wifi_nets` (485 B). The first entry is also written to the old `wifi_ssid`/`wifi_pass` keys (and `charger_config_t.wifi_ssid`), so a downgrade still connects; units without the blob migrate those keys on boot |
 | When to scan / open the hotspot | `wifi_plan.c` (pure, host-tested): delays above; with the station up, the hotspot closes after 30 s with no client on it (never kicks a phone off); `hold` = ESP-NOW PSU and a session running → no scanning at all, because a scan hops channels and the PSU link faults after 2 s |
 | ESP-IDF glue | `network_svc.c` "WiFi：記住的網路、自動熱點": `network_svc_wifi_tick()` from `task_network` every 100 ms. Scans are async; `SCAN_DONE` only sets a flag (the event task has 2.3 KB of stack) and the tick reads the results, picks the strongest saved SSID not yet failed this round, connects with the scanned channel. A failed network is skipped until the next round; connect attempts time out after 20 s. `s_scan_lock` makes the background scan and `GET /wifi/scan` take turns |
-| Hotspot | channel = the current one (no hop for an ESP-NOW PSU); its security is chosen when it starts and **not changed while it runs**, so a phone that just added a network over the open setup hotspot is not dropped |
+| Hotspot | not opened while a scan or a connect attempt is running (2026-10-20): opening it switches the mode and pins the radio to the current channel, which broke that attempt and cost another round; channel = the current one (no hop for an ESP-NOW PSU); its security is chosen when it starts and **not changed while it runs**, so a phone that just added a network over the open setup hotspot is not dropped |
 | Password | NVS `ap_pass`, 10 characters generated **once**, on the first boot without the key (it survives reboots and OTA; only a full NVS erase makes a new one), from an alphabet without 0/o/1/l/i; the user can set their own in the web UI / app (修改熱點密碼) — a running hotspot keeps the old one until it next opens; OLED menu row `AP pass` / 熱點密碼 under WiFi Info; `GET /config` `ap_pass` (anyone on the LAN can already control the unit); `POST /config` `ap_pass` changes it (8–63 visible ASCII) |
 
 `POST /config`: `{"wifi_add":{"ssid","pass"}}` (pass omitted = keep a saved one's password / open for a
@@ -1642,6 +1642,14 @@ chosen by anyone nearby, so the scan list renders them as text, never through `i
 until 2026-10-17).
 `GET /config` has `wifi_nets` (SSIDs only, never passwords), `wifi_max`, `ap_pass`; `/status` has
 `sta_ssid`, `ap_on`, `ap_clients`. `GET /wifi/scan` answers 409 while `hold`.
+
+**Event log without USB (2026-10-20):** `/hw.json` `netlog` is the last 48 WiFi / ESP-NOW events,
+oldest first, `[t_ms, name, a, b]` (`drivers/netlog.h`): `wifi_try` (channel, attempt), `wifi_up`
+(channel), `wifi_down` (reason, 1 = a connect attempt failed), `wifi_timeout`, `scan` / `scan_done`
+(count), `ap_on` (channel, secure) / `ap_off`, `radio_busy` (1/0), `psu_up`, `psu_down` (1 timeout /
+2 no MAC ACK, fail streak), `sess_ready` (handshake count), `chn` (channel told to the node, on change).
+Added because WiFi and the ESP-NOW link affect each other and `/status` only keeps the last reason code —
+the order of events is what tells them apart. Read it right after a drop.
 
 **Not tested on hardware yet:** joining the strongest of two saved networks; wrong password on one →
 the next one; hotspot appears 30 s after boot away from home and the phone reaches 192.168.4.1 with

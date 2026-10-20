@@ -6,6 +6,7 @@ idf_component_register(
         "display_driver.c"
         "oled_font_zh12.c"
         "led_driver.c"
+        "netlog.c"
     INCLUDE_DIRS
         "include"
     REQUIRES
@@ -17,4 +18,5 @@ idf_component_register(
         freertos
         u8g2_idf
         esp_wifi
+        esp_timer
 )
