@@ -140,10 +140,10 @@ void led_driver_tick(void)
     case LED_STATE_STANDBY:
         hal_gpio_led_charging_set(false);
         if (s.psu_warn) {
-            // 紅燈 1 Hz 慢閃（亮 0.5 s、滅 0.5 s）。原本每 5 s 才短閃 0.1 s，使用者反映看不出斷線
-            // （2026-10-22）。跟故障的紅燈恆亮分得開
+            // 紅燈每秒短閃一下（亮 0.1 s、滅 0.9 s）。原本每 5 s 才閃一次，使用者反映看不出斷線
+            // （2026-10-22）；短閃是使用者選的，跟故障的恆亮、其他閃法分得開
             if (++s.psu_warn_ticks >= 20) s.psu_warn_ticks = 0;
-            hal_gpio_led_error_set(s.psu_warn_ticks < 10);
+            hal_gpio_led_error_set(s.psu_warn_ticks < 2);
         } else {
             hal_gpio_led_error_set(false);
         }

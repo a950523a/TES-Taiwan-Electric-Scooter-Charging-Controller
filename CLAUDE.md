@@ -920,9 +920,10 @@ talking, so an empty UART stays silent.
 
 `psu_status_t` new fields: `rssi` (last received dBm, 0 for UART), `fail_streak` (consecutive send failures, 0 for UART).
 
-**Link-lost LED:** paired over ESP-NOW but not connected → in STANDBY the red LED blinks at **1 Hz** (0.5 s on /
-0.5 s off; `led_driver.c` `psu_warn`). It was a 0.1 s flash every 5 s until 2026-10-22 — the user could not
-tell at a glance that the PSU had dropped. Solid red stays the fault indication.
+**Link-lost LED:** paired over ESP-NOW but not connected → in STANDBY the red LED flashes **0.1 s every second**
+(0.1 s on / 0.9 s off; `led_driver.c` `psu_warn`). It was a 0.1 s flash every 5 s until 2026-10-22 — the user could
+not tell at a glance that the PSU had dropped; a 50 % blink was tried the same day and the user chose the short
+flash, so it does not look like any other pattern. Solid red stays the fault indication.
 
 **Transport selection** (`psu_transport` NVS key, default 0=UART):
 - `PSU_TRANSPORT_UART=0`: UART pins 43/44, always available
