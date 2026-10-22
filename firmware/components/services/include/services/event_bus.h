@@ -29,7 +29,7 @@ typedef enum {
 typedef struct {
     event_type_t type;
     uint32_t     timestamp_ms;
-    uint8_t      payload[32];   // largest: session_event_t. 8 subscribers x 8-deep queues live in internal RAM
+    uint8_t      payload[36];   // largest: session_event_t (36 since Ah, 2026-10-22). 8 subscribers x 8-deep queues live in internal RAM
 } charger_event_t;
 
 void          event_bus_init     (void);

@@ -672,7 +672,7 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div id="energy-box" style="display:none"></div>
   <div id="hist-body">
     <table class="hist-table">
-      <thead><tr><th></th><th>日期</th><th>充電時間</th><th>電量 (Wh)</th><th>SOC</th><th>停止原因</th></tr></thead>
+      <thead><tr><th></th><th>日期</th><th>充電時間</th><th>充入</th><th>SOC</th><th>停止原因</th></tr></thead>
       <tbody id="hist-rows"><tr><td colspan="6" style="color:#444;text-align:center;padding:12px">讀取中…</td></tr></tbody>
     </table>
   </div>
@@ -870,11 +870,13 @@ async function poll(){
     document.getElementById('pw').innerHTML=(d.power_w||0).toFixed(1)+' W'+est;
     const eLbl=document.getElementById('ewh').previousElementSibling;
     if(eLbl)eLbl.textContent=sm===3?'已充入 / 目標':'累積電量';
+    // 充入 Ah（2026-10-22）：kWh 下面一行灰色小字，不另開一列；舊韌體沒有 ah 就不顯示
+    const ahLine=(typeof d.ah==='number'&&d.ah>0)?'<br><span style="color:#777;font-size:.75em">'+fmtAh(d.ah)+'</span>':'';
     if(sm===3){
       // 電量模式：已充入 / 目標（kWh），跟 OLED 一樣
-      document.getElementById('ewh').innerHTML=((d.energy_wh||0)/1000).toFixed(2)+' / '+(+d.stop_energy||0).toFixed(1)+' kWh'+est;
+      document.getElementById('ewh').innerHTML=((d.energy_wh||0)/1000).toFixed(2)+' / '+(+d.stop_energy||0).toFixed(1)+' kWh'+est+ahLine;
     }else{
-      document.getElementById('ewh').innerHTML=(d.energy_wh||0).toFixed(2)+' Wh'+est;
+      document.getElementById('ewh').innerHTML=(d.energy_wh||0).toFixed(2)+' Wh'+est+ahLine;
     }
     document.getElementById('cse-est').style.display=d.psu_connected?'none':'block';
     // SOC 顯示：SOC 模式顯示「現在/目標」，Volt/Timer 模式純參考
@@ -1816,6 +1818,7 @@ async function scanWifi(){
   btn.disabled=false;btn.textContent='🔍 掃描';
 }
 
+const fmtAh=a=>a.toFixed(a<10?2:1)+' Ah';   // 充入 Ah（2026-10-22）
 const STOP_REASON=['SOC 達標','手動停止','故障','緊急停止','BMS 停止','計時完成','電壓達標','電量達標'];
 const STOP_CLS=['hist-reason-0','hist-reason-1','hist-reason-2','hist-reason-3','hist-reason-4','hist-reason-5','hist-reason-0','hist-reason-0'];
 
@@ -2075,7 +2078,10 @@ async function loadEnergy(){
   }
   const cur=list[11], eff=(d.psu_eff||90)/100, price=d.kwh_price||0;
   const kwh=w=>(w/1000).toFixed(w<10000?2:1);
-  let head=`<span>本月充入 <b>${kwh(cur.wh)} kWh</b>（${cur.sessions} 次）</span>`;
+  // Ah 只在這個月每一次都有 Ah 時顯示（更新韌體那個月之前的紀錄沒有，加起來會偏少）
+  const ahOk=m=>m.sessions>0&&typeof m.ah==='number'&&m.ah_sessions===m.sessions;
+  let head=ahOk(cur)?`<span>本月充入 <b>${kwh(cur.wh)} kWh</b>（${Math.round(cur.ah)} Ah，${cur.sessions} 次）</span>`
+                    :`<span>本月充入 <b>${kwh(cur.wh)} kWh</b>（${cur.sessions} 次）</span>`;
   if(price>0){
     const grid=cur.wh/1000/eff;
     head+=`<span>約 ${grid.toFixed(1)} 度 · 約 NT$${Math.round(grid*price)}</span>`;
@@ -2087,7 +2093,7 @@ async function loadEnergy(){
   list.forEach((m,i)=>{
     const x=ML+i*bw+bw*0.15, w=bw*0.7, ph=H-MT-MB;
     const hAll=m.wh/max*ph, hEst=m.est_wh/max*ph, y=MT+ph-hAll;
-    const tip=`${m.ym}：${kwh(m.wh)} kWh，${m.sessions} 次`+(m.est_wh>0?`（估算 ${kwh(m.est_wh)} kWh）`:'')
+    const tip=(ahOk(m)?`${m.ym}：${kwh(m.wh)} kWh，${Math.round(m.ah)} Ah，${m.sessions} 次`:`${m.ym}：${kwh(m.wh)} kWh，${m.sessions} 次`)+(m.est_wh>0?`（估算 ${kwh(m.est_wh)} kWh）`:'')
              +(price>0&&m.wh>0?`，約 NT$${Math.round(m.wh/1000/eff*price)}`:'');
     svg+=`<g><title>${tip}</title>`
         +`<rect x="${x.toFixed(1)}" y="${MT}" width="${w.toFixed(1)}" height="${ph}" fill="transparent"/>`
@@ -2141,7 +2147,9 @@ function rowHtml(r){
     }
     // 開始時間：2026-10-17 之前的紀錄與一直沒對到時的那幾輪沒有（0）
     const when=r.start_epoch?fmtWhen(r.start_epoch):'<span style="color:#444">—</span>';
-    cells=`<td>${when}</td><td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}</td>`
+    // Ah：2026-10-22 之前的紀錄沒有這個欄位，只顯示 Wh（不顯示 0 Ah）
+    const ahHist=(typeof r.ah==='number')?`<br><span style="color:#777;font-size:.75em">${fmtAh(r.ah)}</span>`:'';
+    cells=`<td>${when}</td><td>${dur}</td><td>${r.energy_wh.toFixed(2)} Wh${whEst}${ahHist}</td>`
          +`<td>${r.soc_start}% → ${r.soc_end}%</td>`
          +`<td><span class="${STOP_CLS[ri]}">${reasonText}</span></td>`;
   }

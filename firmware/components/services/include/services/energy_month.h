@@ -19,17 +19,20 @@ typedef struct {
     uint16_t est_sessions;   // 其中電量是估算（沒接 PSU，電流用設定值）的次數
     float    wh;             // 全部充入電量（含估算）
     float    est_wh;         // 其中估算的部分
-} energy_month_t;            // 16 bytes
+    float    ah;             // 充入 Ah（含估算），只算有 Ah 的那幾次（2026-10-22）
+    uint16_t ah_sessions;    // 有 Ah 的次數；≠ sessions 表示這個月有更新前的紀錄，Ah 不完整
+    uint16_t _pad2;
+} energy_month_t;            // 24 bytes
 
 typedef struct {
     uint16_t       undated;  // 沒有開始時間、沒算進月份的次數
     uint8_t        count;
     uint8_t        _pad;
     energy_month_t m[ENERGY_MONTHS];   // 由舊到新
-} energy_book_t;             // 4 + 36×16 = 580 bytes（NVS blob，大小就是版本檢查）
+} energy_book_t;             // 4 + 36×24 = 868 bytes（NVS blob，大小就是版本檢查；580 = 沒有 Ah 的舊版）
 
 // epoch（Unix 秒）→ UTC+8 的年、月
 void energy_month_of(uint32_t epoch, uint16_t *year, uint8_t *month);
 
-// 把一輪充電加進去。start_epoch = 0 時只累計 undated
-void energy_book_add(energy_book_t *b, uint32_t start_epoch, float wh, bool estimated);
+// 把一輪充電加進去。start_epoch = 0 時只累計 undated；ah < 0 = 這一輪沒有 Ah
+void energy_book_add(energy_book_t *b, uint32_t start_epoch, float wh, float ah, bool estimated);

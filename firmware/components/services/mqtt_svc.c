@@ -54,6 +54,8 @@ static const char *state_str(tes_state_t s)
     }
 }
 
+extern volatile float g_session_ah;   // task_tes_sm.c
+
 static int build_status_json(char *buf, size_t len)
 {
     tes_snapshot_t snap = {0};
@@ -67,7 +69,7 @@ static int build_status_json(char *buf, size_t len)
         "\"soc\":%d,\"target_soc\":%d,"
         "\"elapsed_seconds\":%lu,\"remaining_seconds\":%lu,"
         "\"fault\":%s,\"charge_complete\":%s,\"timer_running\":%s,"
-        "\"remote_cmd\":%s,\"stop_mode\":%d,\"stop_energy\":%.1f}",
+        "\"remote_cmd\":%s,\"stop_mode\":%d,\"stop_energy\":%.1f,\"ah\":%.2f}",
         state_str(snap.state),
         snap.output_voltage, snap.output_current,
         snap.output_voltage * snap.output_current, snap.energy_wh,
@@ -83,7 +85,9 @@ static int build_status_json(char *buf, size_t len)
         // 這裡報的是 config 值，所以重開前可能和實際訂閱不一致
         config_svc_get()->mqtt_cmd_enabled ? "true" : "false",
         // 停止條件：App 在外面也要能畫「已充入 / 目標 kWh」（2026-10-17）
-        (int)config_svc_get()->stop_mode, config_svc_get()->stop_energy_wh / 1000.0);
+        (int)config_svc_get()->stop_mode, config_svc_get()->stop_energy_wh / 1000.0,
+        // 本次充入 Ah（2026-10-22）
+        (double)g_session_ah);
 }
 
 static void mqtt_event_handler(void *arg, esp_event_base_t base,

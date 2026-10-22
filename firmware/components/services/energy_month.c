@@ -22,7 +22,7 @@ void energy_month_of(uint32_t epoch, uint16_t *year, uint8_t *month)
 
 static uint32_t key_of(uint16_t y, uint8_t m) { return (uint32_t)y * 12u + (m - 1u); }
 
-void energy_book_add(energy_book_t *b, uint32_t start_epoch, float wh, bool estimated)
+void energy_book_add(energy_book_t *b, uint32_t start_epoch, float wh, float ah, bool estimated)
 {
     if (b->count > ENERGY_MONTHS) b->count = ENERGY_MONTHS;   // 壞掉的 blob 不能讓下面寫出界
     if (start_epoch == 0) {
@@ -56,6 +56,10 @@ void energy_book_add(energy_book_t *b, uint32_t start_epoch, float wh, bool esti
     energy_month_t *e = &b->m[i];
     if (e->sessions < UINT16_MAX) e->sessions++;
     e->wh += wh;
+    if (ah >= 0.0f) {
+        e->ah += ah;
+        if (e->ah_sessions < UINT16_MAX) e->ah_sessions++;
+    }
     if (estimated) {
         if (e->est_sessions < UINT16_MAX) e->est_sessions++;
         e->est_wh += wh;

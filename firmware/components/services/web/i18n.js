@@ -265,7 +265,7 @@
     '未知故障（代碼 {}）': 'Unknown fault (code {})',
 
     // ── 充電紀錄 ──
-    '📋 充電紀錄': '📋 Charge history', '↻ 重新整理': '↻ Refresh', '日期': 'Date', '充電時間': 'Duration', '電量 (Wh)': 'Energy (Wh)', '停止原因': 'Stop reason',
+    '📋 充電紀錄': '📋 Charge history', '↻ 重新整理': '↻ Refresh', '日期': 'Date', '充電時間': 'Duration', '電量 (Wh)': 'Energy (Wh)', '充入': 'Charged', '停止原因': 'Stop reason',
     '有 ▸ 的列可以展開，看該次的充電曲線與詳細 Log': 'Rows with ▸ expand to show that session\'s curve and detailed log',
     '曲線與詳細 Log 存放在記憶體，': 'Curves and logs are kept in RAM and ', '控制器一斷電就會清除': 'are lost when the controller powers off',
     '， 因此重開機之前的紀錄只剩上表的摘要（時長、電量、SOC、停止原因），沒有 ▸ 可以展開。 摘要本身存在 NVS，不會消失。':
@@ -273,8 +273,8 @@
     'SOC 達標': 'SOC reached', '手動停止': 'Stopped by user', 'BMS 停止': 'Stopped by BMS', '計時完成': 'Timer done', '電壓達標': 'Voltage reached', '電量達標': 'Energy reached',
     '此次沒有曲線資料': 'No curve data for this session', '電壓': 'Voltage', '電流': 'Current', '（BMS 要求 {} A）·': ' (BMS asks {} A) ·',
     '📈 充電曲線': '📈 Charge curve', '📝 詳細 Log': '📝 Detailed log', '⬇ 下載': '⬇ Download', '過濾關鍵字…': 'Filter…',
-    '本月充入': 'This month', '（{} 次）': ' ({} sessions)', '約 {} 度 · 約 NT${}': '≈ {} kWh from the grid · ≈ NT${}',
-    '{}：{} kWh，{} 次': '{}: {} kWh, {} sessions', '（估算 {} kWh）': ' ({} kWh estimated)', '，約 NT${}': ', ≈ NT${}',
+    '本月充入': 'This month', '（{} 次）': ' ({} sessions)', '（{} Ah，{} 次）': ' ({} Ah, {} sessions)', '約 {} 度 · 約 NT${}': '≈ {} kWh from the grid · ≈ NT${}',
+    '{}：{} kWh，{} 次': '{}: {} kWh, {} sessions', '{}：{} kWh，{} Ah，{} 次': '{}: {} kWh, {} Ah, {} sessions', '（估算 {} kWh）': ' ({} kWh estimated)', '，約 NT${}': ', ≈ NT${}',
     '{}月': function (m) { return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m - 1] || m; },
     '淡色為估算：沒接可程式電源時，電流以「最大電流」設定值計算': 'Lighter = estimated: without a programmable PSU the current is taken from Max Current',
     '{} 次充電開始時控制器還沒對到網路時間，未計入': '{} sessions started before the clock was set and are not counted',

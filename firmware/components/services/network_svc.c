@@ -278,6 +278,10 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "current",           snap.output_current);
     cJSON_AddNumberToObject(root, "power_w",           snap.output_voltage * snap.output_current);
     cJSON_AddNumberToObject(root, "energy_wh",         snap.energy_wh);
+    {
+        extern volatile float g_session_ah;
+        cJSON_AddNumberToObject(root, "ah",            g_session_ah);   // 本次充入 Ah（2026-10-22）
+    }
     cJSON_AddBoolToObject  (root, "psu_connected",     snap.psu_connected);
     cJSON_AddNumberToObject(root, "soc",               snap.soc);
     cJSON_AddNumberToObject(root, "target_soc",        snap.target_soc);
@@ -1198,7 +1202,7 @@ static const httpd_uri_t s_uri_get_wifi_scan = {
 
 static esp_err_t handle_get_history(httpd_req_t *req)
 {
-    static charge_record_t rec[20];   // 560 bytes：不放 httpd 的堆疊。httpd 只有一個 worker，不會同時進來
+    static charge_record_t rec[20];   // 640 bytes：不放 httpd 的堆疊。httpd 只有一個 worker，不會同時進來
     uint8_t n = log_svc_get_history(rec, 20);
 
     cJSON *arr = cJSON_CreateArray();
@@ -1210,6 +1214,8 @@ static esp_err_t handle_get_history(httpd_req_t *req)
         cJSON_AddNumberToObject(obj, "duration_s",       b->duration_s);
         cJSON_AddNumberToObject(obj, "energy_wh",        (double)b->energy_wh);
         cJSON_AddBoolToObject  (obj, "energy_estimated", b->energy_estimated);
+        if (rec[i].ah >= 0.0f)   // 2026-10-22 前的紀錄沒有 Ah：不送這個欄位，畫面就只顯示 kWh
+            cJSON_AddNumberToObject(obj, "ah",           (double)rec[i].ah);
         cJSON_AddNumberToObject(obj, "stop_voltage_v",   (double)b->stop_voltage_v);
         cJSON_AddNumberToObject(obj, "soc_start",        b->soc_start);
         cJSON_AddNumberToObject(obj, "soc_end",          b->soc_end);
@@ -1246,7 +1252,7 @@ static const httpd_uri_t s_uri_get_history = {
 
 static esp_err_t handle_get_energy(httpd_req_t *req)
 {
-    static energy_book_t book;   // 580 bytes，理由同 /history
+    static energy_book_t book;   // 868 bytes，理由同 /history
     log_svc_get_energy(&book);
 
     cJSON *root = cJSON_CreateObject();
@@ -1261,6 +1267,8 @@ static esp_err_t handle_get_energy(httpd_req_t *req)
         cJSON_AddNumberToObject(o, "est_wh",       (double)m->est_wh);
         cJSON_AddNumberToObject(o, "sessions",     m->sessions);
         cJSON_AddNumberToObject(o, "est_sessions", m->est_sessions);
+        cJSON_AddNumberToObject(o, "ah",           (double)m->ah);
+        cJSON_AddNumberToObject(o, "ah_sessions",  m->ah_sessions);   // ≠ sessions：這個月的 Ah 不完整
         cJSON_AddItemToArray(arr, o);
     }
     cJSON_AddNumberToObject(root, "undated",   book.undated);

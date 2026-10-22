@@ -33,6 +33,7 @@ static tes_sm_t  s_sm;
 // Session energy tracking
 static bool     s_session_active        = false;
 static float    s_session_energy_wh     = 0.0f;
+static float    s_session_ah            = 0.0f;   // 本次充入 Ah（2026-10-22），同 energy_wh 的算法
 static uint8_t  s_soc_start             = 0;
 static uint32_t s_session_end_sec       = 0;
 static float    s_session_end_v         = 0.0f; // output voltage the tick we left CHARGING
@@ -43,6 +44,10 @@ static isense_check_t s_isense;                  // 實測電流讀不到的偵�
 
 // 實測電流被判定不可信（isense_check 觸發，保持到重開機）。/status 的 isense_suspect，還沒有畫面顯示
 volatile bool g_isense_suspect = false;
+
+// 本次充入 Ah（充電中有效，其他狀態 0）。tes_snapshot_t 在 TES-Protocol 子模組裡、三個 repo 共用，
+// 所以不加欄位，/status、MQTT 直接讀這個（float 32 位元寫入是原子的）
+volatile float g_session_ah = 0.0f;
 
 // CAN diag: last received RX raw values + last sent TX frames
 static tes_vehicle_emergency_t s_last_5f0    = {0};
@@ -463,6 +468,7 @@ void task_tes_sm(void *arg)
 
         tes_snapshot_t snap = tes_sm_get_snapshot(&s_sm);
         snap.energy_wh     = s_session_active ? s_session_energy_wh : 0.0f;
+        g_session_ah       = s_session_active ? s_session_ah : 0.0f;
         snap.psu_connected = psu.connected;
         // CAN diag — RX side
         snap.can.v500_fault        = inputs.vehicle_status.fault_flags;
@@ -520,6 +526,7 @@ void task_tes_sm(void *arg)
         if (snap.state == TES_STATE_CHARGING && s_session_active &&
             snap.output_voltage > 0.0f && snap.output_current > 0.0f) {
             s_session_energy_wh += snap.output_voltage * snap.output_current / 360000.0f;
+            s_session_ah        += snap.output_current / 360000.0f;   // A × 10 ms ÷ 3600 s
             if (psu.connected) s_session_psu_seen = true;
         }
 
@@ -575,6 +582,7 @@ void task_tes_sm(void *arg)
             if (curr == TES_STATE_CHARGING && !s_session_active) {
                 s_session_active    = true;
                 s_session_energy_wh = 0.0f;
+                s_session_ah        = 0.0f;
                 s_soc_start         = snap.soc;
                 s_session_psu_seen  = false;
                 time_t now = time(NULL);
@@ -620,7 +628,7 @@ void task_tes_sm(void *arg)
                 charger_event_t sess_evt = { .type = EVT_SESSION_COMPLETE,
                                              .timestamp_ms = inputs.tick_ms };
                 session_event_t sev = {
-                    .rec = { .s = sess, .start_epoch = start_epoch },
+                    .rec = { .s = sess, .start_epoch = start_epoch, .ah = s_session_ah },
                     .start_uptime_ms = s_session_start_up_ms,
                 };
                 // 再加欄位的話這個 memcpy 會靜默寫過頭，因此在編譯期就擋下來

@@ -1005,7 +1005,7 @@ Config namespace `"tes_cfg"`. See `config_svc.c` for the full list; keys explici
 | `dev_name` | str[24] | "" | 裝置顯示名稱；空 = 顯示 `TES Charger <id>`。不影響主機名 |
 | `sess_seq` | uint32 | 0 | (namespace `tes_hist`) 充電 session 流水號，供 trace_svc 使用 |
 
-Charge history: namespace `"tes_hist"`, blob key `"log"` (**564 bytes**, 20 × `charge_record_t` circular buffer; the 484-byte pre-2026-10-17 format is migrated on boot). Same namespace: `"energy"` (580-byte monthly totals, `energy_book_t`), `"eff"` (u32, PSU efficiency % for the cost estimate, default 90) and `"price"` (u32, NT$/kWh × 100, 0 = no cost estimate). See Charge Session History.
+Charge history: namespace `"tes_hist"`, blob key `"log"` (**644 bytes**, 20 × `charge_record_t` circular buffer; the 564- and 484-byte older formats are migrated on boot). Same namespace: `"energy"` (868-byte monthly totals, `energy_book_t`; the 580-byte one without Ah is migrated), `"eff"` (u32, PSU efficiency % for the cost estimate, default 90) and `"price"` (u32, NT$/kWh × 100, 0 = no cost estimate). See Charge Session History.
 
 ---
 
@@ -1143,7 +1143,19 @@ app clears its ongoing notification. The app builds the notification itself in a
 firmware never sends display text for it, and `notify_url` does not get these.
 
 ### Charge Session History
-`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick). Publishes `EVT_SESSION_COMPLETE` with a `session_event_t` (`log_svc.h`, **32 bytes**): a `charge_record_t` — `charge_session_t` plus `start_epoch` — and the start uptime. `log_svc` stores the last 20 records as an NVS blob (`session_log_t` = 4 + 20×28 = **564 bytes**).
+`task_tes_sm` accumulates V×I during CHARGING (`energy_wh += V*A/360000.0f` per 10 ms tick) and, since 2026-10-22, the current alone (`ah += A/360000.0f`). Publishes `EVT_SESSION_COMPLETE` with a `session_event_t` (`log_svc.h`, **36 bytes**): a `charge_record_t` — `charge_session_t` plus `start_epoch` and `ah` — and the start uptime. `log_svc` stores the last 20 records as an NVS blob (`session_log_t` = 4 + 20×32 = **644 bytes**).
+
+**Ah (2026-10-22).** Charge delivered in Ah, next to Wh everywhere energy is shown — the user wanted it
+without cluttering the UI, so it is never a column or a chart of its own: a small grey second line under
+the Wh figure (live card, history row; same in the app via `Metric`'s `sub`), and in the monthly header
+`本月充入 9.87 kWh（117 Ah，7 次）` plus the bar tooltip. Not on the OLED. Battery-health estimation from
+Ah ÷ ΔSOC was discussed and **not** done: TES gives SOC only, and whether the BMS's SOC reflects ageing is
+unknown (test on an aged pack first). Live value: `tes_snapshot_t` lives in the TES-Protocol submodule, so
+it is not extended — `task_tes_sm` writes `volatile float g_session_ah`, read by `/status` `ah` and MQTT
+`ah`. Records from before have no Ah: stored as `ah = -1`, `/history` then **omits** `ah` and the UI shows
+Wh only (never "0 Ah"). Months: `energy_month_t` gained `ah` and `ah_sessions`; `/energy` reports both, and
+the UI shows a month's Ah only when `ah_sessions == sessions` (the month of the upgrade would read low).
+Estimated sessions (no PSU) are estimated in Ah too, as in Wh.
 
 **Start time (2026-10-17).** `start_epoch` is the Unix time CHARGING was entered. It is wrapped
 around `charge_session_t` in `log_svc.h` rather than added to `tes_types.h`, because that header is
@@ -1180,13 +1192,15 @@ typedef struct {
 ```
 
 **⚠️ `session_event_t` fills the payload.** `charger_event_t.payload` went 24 → 32 bytes on
-2026-10-17 for it (8 subscribers × 8-deep queues = +512 bytes of internal RAM); `_Static_assert`s
-in `task_tes_sm.c` and `log_svc.c` block further growth. Widen the payload first.
+2026-10-17 for it (8 subscribers × 8-deep queues = +512 bytes of internal RAM), and 32 → 36 on
+2026-10-22 for `ah` (+256); `_Static_assert`s in `task_tes_sm.c` and `log_svc.c` block further growth.
+Widen the payload first.
 
 **Changing the record size needs a migration.** `log_svc_init()` checks the stored blob length;
-the 484-byte `charge_session_t` format is converted (`session_log_v1_t`, start time 0) so an OTA
-keeps the history. Anything else unrecognised starts fresh. Next time the record changes, add
-another branch there rather than discarding.
+the 564-byte dated format (`session_log_v2_t`, Ah −1) and the 484-byte `charge_session_t` format
+(`session_log_v1_t`, start time 0, Ah −1) are converted so an OTA keeps the history; the 580-byte
+month book (`energy_book_v1_t`) likewise (Ah 0, `ah_sessions` 0). Anything else unrecognised starts
+fresh. Next time the record changes, add another branch there rather than discarding.
 
 `GET /history` returns newest-first JSON array (max 20 entries), each with a
 `session_id` linking to the trace buffers below, plus `fault_source` / `fault_ctx_a` and
@@ -1870,15 +1884,15 @@ shows 離線 without affecting the others.
 | GET | `/` | Device list page (mDNS discovery) |
 | GET | `/control` | Embedded control web UI |
 | GET | `/devices` | JSON list of TES controllers found on the LAN |
-| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
+| GET | `/status` | JSON snapshot: state, voltage, current, soc, target_soc, stop_mode, stop_voltage, timer, fault, fault_source, stop_reason, wifi, ip, ntp_synced, local_time, power_w, energy_wh, ah, device_id, device_name, display_name, hostname, ap_ssid, firmware_version, hw_rev, hw_known, hw_id_level, hw_id_v |
 | GET | `/config` | JSON config: all `charger_config_t` fields |
 | POST | `/config` | Partial update (any subset); `wifi_add` / `wifi_remove` / `ap_pass` apply live, `sta_enabled` needs a reboot (see WiFi modes). Also `psu_eff` (50–100) and `kwh_price` (0–20) for the monthly chart, stored by `log_svc`, and the OLED settings `oled_lang` / `oled_anim` / `ss_min` / `ss_style` |
 | POST | `/start` | Sends `EVT_BUTTON_START` to `g_btn_event_queue` |
 | POST | `/stop` | Sends `EVT_BUTTON_STOP` to `g_btn_event_queue` |
 | POST | `/ota` | Pull firmware from URL (default: GitHub Releases latest) |
 | POST | `/ota/upload` | Upload binary (`application/octet-stream`); progress via `/status` |
-| GET | `/history` | Last 20 charge sessions (newest-first), incl. `start_epoch`, `session_id`, `fault_source`, `fault_ctx_a` |
-| GET | `/energy` | Monthly energy `{"months":[{"ym","wh","est_wh","sessions","est_sessions"}],"undated","psu_eff","kwh_price"}`, oldest first, ≤ 36 months |
+| GET | `/history` | Last 20 charge sessions (newest-first), incl. `start_epoch`, `session_id`, `fault_source`, `fault_ctx_a`, `ah` (absent on records from before 2026-10-22) |
+| GET | `/energy` | Monthly energy `{"months":[{"ym","wh","est_wh","sessions","est_sessions","ah","ah_sessions"}],"undated","psu_eff","kwh_price"}`, oldest first, ≤ 36 months |
 | GET | `/trace` | Charge-curve samples for a session + session list (chunked) |
 | GET | `/tracelog` | Timestamped value-change log for a session (chunked) |
 | GET | `/i18n.js` | Chinese → English dictionary + language switch for the web pages (ETag = firmware hash, 304 until an OTA) |

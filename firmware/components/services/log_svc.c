@@ -31,7 +31,32 @@ typedef struct {
     uint8_t         count;
     uint8_t         _pad[2];          // align sessions[] to 4 bytes
     charge_record_t sessions[LOG_MAX];
-} session_log_t;                      // 4 + 20*28 = 564 bytes
+} session_log_t;                      // 4 + 20*32 = 644 bytes
+
+// 2026-10-22 之前的格式：有開始時間、沒有 Ah。轉成新格式、Ah 記 -1（不知道）
+typedef struct {
+    charge_session_t s;
+    uint32_t         start_epoch;
+} charge_record_v2_t;                 // 28 bytes
+typedef struct {
+    uint8_t            head;
+    uint8_t            count;
+    uint8_t            _pad[2];
+    charge_record_v2_t sessions[LOG_MAX];
+} session_log_v2_t;                   // 564 bytes
+
+// 2026-10-22 之前的月累計：energy_month_t 少了 ah／ah_sessions
+typedef struct {
+    uint16_t year;
+    uint8_t  month, _pad;
+    uint16_t sessions, est_sessions;
+    float    wh, est_wh;
+} energy_month_v1_t;                  // 16 bytes
+typedef struct {
+    uint16_t          undated;
+    uint8_t           count, _pad;
+    energy_month_v1_t m[ENERGY_MONTHS];
+} energy_book_v1_t;                   // 580 bytes
 
 // 2026-10-17 之前的格式：charge_session_t 本身（24 bytes），沒有開始時間。
 // 開機讀到這個長度就轉成新格式、開始時間留 0 —— 以前改結構是直接清空紀錄，這次 OTA 後要留著
@@ -50,7 +75,12 @@ typedef struct {
 } pending_t;
 
 static session_log_t     s_log;
-static session_log_v1_t  s_old;       // 只有開機轉換格式時用，放 .bss 不佔 app_main 的堆疊
+// 只有開機轉換格式時用，放 .bss 不佔 app_main 的堆疊（同一時間只會用到一種）
+static union {
+    session_log_v1_t v1;
+    session_log_v2_t v2;
+    energy_book_v1_t e1;
+} s_old;
 static energy_book_t     s_energy;
 static pending_t         s_pending[LOG_MAX];
 static uint8_t           s_pending_n;
@@ -77,11 +107,26 @@ esp_err_t log_svc_init(void)
     } else {
         memset(&s_log, 0, sizeof(s_log));
         len = sizeof(s_old);
-        if (hal_nvs_get_blob(NVS_NS, NVS_KEY, &s_old, &len) == ESP_OK && len == sizeof(s_old) &&
-            s_old.count <= LOG_MAX && s_old.head < LOG_MAX) {
-            s_log.head  = s_old.head;
-            s_log.count = s_old.count;
-            for (int i = 0; i < LOG_MAX; i++) s_log.sessions[i].s = s_old.sessions[i];
+        esp_err_t err = hal_nvs_get_blob(NVS_NS, NVS_KEY, &s_old, &len);
+        if (err == ESP_OK && len == sizeof(s_old.v2) &&
+            s_old.v2.count <= LOG_MAX && s_old.v2.head < LOG_MAX) {
+            s_log.head  = s_old.v2.head;
+            s_log.count = s_old.v2.count;
+            for (int i = 0; i < LOG_MAX; i++) {
+                s_log.sessions[i].s           = s_old.v2.sessions[i].s;
+                s_log.sessions[i].start_epoch = s_old.v2.sessions[i].start_epoch;
+                s_log.sessions[i].ah          = -1.0f;
+            }
+            hal_nvs_set_blob(NVS_NS, NVS_KEY, &s_log, sizeof(s_log));
+            ESP_LOGI(TAG, "migrated %d session(s) to the Ah format", s_log.count);
+        } else if (err == ESP_OK && len == sizeof(s_old.v1) &&
+                   s_old.v1.count <= LOG_MAX && s_old.v1.head < LOG_MAX) {
+            s_log.head  = s_old.v1.head;
+            s_log.count = s_old.v1.count;
+            for (int i = 0; i < LOG_MAX; i++) {
+                s_log.sessions[i].s  = s_old.v1.sessions[i];
+                s_log.sessions[i].ah = -1.0f;
+            }
             hal_nvs_set_blob(NVS_NS, NVS_KEY, &s_log, sizeof(s_log));
             ESP_LOGI(TAG, "migrated %d session(s) to the dated format", s_log.count);
         } else {
@@ -94,6 +139,22 @@ esp_err_t log_svc_init(void)
     if (hal_nvs_get_blob(NVS_NS, NVS_ENERGY, &s_energy, &len) != ESP_OK ||
         len != sizeof(s_energy) || s_energy.count > ENERGY_MONTHS) {
         memset(&s_energy, 0, sizeof(s_energy));
+        len = sizeof(s_old);
+        if (hal_nvs_get_blob(NVS_NS, NVS_ENERGY, &s_old, &len) == ESP_OK &&
+            len == sizeof(s_old.e1) && s_old.e1.count <= ENERGY_MONTHS) {
+            // 舊的月份沒有 Ah：ah_sessions 0 ≠ sessions，畫面就不顯示那幾個月的 Ah
+            s_energy.undated = s_old.e1.undated;
+            s_energy.count   = s_old.e1.count;
+            for (int i = 0; i < s_old.e1.count; i++) {
+                const energy_month_v1_t *o = &s_old.e1.m[i];
+                energy_month_t *m = &s_energy.m[i];
+                m->year = o->year;  m->month = o->month;
+                m->sessions = o->sessions;  m->est_sessions = o->est_sessions;
+                m->wh = o->wh;  m->est_wh = o->est_wh;
+            }
+            hal_nvs_set_blob(NVS_NS, NVS_ENERGY, &s_energy, sizeof(s_energy));
+            ESP_LOGI(TAG, "migrated %d month(s) to the Ah format", s_energy.count);
+        }
     }
 
     uint32_t v;
@@ -157,10 +218,10 @@ static void save_session(const session_event_t *ev)
         s_log.head = (s_log.head + 1) % LOG_MAX;  // overwrite oldest
     }
     if (ev->rec.start_epoch) {
-        energy_book_add(&s_energy, ev->rec.start_epoch, ev->rec.s.energy_wh,
+        energy_book_add(&s_energy, ev->rec.start_epoch, ev->rec.s.energy_wh, ev->rec.ah,
                         ev->rec.s.energy_estimated);
     } else {
-        energy_book_add(&s_energy, 0, 0.0f, false);   // undated++，對到時再扣回來
+        energy_book_add(&s_energy, 0, 0.0f, -1.0f, false);   // undated++，對到時再扣回來
         for (int i = 0; i < s_pending_n; i++) {
             if (gone && s_pending[i].session_id == gone) s_pending[i--] = s_pending[--s_pending_n];
         }
@@ -191,7 +252,7 @@ static void backfill_pending(void)
             if (r->start_epoch == 0 && r->s.session_id == s_pending[i].session_id) {
                 r->start_epoch = epoch;
                 if (s_energy.undated) s_energy.undated--;
-                energy_book_add(&s_energy, epoch, r->s.energy_wh, r->s.energy_estimated);
+                energy_book_add(&s_energy, epoch, r->s.energy_wh, r->ah, r->s.energy_estimated);
                 dated++;
                 break;
             }
@@ -224,8 +285,8 @@ void task_log(void *arg)
         session_event_t ev;
         memcpy(&ev, evt.payload, sizeof ev);
         save_session(&ev);
-        ESP_LOGI(TAG, "saved: %us %.2fWh SOC%d->%d reason=%d start=%lu",
-                 (unsigned)ev.rec.s.duration_s, ev.rec.s.energy_wh,
+        ESP_LOGI(TAG, "saved: %us %.2fWh %.2fAh SOC%d->%d reason=%d start=%lu",
+                 (unsigned)ev.rec.s.duration_s, ev.rec.s.energy_wh, ev.rec.ah,
                  ev.rec.s.soc_start, ev.rec.s.soc_end, ev.rec.s.stop_reason,
                  (unsigned long)ev.rec.start_epoch);
     }
