@@ -38,7 +38,7 @@ static struct {
     bool         blink_on;
 
     bool         psu_warn;       // ESP-NOW 配對但失連：觸發 STANDBY 下短閃紅燈
-    uint32_t     psu_warn_ticks; // 計時器，100 ticks = 5s 週期
+    uint32_t     psu_warn_ticks; // 計時器，20 ticks = 1 s 週期
 
     // 工作台測試模式接管（task_tes_sm 每 tick 設定，這裡每 50ms 讀）。
     // 各自一個 volatile 欄位，寫入端只有 task_tes_sm。
@@ -140,9 +140,10 @@ void led_driver_tick(void)
     case LED_STATE_STANDBY:
         hal_gpio_led_charging_set(false);
         if (s.psu_warn) {
-            // 每 5s（100 ticks × 50ms）短閃紅燈 100ms（2 ticks）
-            if (++s.psu_warn_ticks >= 100) s.psu_warn_ticks = 0;
-            hal_gpio_led_error_set(s.psu_warn_ticks < 2);
+            // 紅燈 1 Hz 慢閃（亮 0.5 s、滅 0.5 s）。原本每 5 s 才短閃 0.1 s，使用者反映看不出斷線
+            // （2026-10-22）。跟故障的紅燈恆亮分得開
+            if (++s.psu_warn_ticks >= 20) s.psu_warn_ticks = 0;
+            hal_gpio_led_error_set(s.psu_warn_ticks < 10);
         } else {
             hal_gpio_led_error_set(false);
         }

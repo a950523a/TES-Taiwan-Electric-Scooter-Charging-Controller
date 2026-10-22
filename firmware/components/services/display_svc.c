@@ -1250,7 +1250,7 @@ void display_svc_tick(void)
     const charger_config_t *cfg = config_svc_get();
     led_driver_set_beacon_enable(cfg->beacon_unlocked);
     led_driver_set_beacon_soc(snap.soc);
-    // ESP-NOW 配對但失連 → STANDBY 下每 5s 短閃紅燈
+    // ESP-NOW 配對但失連 → STANDBY 下紅燈 1 Hz 慢閃
     led_driver_set_psu_warn(cfg->psu_transport == PSU_TRANSPORT_ESPNOW
                             && psu_driver_has_peer()
                             && !psu_driver_get_status().connected);
