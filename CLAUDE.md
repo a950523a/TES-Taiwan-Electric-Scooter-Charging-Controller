@@ -920,6 +920,11 @@ talking, so an empty UART stays silent.
 
 `psu_status_t` new fields: `rssi` (last received dBm, 0 for UART), `fail_streak` (consecutive send failures, 0 for UART).
 
+**`$NET` (2026-10-26):** once linked, `psu_driver` also sends PSU-Link `$NET,<bssid>,<ssid>` — the access
+point the STA is connected to, or this unit's own hotspot when only that is up (`current_network()`) — on change,
+after every re-handshake and every 30 s. The LianMing keeps it and, after a drop or a reboot, scans once for that
+network's channel instead of hopping channel by channel (see the LianMing repo's CLAUDE.md).
+
 **Link-lost LED:** paired over ESP-NOW but not connected → in STANDBY the red LED flashes **0.1 s every second**
 (0.1 s on / 0.9 s off; `led_driver.c` `psu_warn`). It was a 0.1 s flash every 5 s until 2026-10-22 — the user could
 not tell at a glance that the PSU had dropped; a 50 % blink was tried the same day and the user chose the short

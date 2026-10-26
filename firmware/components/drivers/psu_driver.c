@@ -18,6 +18,7 @@
 #define PSU_SET_MIN_TICKS          50   //  50 × 10ms = 500ms：同值 SET 最短發送間隔（UART 與 ESP-NOW 共用）
 #define PSU_HELLO_INTERVAL_TICKS  100   // 100 × 10ms = 1s：已連線但還不知道節點能力時，多久問一次
 #define PSU_CHN_INTERVAL_TICKS    500   // 5 s：ESP-NOW 握手完成後多久告訴節點一次我們的頻道（$CHN）
+#define PSU_NET_INTERVAL_TICKS   3000   // 30 s：多久告訴節點一次我們在哪個網路（$NET）
 #define PSU_ESPNOW_RSSI_WARN      -80   // dBm，低於此值印 LOGW
 #define PAIR_LINGER_TICKS         300   // 配對結束後再處理 3 s 的訊息：對方可能還在等最後一則確認
 
@@ -218,6 +219,32 @@ static void on_power(const psu_msg_power_t *p)
         ESP_LOGI(TAG, "PSU power: AC %u.%uV, max %uW, AC limit %u.%uA (src %u)",
                  p->vac_dv / 10u, p->vac_dv % 10u, p->pmax_w, p->ilim_da / 10u, p->ilim_da % 10u, p->src);
     }
+}
+
+// 我們現在所在的網路：連著路由器就是那台基地台（BSSID＋SSID），只開熱點就是自己的熱點。
+// 都沒有回 false。ESP-NOW 的頻道跟著它走，節點掃描時就找這個
+static bool current_network(psu_msg_network_t *n)
+{
+    memset(n, 0, sizeof *n);
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        size_t l = strnlen((const char *)ap.ssid, sizeof ap.ssid);
+        if (l < 1 || l > PSU_SSID_MAX) return false;
+        memcpy(n->bssid, ap.bssid, 6);
+        memcpy(n->ssid, ap.ssid, l);
+        n->ssid_len = (uint8_t)l;
+        return true;
+    }
+    wifi_mode_t mode;
+    wifi_config_t c;
+    if (esp_wifi_get_mode(&mode) != ESP_OK || (mode != WIFI_MODE_AP && mode != WIFI_MODE_APSTA) ||
+        esp_wifi_get_config(WIFI_IF_AP, &c) != ESP_OK)
+        return false;
+    size_t l = c.ap.ssid_len ? c.ap.ssid_len : strnlen((const char *)c.ap.ssid, sizeof c.ap.ssid);
+    if (l < 1 || l > PSU_SSID_MAX || esp_wifi_get_mac(WIFI_IF_AP, n->bssid) != ESP_OK) return false;
+    memcpy(n->ssid, c.ap.ssid, l);
+    n->ssid_len = (uint8_t)l;
+    return true;
 }
 
 void psu_driver_set_radio_busy(bool busy)
@@ -716,6 +743,24 @@ void psu_driver_poll(void)
             s_last_chn = ch;
             psu_msg_t m = { .type = PSU_MSG_CHANNEL };
             m.u.channel.channel = ch;
+            send_msg(&m);
+        }
+    }
+
+    // ESP-NOW：告訴節點我們在哪個網路（$NET，2026-10-26）。節點記下來，下次斷線或開機先掃描一次
+    // WiFi 找那個基地台的頻道、直接切過去，不用一個頻道一個頻道試。變了（換網路、開熱點）或重新握手
+    // 就馬上送，其餘每 30 s 一次
+    if (s_transport == PSU_TRANSPORT_ESPNOW && s_sess_on && !s_radio_busy && psu_sess_ready(&s_sess)) {
+        static psu_msg_network_t s_last_net;
+        static uint32_t s_last_net_ticks, s_net_hs;
+        psu_msg_t m = { .type = PSU_MSG_NETWORK };
+        if (current_network(&m.u.network) &&
+            (memcmp(&m.u.network, &s_last_net, sizeof s_last_net) != 0 ||
+             s_net_hs != s_sess.n_handshakes ||
+             (s_poll_ticks - s_last_net_ticks) >= PSU_NET_INTERVAL_TICKS)) {
+            s_last_net       = m.u.network;
+            s_last_net_ticks = s_poll_ticks;
+            s_net_hs         = s_sess.n_handshakes;
             send_msg(&m);
         }
     }
