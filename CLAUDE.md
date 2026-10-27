@@ -1975,6 +1975,13 @@ rebooting / error and `ota_source` online / upload in `/status`, next to the old
 - Not done: app rollback (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` needs a new bootloader, which OTA cannot
   deliver — see Deployment constraints).
 
+**Planned: updating the power node and UART sensor nodes from the TES (2026-10-27, not implemented).**
+The TES fetches a node's release image and sends it over PSU-Link (ESP-NOW or UART; protocol draft in
+PSU-Link's README). Same rules as its own OTA: refused while charging, no charging may start during it,
+OLED / web / app show one shared progress and result. **Never send OFF to a LianMing for its update** — the
+TES may be running from it; the node keeps its output on and adopts it again after its reboot. A UART
+sensor node keeps a resident bootloader, so a failed transfer is retried, never bricks it.
+
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
 - Web UI pull: "更新至最新韌體" → `POST /ota`
 - Manual upload: `POST /ota/upload` — **needs the CSRF header** (see Security below):
