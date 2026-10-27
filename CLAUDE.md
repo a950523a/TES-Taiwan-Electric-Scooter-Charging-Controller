@@ -1975,6 +1975,13 @@ rebooting / error and `ota_source` online / upload in `/status`, next to the old
 - Not done: app rollback (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` needs a new bootloader, which OTA cannot
   deliver — see Deployment constraints).
 
+**Planned: switching the power node per session (2026-10-27, not implemented).** Only when the TES has its
+**own 12 V supply** (a setting; default = runs from the PSU, never switches it). Then: PSU off while idle; at
+START set V = battery voltage and a low I, switch it on, wait for the voltage (timeout → fault), then close
+the relay — the sequence public DC fast chargers use; at the end open the relay, then off. Power limits from
+`CAP` / `PWR` as now. Protocol draft in PSU-Link's README; the node keeps a dead-man (link quiet right after
+`OUT,0` → back on, mode cleared), so a wrong setting costs a reboot, not a dead TES.
+
 **Planned: updating the power node and UART sensor nodes from the TES (2026-10-27, not implemented).**
 The TES fetches a node's release image and sends it over PSU-Link (ESP-NOW or UART; protocol draft in
 PSU-Link's README). Same rules as its own OTA: refused while charging, no charging may start during it,
