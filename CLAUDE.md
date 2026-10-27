@@ -55,6 +55,16 @@ idf.py -p <PORT> flash monitor
 
 `sdkconfig.defaults` enables PSRAM (OPI 8MB), DIO 80 MHz flash, TWAI, USB CDC console, FreeRTOS 1 kHz tick.
 
+**A local `sdkconfig` goes stale (found 2026-10-27).** It is not in git; ESP-IDF regenerates it from
+`sdkconfig.defaults` only when it is missing, and an existing value always wins. The desktop's was older than
+the 2026-10-18 move of WiFi/lwIP into PSRAM, so it kept `ESP_WIFI_RX_BA_WIN=6` and
+`LWIP_TCP_OOSEQ_MAX_PBUFS=4` while CI (fresh every time) built with 16 and 0 — USB-flashed builds were not
+the released configuration. **After changing `sdkconfig.defaults`, delete the local `sdkconfig`** (or compare
+it with one made by `idf.py -B <tmp> -D SDKCONFIG=<tmp>/sdkconfig reconfigure`). The same day the flash
+lines were fixed: they set the derived strings (`FLASHMODE="dio"`), which Kconfig ignores, instead of the
+choices (`FLASHMODE_DIO=y`), and `ESPTOOLPY_BAUD` no longer exists in IDF 5.x (it printed `unknown kconfig
+symbol`; the flash baud rate is `idf.py -b` or `ESPBAUD`). The resulting values did not change.
+
 **Partition table (`partitions_16MB.csv`):** SPIFFS removed. App partitions maximised:
 
 | Partition | Size | Notes |

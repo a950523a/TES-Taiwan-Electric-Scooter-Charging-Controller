@@ -2,11 +2,15 @@
 # Flash: 16MB DIO 80MHz | PSRAM: 8MB OPI | Target: ESP32-S3
 
 # --- Flash ---
-CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+# Set the choice symbols (..._DIO=y), not the derived strings (FLASHMODE="dio"):
+# the strings are computed from the choice and are silently ignored here. Until
+# 2026-10-27 only the strings were set; it worked because DIO / 80 MHz are the
+# ESP32-S3 defaults anyway.
+# The flash baud rate is not a sdkconfig option in IDF 5.x (CONFIG_ESPTOOLPY_BAUD
+# gave "unknown kconfig symbol"): use `idf.py -b 921600 flash` or ESPBAUD=921600.
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
-CONFIG_ESPTOOLPY_FLASHMODE="dio"
-CONFIG_ESPTOOLPY_FLASHFREQ="80m"
-CONFIG_ESPTOOLPY_BAUD=921600
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
 # --- Partition table ---
 CONFIG_PARTITION_TABLE_CUSTOM=y
