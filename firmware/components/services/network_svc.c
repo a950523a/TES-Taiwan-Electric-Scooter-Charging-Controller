@@ -357,6 +357,9 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     ota_state_t ota_st = ota_svc_get_state();
     cJSON_AddBoolToObject  (root, "ota_running",  ota_st == OTA_STATE_RUNNING);
     cJSON_AddNumberToObject(root, "ota_progress", ota_svc_progress_pct());
+    // 2026-10-27：線上、上傳同一套狀態，網頁、App、OLED 看到的一樣。rebooting = 寫完了、正在重開
+    cJSON_AddStringToObject(root, "ota_state",    ota_svc_state_name(ota_st));
+    cJSON_AddStringToObject(root, "ota_source",   ota_svc_source_name(ota_svc_source()));
     if (ota_st == OTA_STATE_ERROR)
         cJSON_AddStringToObject(root, "ota_error", ota_svc_get_error());
 
@@ -894,6 +897,13 @@ static const httpd_uri_t s_uri_post_config = {
 static esp_err_t handle_post_start(httpd_req_t *req)
 {
     if (!csrf_ok(req)) return ESP_FAIL;
+    if (ota_svc_busy()) {   // 狀態機本來就會忽略（task_tes_sm），這裡讓網頁、App 知道為什麼
+        set_cors(req);
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"firmware update in progress\"}");
+        return ESP_OK;
+    }
     uint8_t evt = EVT_BUTTON_START;
     xQueueSendToBack(g_btn_event_queue, &evt, 0);
     httpd_resp_set_type(req, "application/json");
@@ -962,7 +972,7 @@ static esp_err_t handle_post_ota(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
         return ESP_FAIL;
     } else {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA start failed");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -987,7 +997,8 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
                             "charging in progress — stop the session before updating");
         return ESP_FAIL;
     }
-    if (ota_svc_get_state() == OTA_STATE_RUNNING) {
+    if (ota_svc_busy()) {
+        set_cors(req);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
         return ESP_FAIL;
     }
@@ -1001,7 +1012,7 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "OTA already running");
         return ESP_FAIL;
     } else if (err != ESP_OK) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
         return ESP_FAIL;
     }
 
@@ -1020,7 +1031,7 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
         // 以前一次逾時就放棄，到了 9x % 卡一下就前功盡棄（2026-10-20）
         if (received == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= OTA_RECV_TIMEOUTS) continue;
         if (received <= 0) {
-            ota_svc_upload_abort();
+            ota_svc_upload_abort(received == HTTPD_SOCK_ERR_TIMEOUT ? "no data for 90 s" : "connection lost");
             netlog_add(NETLOG_OTA_END, 1, done_kb);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
             return ESP_FAIL;
@@ -1028,7 +1039,7 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
         err = ota_svc_upload_write(buf, (size_t)received);
         if (err != ESP_OK) {
             netlog_add(NETLOG_OTA_END, 2, done_kb);
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA write failed");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
             return ESP_FAIL;
         }
         remaining -= received;
@@ -1040,11 +1051,15 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
     }
     netlog_add(NETLOG_OTA_END, 0, (int32_t)(req->content_len / 1024));
 
-    httpd_resp_set_type(req, "application/json");
+    // 先驗證、設好開機分區，再回應：以前先回 ok 才驗證，驗證失敗時上傳的人以為成功了
     set_cors(req);
+    if (ota_svc_upload_end() != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
+        return ESP_FAIL;
+    }
+    httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":true}");
-
-    ota_svc_upload_end(); // validates, sets boot partition, reboots
+    ota_svc_reboot();
     return ESP_OK;
 }
 

@@ -6,7 +6,6 @@ idf_component_register(
         "task_hal_poll.c"
         "task_display.c"
         "task_network.c"
-        "task_ota.c"
         "task_monitor.c"
     INCLUDE_DIRS
         "."

@@ -265,7 +265,7 @@
     '未知故障（代碼 {}）': 'Unknown fault (code {})',
 
     // ── 充電紀錄 ──
-    '📋 充電紀錄': '📋 Charge history', '↻ 重新整理': '↻ Refresh', '日期': 'Date', '充電時間': 'Duration', '電量 (Wh)': 'Energy (Wh)', '充入': 'Charged', '停止原因': 'Stop reason',
+    '📋 充電紀錄': '📋 Charge history', '↻ 重新整理': '↻ Refresh', '日期': 'Date', '充電時間': 'Duration', '電量 (Wh)': 'Energy (Wh)', '線上更新中，請勿斷電…': 'Updating online — do not power off…', '上傳更新中，請勿斷電…': 'Uploading the update — do not power off…', '✓ 更新完成，重新啟動中…': '✓ Update done, restarting…', '✗ 更新失敗：{}（原本的韌體照常運作）': '✗ Update failed: {} (the old firmware keeps running)', '✗ 更新失敗（原本的韌體照常運作）': '✗ Update failed (the old firmware keeps running)', '✗ 無法開始更新：{}': '✗ Could not start the update: {}', '✗ 無法開始更新': '✗ Could not start the update', '✗ 韌體更新中，更新完成前不能開始充電': '✗ A firmware update is running; charging cannot start until it finishes', '✗ 90 秒內沒有回應，請確認控制器有電、WiFi 正常後重新整理頁面': '✗ No answer within 90 s — check that the controller has power and WiFi, then reload', '連線中斷': 'connection lost', '充入': 'Charged', '停止原因': 'Stop reason',
     '有 ▸ 的列可以展開，看該次的充電曲線與詳細 Log': 'Rows with ▸ expand to show that session\'s curve and detailed log',
     '曲線與詳細 Log 存放在記憶體，': 'Curves and logs are kept in RAM and ', '控制器一斷電就會清除': 'are lost when the controller powers off',
     '， 因此重開機之前的紀錄只剩上表的摘要（時長、電量、SOC、停止原因），沒有 ▸ 可以展開。 摘要本身存在 NVS，不會消失。':

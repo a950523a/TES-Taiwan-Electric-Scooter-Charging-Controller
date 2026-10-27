@@ -183,7 +183,6 @@ void task_tes_sm   (void *arg);
 void task_hal_poll (void *arg);
 void task_display  (void *arg);
 void task_network  (void *arg);
-void task_ota      (void *arg);
 void task_notify   (void *arg);
 void task_log      (void *arg);
 void task_mqtt      (void *arg);
@@ -320,7 +319,6 @@ void app_main(void)
     spawn(task_hal_poll, "hal_poll", 6144,  10);   // 6 KB：ESP-NOW 配對的 X25519（mbedTLS ECP）在這裡跑
     spawn(task_display,  "display",  4096,   4);
     spawn(task_network,  "network",  12288,  3);
-    spawn(task_ota,      "ota",      16384,  2);
     spawn(task_notify,   "notify",   6144,   2);
     spawn(task_mqtt,     "mqtt",     8192,   2);
     spawn(task_scheduler,"sched",    4096,   2);

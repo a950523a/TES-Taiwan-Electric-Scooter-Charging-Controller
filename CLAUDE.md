@@ -234,7 +234,7 @@ task_hal_poll --[g_display_btn_queue depth=8]-> task_display      (SETTING alway
 task_hal_poll --[g_emergency_stop atomic_bool]> task_tes_sm       (every tick, bypasses menu gate)
 task_hal_poll --[g_adc_cp_voltage / g_adc_output_voltage volatile]-> task_tes_sm
 task_tes_sm   --[g_snapshot + g_snapshot_mutex]--> task_display / task_network
-task_tes_sm   --[event_bus]--------------------> task_ota / task_notify (v3.1.0) / task_log (v3.1.0) / task_mqtt (v3.2.0)
+task_tes_sm   --[event_bus]--------------------> task_notify (v3.1.0) / task_log (v3.1.0) / task_mqtt (v3.2.0)
 task_mqtt     --[g_btn_event_queue depth=8]----> task_tes_sm       (remote cmd: start/stop via MQTT)
 display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button routing)
 ```
@@ -248,7 +248,6 @@ display_svc   --[g_menu_open volatile bool]----> task_hal_poll    (gates button 
 | `task_hal_poll` | 10 | **6 KB** | 10 ms | button debounce + ADC + PSU poll (incl. ESP-NOW pairing crypto) |
 | `task_display` | 4 | 4 KB | 50 ms | OLED render + LED update |
 | `task_network` | 3 | 12 KB | 100 ms | WiFi + HTTP server |
-| `task_ota` | 2 | 16 KB | event | esp_https_ota |
 | `task_notify` | 2 | 6 KB | event | push notification via webhook (v3.1.0) and to the mobile app (Expo) |
 | `task_mqtt` | 2 | 8 KB | event + 10/30 s | MQTT publish status + subscribe cmd (v3.2.0) |
 | `task_scheduler` | 2 | 4 KB | 30 s | NTP sync (pool.ntp.org, UTC+8) + charging window edge detection → g_btn_event_queue (v3.4.0) |
@@ -1937,7 +1936,35 @@ shows 離線 without affecting the others.
 
 **Release:** `git tag v3.x.x && git push origin v3.x.x` → GitHub Actions builds with ESP-IDF v5.5.5（與開發機同版，見 Build 一節）, creates Release with `tes_charger.bin` (OTA) and `tes_charger_flash.bin` (initial flash), deploys GitHub Pages. `docs/manifest.json` uses relative path `./tes_charger_flash.bin`; Pages source must be **GitHub Actions**.
 
-**OTA:**
+**OTA — one behaviour whatever started it (2026-10-27, the user's rule: "所有操作都要有一致性").**
+`ota_svc` runs both paths — online (`POST /ota`, a short-lived 16 KB `ota` task running `esp_https_ota`) and
+upload (`POST /ota/upload`, in the httpd worker) — through the same state: `ota_state` idle / running /
+rebooting / error and `ota_source` online / upload in `/status`, next to the old `ota_running` /
+`ota_progress` / `ota_error`.
+- **OLED** (`render_ota()` in `display_svc`, above the menu, pairing and bench test): `線上更新韌體` / `上傳韌體`
+  title, progress bar and %, `請勿斷電`; `完成，重新啟動中`; a failure stays 15 s with the reason and
+  `原本的韌體照常運作`. Before this the OLED showed nothing for either path.
+- **Web and app** show the same three texts for any source, so another phone or tab watching sees what the
+  one that started it sees; on `rebooting` they wait for the unit to come back (up to 90 s) and show the new
+  version. The web upload uses XHR for upload progress — while it uploads, httpd's single worker is busy and
+  `/status` polls stall, so the uploading page shows its own progress and the OLED shows the device's.
+- **Same checks on both paths:** charging → refused; already updating → refused; the image's `esp_app_desc_t`
+  project name must be this firmware's (a LianMing `.bin` is refused at the first 4 KB, not after the whole
+  upload; the chip type is checked by `esp_ota_write` / `esp_https_ota`). Versions are not compared — a
+  downgrade or a re-flash of the same version is legitimate.
+- **Upload: validated before answering.** It used to answer `{"ok":true}` and then validate, so a bad image
+  looked like a success to the uploader. Now `ota_svc_upload_end()` validates and sets the boot partition,
+  the handler answers (or returns the reason as text), then `ota_svc_reboot()` restarts after 1.5 s (so the
+  OLED and pollers see `rebooting`). An interrupted upload is now `error` ("upload interrupted: …"), not idle.
+- **No charging may start during an update** (`task_tes_sm` drops `start_requested` and auto-start while
+  `ota_svc_busy()`; `POST /start` answers 409 `firmware update in progress`): the reboot at the end would cut
+  a session that had just begun.
+- Progress events only on percent change on both paths (the online path published one per chunk).
+- `task_ota` is gone: it only subscribed to the event bus and waited — 16 KB of stack and an event-bus slot
+  for nothing.
+- Not done: app rollback (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` needs a new bootloader, which OTA cannot
+  deliver — see Deployment constraints).
+
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
 - Web UI pull: "更新至最新韌體" → `POST /ota`
 - Manual upload: `POST /ota/upload` — **needs the CSRF header** (see Security below):
@@ -1974,6 +2001,7 @@ firmware/
 |   |   +-- log_svc.c/.h        charge session history (v3.1.0)
 |   |   +-- mqtt_svc.c/.h       MQTT remote monitoring (v3.2.0)
 |   |   +-- scheduler_svc.c/.h  scheduled charging (v3.4.0)
+|   |   +-- ota_svc.c/.h        OTA, online and upload, one shared state (2026-10-27)
 |   |   +-- idf_component.yml   declares espressif/mdns managed component
 +-- main/
     +-- globals.h               IPC objects (queues, snapshot mutex, atomic, volatile ADC, menu flag)
@@ -1983,7 +2011,6 @@ firmware/
     +-- task_hal_poll.c         button debounce + interleaved ADC + PSU poll + menu routing
     +-- task_display.c          50ms: drain g_display_btn_queue + display_svc_tick
     +-- task_network.c          100ms WiFi status poller
-    +-- task_ota.c              event_bus subscriber
     +-- task_monitor.c          10s heap report
     +-- idf_component.yml       also declares espressif/mdns
 docs/

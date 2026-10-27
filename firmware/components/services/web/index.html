@@ -991,22 +991,30 @@ async function poll(){
           :d.hw_rev+(d.hw_id_mismatch
             ?'（依出廠紀錄；AIN3 硬體 ID 讀到 '+d.hw_id_v+' V，與出廠紀錄不符，請檢查 R36／R37）':'')));
 
-    // OTA 狀態
+    // OTA 狀態：線上更新、網頁上傳、App 上傳都是同一份（/status 的 ota_state／ota_source，2026-10-27），
+    // OLED 顯示的也是它。舊韌體沒有 ota_state：照舊看 ota_running
     const btn=document.getElementById('ota-btn');
     const upBtn=document.getElementById('ota-up-btn');
     const pw=document.getElementById('ota-pw');
     const om=document.getElementById('ota-msg');
-    if(d.ota_running){
+    const startBtn=document.querySelector('.b-start');
+    const otaBusy=d.ota_state==='running'||d.ota_state==='rebooting'||(!d.ota_state&&d.ota_running);
+    if(startBtn)startBtn.disabled=otaBusy;
+    if(d.ota_state==='rebooting'){
+      otaShowRebooting();
+    } else if(otaBusy){
       pw.style.display='block';
       document.getElementById('ota-pb').value=d.ota_progress;
       document.getElementById('ota-pct').textContent=d.ota_progress+'%';
       om.className='';
-      om.textContent='更新中，請勿斷電…';
+      om.textContent=OTA_SRC_TEXT[d.ota_source]||'更新中，請勿斷電…';
       btn.disabled=true;upBtn.disabled=true;
+    } else if(otaUploading){
+      // 這個頁面自己在上傳：進度由上傳本身顯示（上傳期間控制器忙著收檔，/status 不一定讀得到）
     } else if(d.ota_error){
       pw.style.display='none';
       om.className='err';
-      om.textContent='✗ '+d.ota_error;
+      om.textContent='✗ 更新失敗：'+d.ota_error+'（原本的韌體照常運作）';
       btn.disabled=false;upBtn.disabled=false;
     } else {
       if(document.getElementById('ota-pb').value==100){
@@ -1575,7 +1583,38 @@ async function save(){
 }
 
 async function act(url){
-  try{await fetch(url,{method:'POST'});}catch(e){}
+  try{
+    const r=await fetch(url,{method:'POST'});
+    if(r.status===409&&url==='/start')showMsg('✗ 韌體更新中，更新完成前不能開始充電','err');
+  }catch(e){}
+}
+
+// ── 韌體更新：線上、上傳共用 ───────────────────────────────────────────────
+const OTA_SRC_TEXT={online:'線上更新中，請勿斷電…',upload:'上傳更新中，請勿斷電…'};
+let otaUploading=false, otaWaiting=false;
+
+// 寫完了、控制器在重開：等它回來再重新整理，顯示新版本（跟「重新啟動」按鈕同一套等法）
+function otaShowRebooting(){
+  if(otaWaiting)return;
+  otaWaiting=true;
+  const om=document.getElementById('ota-msg');
+  document.getElementById('ota-pw').style.display='block';
+  document.getElementById('ota-pb').value=100;
+  document.getElementById('ota-pct').textContent='100%';
+  document.getElementById('ota-btn').disabled=true;
+  document.getElementById('ota-up-btn').disabled=true;
+  om.className='ok';om.textContent='✓ 更新完成，重新啟動中…';
+  const t0=Date.now();let wentDown=false;
+  const poll=async()=>{
+    try{
+      const ac=new AbortController();setTimeout(()=>ac.abort(),2000);
+      const s=await fetch('/status',{cache:'no-store',signal:ac.signal});
+      if(s.ok&&wentDown){location.reload();return;}
+    }catch(e){wentDown=true;}
+    if(Date.now()-t0>90000){om.className='err';om.textContent='✗ 90 秒內沒有回應，請確認控制器有電、WiFi 正常後重新整理頁面';return;}
+    setTimeout(poll,2000);
+  };
+  setTimeout(poll,2000);
 }
 
 async function startOta(){
@@ -1587,8 +1626,13 @@ async function startOta(){
   om.className='';
   om.textContent='連線中…';
   try{
-    const r=await(await fetch('/ota',{method:'POST'})).json();
-    if(!r.ok){om.className='err';om.textContent='✗ 無法啟動更新';btn.disabled=false;upBtn.disabled=false;}
+    const res=await fetch('/ota',{method:'POST'});
+    if(!res.ok){
+      const why=(await res.text().catch(()=>'')).trim();
+      om.className='err';om.textContent='✗ 無法開始更新'+(why?'：'+why:'');
+      btn.disabled=false;upBtn.disabled=false;return;
+    }
+    om.textContent=OTA_SRC_TEXT.online;
   }catch(e){om.className='err';om.textContent='✗ 連線錯誤';btn.disabled=false;upBtn.disabled=false;}
 }
 
@@ -1633,24 +1677,31 @@ async function uploadFirmware(){
   pw.style.display='block';
   document.getElementById('ota-pb').value=0;
   document.getElementById('ota-pct').textContent='0%';
-  om.className='';om.textContent='上傳中，請勿斷電…';
-  try{
-    const r=await fetch('/ota/upload',{
-      method:'POST',
-      headers:{'Content-Type':'application/octet-stream'},
-      body:file
-    });
-    const d=await r.json();
-    if(d.ok){
-      om.className='ok';om.textContent='✓ 上傳完成，重新啟動中…';
-    }else{
-      om.className='err';om.textContent='✗ 上傳失敗';
-      btn.disabled=false;upBtn.disabled=false;
-    }
-  }catch(e){
-    om.className='err';om.textContent='✗ 連線錯誤';
+  om.className='';om.textContent=OTA_SRC_TEXT.upload;
+  otaUploading=true;
+  // XHR 才拿得到上傳進度；上傳期間控制器的網頁伺服器忙著收檔，/status 輪詢會卡住，進度就看這裡
+  const xhr=new XMLHttpRequest();
+  xhr.open('POST','/ota/upload');
+  xhr.setRequestHeader('Content-Type','application/octet-stream');
+  xhr.setRequestHeader('X-TES-Request','1');
+  xhr.upload.onprogress=e=>{
+    if(!e.lengthComputable)return;
+    const p=Math.floor(e.loaded*100/e.total);
+    document.getElementById('ota-pb').value=p;
+    document.getElementById('ota-pct').textContent=p+'%';
+  };
+  const failed=why=>{
+    otaUploading=false;
+    om.className='err';om.textContent='✗ 更新失敗'+(why?'：'+why:'')+'（原本的韌體照常運作）';
     btn.disabled=false;upBtn.disabled=false;
-  }
+  };
+  xhr.onload=()=>{
+    otaUploading=false;
+    if(xhr.status===200)otaShowRebooting();
+    else failed((xhr.responseText||'').trim()||('HTTP '+xhr.status));
+  };
+  xhr.onerror=()=>failed('連線中斷');
+  xhr.send(file);
 }
 
 let ntfyTopic='';

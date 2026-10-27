@@ -14,6 +14,7 @@
 #include "services/event_bus.h"   // for EVT_BUTTON_* enum values
 #include "services/hwtest_svc.h"
 #include "services/restart_svc.h"
+#include "services/ota_svc.h"
 #include "psu_link/psu_pair.h"
 #include "hal/hal_gpio.h"
 #include "platform/platform.h"
@@ -1014,6 +1015,52 @@ static bool render_pair(void)
     return true;
 }
 
+// ── 韌體更新畫面（2026-10-27）────────────────────────────────────────────────
+//
+// 不管更新是從哪裡觸發的（網頁的「更新至最新韌體」、網頁或 App 上傳 .bin），OLED 都顯示同一個畫面，
+// 蓋過選單與其他畫面 —— 站在機器前的人要知道「現在在更新、不要拔電」。失敗留 OTA_FAIL_SHOW_MS
+// 顯示原因（原本的韌體照常運作）。網頁、App 讀 /status 的 ota_state／ota_source，是同一份狀態
+#define OTA_FAIL_SHOW_MS 15000u
+
+static bool render_ota(uint32_t now)
+{
+    static ota_state_t s_prev = OTA_STATE_IDLE;
+    static uint32_t    s_fail_ms;
+    ota_state_t st = ota_svc_get_state();
+    if (st == OTA_STATE_ERROR && s_prev != OTA_STATE_ERROR) s_fail_ms = now;
+    s_prev = st;
+    bool show_fail = st == OTA_STATE_ERROR && now - s_fail_ms < OTA_FAIL_SHOW_MS;
+    if (st != OTA_STATE_RUNNING && st != OTA_STATE_REBOOTING && !show_fail) return false;
+
+    display_driver_clear();
+    display_driver_set_color(1);
+    bool upload = ota_svc_source() == OTA_SRC_UPLOAD;
+    if (show_fail) {
+        header("UPDATE FAILED", ZH("更新失敗"));
+        display_driver_font_small();
+        char e[26];
+        snprintf(e, sizeof e, "%.25s", ota_svc_get_error());   // 原因只有英文（esp_err 名稱）
+        display_driver_draw_str(0, 27, e);
+        text(0, lang_zh() ? 44 : 41, EN_SMALL, "Old firmware kept", ZH("原本的韌體照常運作"));
+        text(0, lang_zh() ? 60 : 54, EN_SMALL, "Try again from web/app", ZH("請從網頁或App重試"));
+    } else {
+        header(upload ? "FW UPLOAD" : "FW UPDATE", upload ? ZH("上傳韌體") : ZH("線上更新韌體"));
+        int pct = st == OTA_STATE_REBOOTING ? 100 : ota_svc_progress_pct();
+        display_driver_draw_frame(0, 22, 128, 10);
+        display_driver_draw_box(2, 24, (124 * pct) / 100, 6);
+        char p[8];
+        snprintf(p, sizeof p, "%d%%", pct);
+        display_driver_font_medium();
+        display_driver_draw_str(128 - display_driver_str_width(p), 46, p);
+        if (st == OTA_STATE_REBOOTING)
+            text(0, lang_zh() ? 60 : 58, EN_SMALL, "Done - restarting...", ZH("完成，重新啟動中"));
+        else
+            text(0, lang_zh() ? 60 : 58, EN_SMALL, "Do not power off", ZH("請勿斷電"));
+    }
+    display_driver_flush();
+    return true;
+}
+
 // ── 工作台測試模式畫面 ─────────────────────────────────────────────────────────
 //
 // 測試中，繼電器與 LED 由網頁 /hw 手動控制 —— 站在機器前的人必須看得出來，
@@ -1309,6 +1356,7 @@ void display_svc_tick(void)
                  now - s_last_activity >= (uint32_t)cfg2->ss_min * 60000u;
     g_screen_saver = saver;
 
+    if (render_ota(now)) return;  // 韌體更新中：蓋過一切（選單、配對、測試），同一個畫面不分來源
     if (render_pair()) return;   // 配對中蓋過選單：按鈕此時是確認／取消
 
     if (s_screen == DISP_SCREEN_MENU) {

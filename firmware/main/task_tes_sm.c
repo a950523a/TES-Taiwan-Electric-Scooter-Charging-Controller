@@ -14,6 +14,7 @@
 #include "services/log_svc.h"
 #include "services/auto_volt.h"
 #include "services/isense_check.h"
+#include "services/ota_svc.h"
 #include "psu_link/psu_link.h"
 #include "platform/platform.h"
 #include "esp_log.h"
@@ -434,6 +435,13 @@ void task_tes_sm(void *arg)
         inputs.stop_energy_wh     = cfg.stop_energy_wh;
         inputs.session_energy_wh  = s_session_active ? s_session_energy_wh : 0.0f;
         inputs.auto_start_enabled = cfg.auto_start;
+        // 韌體更新中（線上或上傳，2026-10-27）不開始充電：更新一完成就重開機，會把剛開始的充電硬切掉。
+        // 按鍵、網頁、App、MQTT、排程都是 start_requested，自動開始看 auto_start_enabled，一起擋
+        if (ota_svc_busy()) {
+            if (inputs.start_requested) ESP_LOGW(TAG, "START ignored: firmware update in progress");
+            inputs.start_requested    = false;
+            inputs.auto_start_enabled = false;
+        }
 
         tes_sm_tick(&s_sm, &inputs, &outputs);
         bench_test_override(&inputs, &outputs);
