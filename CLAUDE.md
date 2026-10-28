@@ -758,6 +758,24 @@ Also: max current > 15A now blocks auto-start (SM guard + web UI warning). Stale
 
 Accessible by **long-pressing SETTING** from the status screen. **Short-pressing SETTING** cycles quick SOC preset: 80% → 95% → 100% → 80% (saves to NVS immediately).
 
+**Grouped into pages (2026-10-28, the user: one long list had become too messy).** The top level has six
+categories plus Save & Exit / Cancel; every setting lives in a category:
+
+| Page | Items |
+|---|---|
+| 充電 / Charging | Auto Volt, Max Voltage, Max Current, Stop Mode, its target (SOC / Stop V / Timer / Stop E) |
+| 自動化 / Automation | Scheduler, [Beta] Auto |
+| 螢幕與燈 / Screen & light | Language, Charge anim, Screensaver, Saver style, LuxBeacon |
+| 網路 / Network | WiFi Info, AP pass, `tes-<id>` |
+| 裝置資訊 / Device info | Board, firmware version (About), PSU link status — the planned "connected devices" rows go here |
+| 維護 / Maintenance | Reset Fault, Restart |
+
+Each page starts with `< 返回 / < Back`; **long-press SETTING inside a page also goes back**. Entering a page puts
+the cursor on its first setting; going back returns it to that category. Edits are still kept in `s_edit_*`
+and written only by the top-level Save & Exit. The header shows `設定 > <page>` (Chinese) or the page name
+(English — the 7 px bold font fits 18 characters, too few for `SETTINGS > …`). Enum order in `display_svc.c` is
+the on-screen order; `item_page()` maps items to pages.
+
 | Item | Range | Short press step | Long press step |
 |------|-------|-----------------|-----------------|
 | Auto Volt | ON / OFF | toggle | toggle |

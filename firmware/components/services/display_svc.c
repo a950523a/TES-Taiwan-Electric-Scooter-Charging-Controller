@@ -73,8 +73,30 @@ static disp_screen_t s_screen = DISP_SCREEN_STATUS;
 
 // ── Menu state ────────────────────────────────────────────────────────────────
 
+// 選單分頁（2026-10-28，使用者：功能變多、一整串太亂）：最上層只有六個分類＋儲存／取消，
+// 設定都在分類裡。每頁第一行是「< 返回」，在分類裡長按 SETTING 也回上一層。
+// 改的值一樣先放在 s_edit_*，最上層「儲存並離開」才一起寫進 NVS。
 typedef enum {
-    MENU_ITEM_AUTO_VOLTAGE = 0,
+    MENU_PAGE_TOP = 0,
+    MENU_PAGE_CHARGE,
+    MENU_PAGE_AUTO,
+    MENU_PAGE_DISPLAY,
+    MENU_PAGE_NETWORK,
+    MENU_PAGE_INFO,
+    MENU_PAGE_MAINT,
+} menu_page_t;
+
+// 順序 = 畫面上的順序（同一頁裡）
+typedef enum {
+    MENU_ITEM_BACK = 0,      // 每個分類的第一行
+    MENU_ITEM_GO_CHARGE,     // 最上層：進分類
+    MENU_ITEM_GO_AUTO,
+    MENU_ITEM_GO_DISPLAY,
+    MENU_ITEM_GO_NETWORK,
+    MENU_ITEM_GO_INFO,
+    MENU_ITEM_GO_MAINT,
+    // 充電
+    MENU_ITEM_AUTO_VOLTAGE,
     MENU_ITEM_MAX_VOLTAGE,
     MENU_ITEM_MAX_CURRENT,
     MENU_ITEM_STOP_MODE,      // 停止條件：SOC / Voltage / Timer / kWh
@@ -82,25 +104,34 @@ typedef enum {
     MENU_ITEM_STOP_VOLTAGE,  // 停止條件值（stop_mode=VOLTAGE 時顯示）
     MENU_ITEM_CHARGE_TIMER,  // 充電時長（stop_mode=TIMER 時顯示，分鐘）
     MENU_ITEM_STOP_ENERGY,   // 充入電量目標（stop_mode=ENERGY 時顯示，0.1–20.0 kWh）
-    MENU_ITEM_BEACON,
-    MENU_ITEM_WIFI_INFO,
-    MENU_ITEM_AP_PASS,       // 自動熱點的密碼（唯讀；連不上 WiFi 時手機用它連進來）
-    MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
-    MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
-    MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
+    // 自動化
     MENU_ITEM_SCHEDULER,     // 定時充電 ON/OFF（時間設定僅 Web UI）
     MENU_ITEM_AUTO_START,    // Beta: VP 常通 + 自動觸發充電
+    // 螢幕與燈
     MENU_ITEM_LANG,          // OLED 語言：中文 / English
     MENU_ITEM_CHG_ANIM,      // 充電中動畫：全部 / 電池 / 箭頭 / 關
     MENU_ITEM_SAVER,         // 螢幕保護等待：5 / 15 / 30 分 / 關
     MENU_ITEM_SAVER_STYLE,   // 螢幕保護樣式：烏龜 / 全黑（螢幕保護關閉時不顯示）
+    MENU_ITEM_BEACON,
+    // 網路
+    MENU_ITEM_WIFI_INFO,
+    MENU_ITEM_AP_PASS,       // 自動熱點的密碼（唯讀；連不上 WiFi 時手機用它連進來）
+    MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
+    // 裝置資訊
+    MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
+    MENU_ITEM_ABOUT,         // 韌體版本（唯讀）
+    MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
+    // 維護
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
     MENU_ITEM_RESTART,       // 重新啟動：按兩次確認；充電流程中不可用（restart_svc）
-    MENU_ITEM_ABOUT,         // 韌體版本 + 作者（唯讀）
+    // 最上層的最後兩行
     MENU_ITEM_SAVE,
     MENU_ITEM_CANCEL,
     MENU_ITEM_COUNT
 } menu_item_id_t;
+
+static menu_page_t s_page = MENU_PAGE_TOP;
+static int         s_top_cursor, s_top_scroll;   // 回到最上層時游標回到原本那個分類
 
 typedef enum {
     MENU_MODE_NAV,    // navigating items with cursor
@@ -165,6 +196,7 @@ static void menu_open(void)
     s_cursor       = 0;
     s_scroll_top   = 0;
     s_mode         = MENU_MODE_NAV;
+    s_page         = MENU_PAGE_TOP;
     build_visible_list();
     s_screen       = DISP_SCREEN_MENU;
     g_menu_open    = true;
@@ -205,6 +237,13 @@ static void menu_save(void)
 static void item_label(int item, char *buf, size_t bufsz)
 {
     switch ((menu_item_id_t)item) {
+    case MENU_ITEM_BACK:       snprintf(buf, bufsz, "%s", L("< Back", ZH("< 返回")));          break;
+    case MENU_ITEM_GO_CHARGE:  snprintf(buf, bufsz, "%s", L("Charging >", ZH("充電 >")));      break;
+    case MENU_ITEM_GO_AUTO:    snprintf(buf, bufsz, "%s", L("Automation >", ZH("自動化 >")));  break;
+    case MENU_ITEM_GO_DISPLAY: snprintf(buf, bufsz, "%s", L("Screen & light >", ZH("螢幕與燈 >"))); break;
+    case MENU_ITEM_GO_NETWORK: snprintf(buf, bufsz, "%s", L("Network >", ZH("網路 >")));       break;
+    case MENU_ITEM_GO_INFO:    snprintf(buf, bufsz, "%s", L("Device info >", ZH("裝置資訊 >"))); break;
+    case MENU_ITEM_GO_MAINT:   snprintf(buf, bufsz, "%s", L("Maintenance >", ZH("維護 >")));   break;
     case MENU_ITEM_AUTO_VOLTAGE:
         snprintf(buf, bufsz, "%s%s", L("Auto Volt: ", ZH("自動電壓: ")),
                  s_edit_auto_voltage ? L("ON", ZH("開")) : L("OFF", ZH("關")));
@@ -377,8 +416,23 @@ static bool item_is_editable(int item)
     // MENU_ITEM_WIFI_INFO, MENU_ITEM_ABOUT are display-only
 }
 
+static menu_page_t item_page(int item)
+{
+    if (item >= MENU_ITEM_AUTO_VOLTAGE && item <= MENU_ITEM_STOP_ENERGY) return MENU_PAGE_CHARGE;
+    if (item >= MENU_ITEM_SCHEDULER    && item <= MENU_ITEM_AUTO_START)  return MENU_PAGE_AUTO;
+    if (item >= MENU_ITEM_LANG         && item <= MENU_ITEM_BEACON)      return MENU_PAGE_DISPLAY;
+    if (item >= MENU_ITEM_WIFI_INFO    && item <= MENU_ITEM_DEVICE_ID)   return MENU_PAGE_NETWORK;
+    if (item >= MENU_ITEM_BOARD        && item <= MENU_ITEM_PSU_STATUS)  return MENU_PAGE_INFO;
+    if (item >= MENU_ITEM_RESET_FAULT  && item <= MENU_ITEM_RESTART)     return MENU_PAGE_MAINT;
+    return MENU_PAGE_TOP;   // GO_*、SAVE、CANCEL（BACK 另外處理）
+}
+
 static bool item_is_visible(int item)
 {
+    if (item == MENU_ITEM_BACK)
+        return s_page != MENU_PAGE_TOP;
+    if (item_page(item) != s_page)
+        return false;
     if (item == MENU_ITEM_TARGET_SOC)
         return s_edit_stop_mode == STOP_MODE_SOC;
     if (item == MENU_ITEM_STOP_VOLTAGE)
@@ -1138,9 +1192,17 @@ static void render_menu(void)
     display_driver_clear();
     display_driver_set_color(1);
 
-    // Header
+    // Header（英文粗體 7 px 寬，一行 18 字放不下「SETTINGS > …」，所以分類只寫分類名）
     if (s_mode == MENU_MODE_EDIT) header("< EDIT VALUE >", ZH("< 調整數值 >"));
-    else                          header("SETTINGS", ZH("設定"));
+    else switch (s_page) {
+    case MENU_PAGE_CHARGE:  header("CHARGING",   ZH("設定 > 充電"));     break;
+    case MENU_PAGE_AUTO:    header("AUTOMATION", ZH("設定 > 自動化"));   break;
+    case MENU_PAGE_DISPLAY: header("SCREEN & LIGHT",     ZH("設定 > 螢幕與燈")); break;
+    case MENU_PAGE_NETWORK: header("NETWORK",    ZH("設定 > 網路"));     break;
+    case MENU_PAGE_INFO:    header("DEVICE INFO",     ZH("設定 > 裝置資訊")); break;
+    case MENU_PAGE_MAINT:   header("MAINTENANCE",   ZH("設定 > 維護"));     break;
+    default:                header("SETTINGS",              ZH("設定"));           break;
+    }
 
     // Items: 4 visible rows, each 12px tall。中文 12 px 剛好一列，基線在列頂 +10
     bool zh = lang_zh();
@@ -1176,6 +1238,25 @@ static void render_menu(void)
         display_driver_draw_str(120, HEADER_H + (MAX_VISIBLE_ROWS - 1) * ROW_H + ROW_TEXT_OFS, "v");
 
     display_driver_flush();
+}
+
+// 換頁：進分類時記住最上層的游標，回來時放回原本那個分類上
+static void go_page(menu_page_t page)
+{
+    s_restart_armed = false;
+    if (s_page == MENU_PAGE_TOP) {
+        s_top_cursor = s_cursor;
+        s_top_scroll = s_scroll_top;
+    }
+    s_page = page;
+    build_visible_list();
+    if (page == MENU_PAGE_TOP) {
+        s_cursor     = s_top_cursor;
+        s_scroll_top = s_top_scroll;
+    } else {
+        s_cursor     = (s_visible_count > 1) ? 1 : 0;   // 直接停在第一個設定上（「返回」在它上面）
+        s_scroll_top = 0;
+    }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -1230,10 +1311,18 @@ void display_svc_button(uint8_t evt)
             }
             break;
 
+        case EVT_BUTTON_SETTING_LONG:   // 分類裡長按 = 回上一層
+            if (s_page != MENU_PAGE_TOP) go_page(MENU_PAGE_TOP);
+            break;
+
         case EVT_BUTTON_SETTING: // CONFIRM / execute
             {
                 int actual = s_visible_items[s_cursor];
-                if (actual == MENU_ITEM_SAVE) {
+                if (actual == MENU_ITEM_BACK) {
+                    go_page(MENU_PAGE_TOP);
+                } else if (actual >= MENU_ITEM_GO_CHARGE && actual <= MENU_ITEM_GO_MAINT) {
+                    go_page((menu_page_t)(MENU_PAGE_CHARGE + (actual - MENU_ITEM_GO_CHARGE)));
+                } else if (actual == MENU_ITEM_SAVE) {
                     menu_save();
                     menu_close();
                 } else if (actual == MENU_ITEM_CANCEL) {
