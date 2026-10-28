@@ -443,6 +443,10 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     // 韌體版本
     const esp_app_desc_t *app = esp_app_get_description();
     cJSON_AddStringToObject(root, "firmware_version", app->version);
+    {   // 另一個分區裡還在的上一版（2026-10-28）：網頁、App 的「回到上一版」按鈕看這個；沒有就不放
+        char prev[40];
+        if (ota_svc_previous(prev, sizeof prev)) cJSON_AddStringToObject(root, "prev_firmware", prev);
+    }
 
     // 硬體版本（開機時由 AIN3 的分壓 ID 辨識）。hw_known=false 表示這份韌體
     // 不認得這塊板、已退回舊板的分壓係數 —— 電壓讀值不可信，要更新韌體。
@@ -1755,6 +1759,32 @@ static const httpd_uri_t s_uri_post_reboot = {
     .uri = "/reboot", .method = HTTP_POST, .handler = handle_post_reboot
 };
 
+// ── POST /ota/rollback ────────────────────────────────────────────────────────
+// 回到另一個分區裡的上一版（2026-10-28）。充電流程中、更新中、沒有上一版、上一版不認得這塊板子 → 409
+// 附原因。成功就回 ok，1.5 s 後重新啟動（ota_svc_rollback）
+
+static esp_err_t send_json(httpd_req_t *req, cJSON *root, const char *status);
+
+static esp_err_t handle_post_ota_rollback(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char why[96] = "";
+    if (ota_svc_rollback(why, sizeof why) != ESP_OK) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddBoolToObject(o, "ok", false);
+        cJSON_AddStringToObject(o, "error", why);
+        return send_json(req, o, "409 Conflict");
+    }
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_ota_rollback = {
+    .uri = "/ota/rollback", .method = HTTP_POST, .handler = handle_post_ota_rollback
+};
+
 // ── POST /psu/pair ────────────────────────────────────────────────────────────
 
 static esp_err_t handle_post_psu_pair(httpd_req_t *req)
@@ -2697,7 +2727,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 32;   // 目前註冊 30 個，留餘裕
+    cfg.max_uri_handlers  = 36;   // 目前註冊 31 個，留餘裕（節點更新還要一個）
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     // 名額滿了就關掉最久沒用的那條，而不是拒絕新的。沒開時（2026-10-14 前）幾支手機進出家門
@@ -2734,6 +2764,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_post_push);
     httpd_register_uri_handler(s_server, &s_uri_get_push);
     httpd_register_uri_handler(s_server, &s_uri_post_reboot);
+    httpd_register_uri_handler(s_server, &s_uri_post_ota_rollback);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);

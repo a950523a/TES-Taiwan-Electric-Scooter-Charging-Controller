@@ -18,6 +18,7 @@
 #include "services/scheduler_svc.h"
 #include "services/auto_volt.h"
 #include "services/factory_svc.h"
+#include "services/ota_svc.h"
 #include "platform/platform.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -326,6 +327,9 @@ void app_main(void)
     spawn(task_monitor,  "monitor",  4096,   1);
 
     network_svc_start();   // 這裡才真正呼叫 esp_wifi_start()
+
+    // 剛更新的韌體在試用期：跑滿 30 s 沒重開才確認（之前就當機的話 bootloader 退回上一版，見 ota_svc.h）
+    ota_svc_boot_check();
 
     // ESP-NOW transport init — 必須在 esp_wifi_start() 之後。
     // esp_now_init() 要求 WiFi 已經啟動；放在 network_svc_init() 之後會失敗，

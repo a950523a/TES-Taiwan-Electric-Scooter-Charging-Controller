@@ -53,4 +53,6 @@ idf_component_register(
         esp_timer
         esp_driver_tsens
         esp_partition
+        bootloader_support
+        esp_rom
 )

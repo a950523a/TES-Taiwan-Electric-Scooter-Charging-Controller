@@ -1,6 +1,7 @@
 #pragma once
 #include <esp_err.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 // GitHub Releases: OTA 預設來源（POST /ota 不帶 url 時使用）
 #define OTA_DEFAULT_URL \
@@ -39,3 +40,14 @@ esp_err_t   ota_svc_upload_write(const void *data, size_t len);
 void        ota_svc_upload_abort(const char *why);   // 收不到資料、連線斷了：記成錯誤
 esp_err_t   ota_svc_upload_end(void);
 void        ota_svc_reboot(void);                    // 等 1.5 s 讓畫面與輪詢跟上，再重新啟動
+
+// ── 回到上一版（2026-10-28）──────────────────────────────────────────────────
+// 自動：新韌體開機是 PENDING_VERIFY，跑滿 OTA_CONFIRM_MS 沒重開才標成正常；之前就重開的話 bootloader
+// 退回上一版（要新的 bootloader，見 sdkconfig.defaults）。手動：另一個分區裡的上一版還在，就可以切回去
+#define OTA_CONFIRM_MS   30000u
+#define OTA_ROLLBACK_MIN_V13 "v3.6.0"   // V1.3 以後的板子：比這舊的韌體不認得板子 ID，電壓會讀成 77 %
+void        ota_svc_boot_check(void);                // app_main 最後呼叫：PENDING_VERIFY 就排 30 s 後確認
+void        ota_svc_confirm_boot(void);              // 立刻標成正常（使用者重開機、開始更新前）
+bool        ota_svc_previous(char *ver, size_t n);   // 另一個分區有可用的上一版：寫版本字串、回傳 true
+// 切回上一版並重新啟動。充電流程中、更新中、沒有上一版、上一版太舊不認得這塊板子 → 回傳錯誤並寫原因
+esp_err_t   ota_svc_rollback(char *why, size_t n);

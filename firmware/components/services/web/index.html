@@ -278,6 +278,10 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
     <progress class="ota-prog-bar" id="ota-pb" value="0" max="100"></progress>
   </div>
   <button class="b-ota" id="ota-btn" onclick="startOta()">⬆ 更新至最新韌體</button>
+  <div id="rb-wrap" style="display:none;margin-top:8px">
+    <div id="rb-msg"></div>
+    <button class="b-ota" id="rb-btn" onclick="rollbackFw()" style="background:#333">↩ 回到上一版（<span id="rb-ver"></span>）</button>
+  </div>
   <div style="margin-top:12px;border-top:1px solid #333;padding-top:10px">
     <label class="lbl2">手動上傳韌體 (.bin)</label>
     <input type="file" id="ota-file" accept=".bin" style="color:#ccc;font-size:.85em;width:100%;padding:4px 0;box-sizing:border-box">
@@ -1009,6 +1013,12 @@ async function poll(){
     // 周邊裝置
     renderNodes(d.nodes);
 
+    // 回到上一版：另一個分區裡還有上一版才顯示（2026-10-28）
+    {
+      const w=document.getElementById('rb-wrap');
+      if(w){w.style.display=d.prev_firmware?'':'none';if(d.prev_firmware)document.getElementById('rb-ver').textContent=d.prev_firmware;}
+    }
+
     // 韌體版本
     if(d.firmware_version)
       document.getElementById('fw-ver').textContent='目前版本：'+d.firmware_version
@@ -1664,6 +1674,33 @@ async function startOta(){
 
 // 重新啟動：充電流程中裝置會拒絕（409）。成功後等它斷線再回來，回來了就重新載入頁面 ——
 // Auto Volt 開著的話開機要多等幾秒量電源電壓，所以最多等 60 秒。
+async function rollbackFw(){
+  const btn=document.getElementById('rb-btn'),m=document.getElementById('rb-msg');
+  const v=document.getElementById('rb-ver').textContent;
+  if(!confirm('確定要回到上一版 '+v+' 嗎？\n控制器會重新啟動。充電中無法執行。\n\n比較舊的版本可能不認得新版加的資料（例如充電紀錄的 Ah），回去之後下一次充電會用舊格式重新記錄。'))return;
+  btn.disabled=true;m.className='';m.textContent='送出中…';
+  let r;
+  try{ r=await fetch('/ota/rollback',{method:'POST'}); }
+  catch(e){ m.className='err';m.textContent='✗ 連線錯誤';btn.disabled=false;return; }
+  if(!r.ok){
+    const j=await r.json().catch(()=>({}));
+    m.className='err';m.textContent='✗ 無法回到上一版'+(j.error?'（'+j.error+'）':'');
+    btn.disabled=false;return;
+  }
+  m.className='';m.textContent='重新啟動中，請稍候…';
+  const t0=Date.now();let wentDown=false;
+  const poll=async()=>{
+    try{
+      const ac=new AbortController();setTimeout(()=>ac.abort(),2000);
+      const s=await fetch('/status',{cache:'no-store',signal:ac.signal});
+      if(s.ok&&(wentDown||Date.now()-t0>8000)){location.reload();return;}
+    }catch(e){wentDown=true;}
+    if(Date.now()-t0>60000){m.className='err';m.textContent='✗ 60 秒內沒有回應，請確認控制器有電、WiFi 正常後重新整理頁面';btn.disabled=false;return;}
+    setTimeout(poll,2000);
+  };
+  setTimeout(poll,1500);
+}
+
 async function rebootDevice(){
   const btn=document.getElementById('reboot-btn');
   const m=document.getElementById('reboot-msg');

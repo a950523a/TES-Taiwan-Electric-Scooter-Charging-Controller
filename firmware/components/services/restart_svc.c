@@ -1,5 +1,6 @@
 // restart_svc.c — 見 restart_svc.h
 #include "services/restart_svc.h"
+#include "services/ota_svc.h"
 #include "tes_protocol/tes_sm.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -47,6 +48,8 @@ bool restart_svc_request(uint32_t delay_ms, const char *who)
         esp_restart();
     }
     s_pending = true;
+    // 使用者自己要求重開：這版韌體跑得好好的，先確認，免得試用期內重開被當成當機而退回上一版
+    ota_svc_confirm_boot();
     ESP_LOGW(TAG, "restart requested from %s, in %lu ms", who, (unsigned long)delay_ms);
     return true;
 }

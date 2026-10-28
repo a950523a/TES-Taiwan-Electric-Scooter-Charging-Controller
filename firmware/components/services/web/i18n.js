@@ -95,6 +95,11 @@
     '版本未知（節點韌體太舊，不會回報版本）': 'Version unknown (the device firmware is too old to report it)',
     '周邊裝置連線': 'Connected devices', '能力旗標': 'Capability bits', '版本未知（節點不送 INF）': 'Version unknown (the node does not send INF)', '韌體版本': 'Firmware version',
     '開機程式版本': 'Bootloader version', '識別碼': 'Unique id', '協定版本': 'Protocol version',
+    // ── 回到上一版（2026-10-28）──
+    '↩ 回到上一版（{}）': '↩ Back to the previous version ({})', '↩ 回到上一版（': '↩ Back to the previous version (',
+    '確定要回到上一版 {} 嗎？\n控制器會重新啟動。充電中無法執行。\n\n比較舊的版本可能不認得新版加的資料（例如充電紀錄的 Ah），回去之後下一次充電會用舊格式重新記錄。':
+      'Go back to the previous version {}?\nThe controller restarts. Not possible while charging.\n\nAn older version may not understand data added by newer ones (e.g. Ah in the charge history); after going back, the next charge is recorded in the old format.',
+    '✗ 無法回到上一版': '✗ Could not go back to the previous version', '✗ 無法回到上一版（{}）': '✗ Could not go back to the previous version ({})',
     // ── 韌體更新、重新啟動 ──
     '🔄 韌體更新': '🔄 Firmware update', '進度': 'Progress', '⬆ 更新至最新韌體': '⬆ Update to latest firmware',
     '手動上傳韌體 (.bin)': 'Upload firmware (.bin)', '📤 上傳韌體': '📤 Upload firmware', '🔁 重新啟動控制器': '🔁 Restart controller',

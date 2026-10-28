@@ -2045,6 +2045,26 @@ Added 2026-10-28 (the user):
   curl -H "X-TES-Request: 1" --data-binary @tes_charger.bin http://tes-charger.local/ota/upload
   ```
   Without the header the device answers `403 missing X-TES-Request header`.
+- **Back to the previous version (2026-10-28, not tested on hardware).** Both OTA slots keep an image, so the
+  other slot holds the previous version. Two parts:
+  - **Automatic** (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`): a newly flashed image boots `PENDING_VERIFY`;
+    `ota_svc_boot_check()` (end of `app_main`) marks it valid after **30 s** without a reset. A reset before
+    that (crash, watchdog, boot loop) makes the bootloader go back to the previous image. A restart the user
+    asks for (`restart_svc_request`), and starting an OTA, mark it valid first. **OTA never updates the
+    bootloader**: boards in the field keep the old one and get no automatic rollback until they are flashed over
+    USB (web flash tool or factory tool, both write the bootloader). Anti-rollback (eFuse) stays off.
+  - **Manual**: `/status` `prev_firmware` = the version in the other slot (absent when there is none, it is not
+    ours, or the automatic rollback threw it away); `POST /ota/rollback` (CSRF) switches to it and restarts in
+    1.5 s. Refused (409 + reason) while charging or updating, and **when the board is V1.3 or later
+    (`adc_driver_board()->level != 0`) and the previous version is older than `OTA_ROLLBACK_MIN_V13` (v3.6.0)** —
+    those do not read the board ID and would show 77 % of the real voltage (see Release order). After switching,
+    `mark_boot_entry_valid()` writes the new otadata entry as VALID: otherwise an older image without this code
+    would never confirm itself and bounce back on its second restart (with the new bootloader). Web: "↩ 回到上一版"
+    in the firmware card; app: the same on the system page. Not on the OLED. Going back to a version older than a
+    data-format change (e.g. Ah in the charge history, 2026-10-22) loses that data on the next charge — the
+    confirmation says so.
+  - A node update (planned, phase 2) stages its image in **PSRAM**, not in the idle OTA slot, so it never
+    overwrites the previous version.
 
 ---
 

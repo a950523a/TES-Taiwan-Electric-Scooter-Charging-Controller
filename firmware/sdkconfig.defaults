@@ -60,3 +60,10 @@ CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS=n
 
 # --- App version: set by CMakeLists.txt via git describe, not hardcoded here ---
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=n
+
+# App rollback (2026-10-28): a new image boots as PENDING_VERIFY and is marked valid after 30 s
+# (ota_svc_boot_check); if it resets before that, the bootloader goes back to the previous one.
+# Needs the new bootloader - OTA never updates the bootloader, so only boards flashed over USB
+# after this get the automatic part. The manual "back to the previous version" works on all.
+# Anti-rollback (eFuse) stays off on purpose.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

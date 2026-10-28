@@ -1,5 +1,11 @@
 #include "services/ota_svc.h"
 #include "services/event_bus.h"
+#include "services/restart_svc.h"
+#include "drivers/adc_driver.h"
+#include "esp_timer.h"
+#include "esp_flash_partitions.h"
+#include "esp_partition.h"
+#include "esp_rom_crc.h"
 #include "esp_log.h"
 #include "esp_https_ota.h"
 #include "esp_http_client.h"
@@ -176,6 +182,7 @@ static void ota_task(void *arg)
 esp_err_t ota_svc_start(const char *url)
 {
     if (ota_svc_busy()) return ESP_ERR_INVALID_STATE;
+    ota_svc_confirm_boot();   // 試用中的韌體不能開始下一次更新（esp_ota_begin 會拒絕）；使用者在用它更新，就算正常
 
     const char *target = (url && url[0] != '\0') ? url : OTA_DEFAULT_URL;
     strncpy(s_url, target, sizeof(s_url) - 1);
@@ -188,6 +195,110 @@ esp_err_t ota_svc_start(const char *url)
         fail("%s", "task create failed");
         return ESP_FAIL;
     }
+    return ESP_OK;
+}
+
+// ── 回到上一版 ────────────────────────────────────────────────────────────────
+
+void ota_svc_confirm_boot(void)
+{
+    esp_ota_img_states_t st;
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    if (esp_ota_get_state_partition(run, &st) == ESP_OK && st == ESP_OTA_IMG_PENDING_VERIFY) {
+        esp_ota_mark_app_valid_cancel_rollback();
+        ESP_LOGI(TAG, "this firmware is marked valid");
+    }
+}
+
+static void confirm_cb(void *arg) { (void)arg; ota_svc_confirm_boot(); }
+
+void ota_svc_boot_check(void)
+{
+    esp_ota_img_states_t st;
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    if (esp_ota_get_state_partition(run, &st) != ESP_OK || st != ESP_OTA_IMG_PENDING_VERIFY) return;
+    ESP_LOGW(TAG, "new firmware on trial: marked valid after %u s without a reset", OTA_CONFIRM_MS / 1000u);
+    const esp_timer_create_args_t a = { .callback = confirm_cb, .name = "ota_ok" };
+    esp_timer_handle_t t;
+    if (esp_timer_create(&a, &t) != ESP_OK || esp_timer_start_once(t, OTA_CONFIRM_MS * 1000ull) != ESP_OK)
+        ota_svc_confirm_boot();   // 排不了就直接確認：寧可沒有自動回滾，也不要一直卡在試用
+}
+
+// "v3.6.2-36-g1694f05" → 3006002；認不出來回傳 -1
+static long ver_num(const char *v)
+{
+    unsigned a, b, c;
+    if (v[0] == 'v') v++;
+    if (sscanf(v, "%u.%u.%u", &a, &b, &c) != 3) return -1;
+    return (long)a * 1000000L + (long)b * 1000L + (long)c;
+}
+
+static const esp_partition_t *previous_part(esp_app_desc_t *d)
+{
+    const esp_partition_t *p = esp_ota_get_next_update_partition(NULL);
+    if (!p || p == esp_ota_get_running_partition()) return NULL;
+    esp_ota_img_states_t st;
+    if (esp_ota_get_state_partition(p, &st) == ESP_OK &&
+        (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED)) return NULL;   // 自動回滾丟掉的那版
+    if (esp_ota_get_partition_description(p, d) != ESP_OK) return NULL;
+    if (strncmp(d->project_name, esp_app_get_description()->project_name, sizeof d->project_name) != 0)
+        return NULL;
+    return p;
+}
+
+// esp_ota_set_boot_partition() 開了 rollback 時把新的開機項目寫成 NEW：開起來變 PENDING_VERIFY，
+// 那一版要自己確認，否則下一次重開機 bootloader 就丟掉它。手動回到的上一版可能比這個功能還舊、
+// 不會確認 —— 第二次重開機就跳回現在這版。所以切過去之後直接把那個項目標成 VALID（跟 IDF 寫
+// otadata 一樣：讀出、改、抹掉那一個扇區再寫回）。中途斷電只會丟掉這個項目，開回現在這一版
+static esp_err_t mark_boot_entry_valid(void)
+{
+    const esp_partition_t *od = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
+    if (!od) return ESP_ERR_NOT_FOUND;
+    esp_ota_select_entry_t e[2];
+    int best = -1;
+    for (int i = 0; i < 2; i++) {
+        if (esp_partition_read(od, i * od->erase_size, &e[i], sizeof e[i]) != ESP_OK) return ESP_FAIL;
+        bool ok = e[i].ota_seq != UINT32_MAX && e[i].crc == esp_rom_crc32_le(UINT32_MAX, (uint8_t *)&e[i].ota_seq, 4);
+        if (ok && (best < 0 || e[i].ota_seq > e[best].ota_seq)) best = i;
+    }
+    if (best < 0) return ESP_ERR_INVALID_STATE;
+    if (e[best].ota_state == ESP_OTA_IMG_VALID) return ESP_OK;
+    e[best].ota_state = ESP_OTA_IMG_VALID;
+    esp_err_t err = esp_partition_erase_range(od, best * od->erase_size, od->erase_size);
+    if (err == ESP_OK) err = esp_partition_write(od, best * od->erase_size, &e[best], sizeof e[best]);
+    return err;
+}
+
+bool ota_svc_previous(char *ver, size_t n)
+{
+    esp_app_desc_t d;
+    if (!previous_part(&d)) return false;
+    snprintf(ver, n, "%.32s", d.version);
+    return true;
+}
+
+esp_err_t ota_svc_rollback(char *why, size_t n)
+{
+    esp_app_desc_t d;
+    const esp_partition_t *p;
+    if (ota_svc_busy())             { snprintf(why, n, "firmware update in progress"); return ESP_ERR_INVALID_STATE; }
+    if (!restart_svc_allowed())     { snprintf(why, n, "charging - stop first");       return ESP_ERR_INVALID_STATE; }
+    if (!(p = previous_part(&d)))   { snprintf(why, n, "no previous version");         return ESP_ERR_NOT_FOUND; }
+    // V1.3 以後的板子要認得板子 ID 的韌體，否則套用舊板的分壓係數，電壓讀成 77 %（CLAUDE.md「Release order」）
+    const adc_board_t *b = adc_driver_board();
+    long v = ver_num(d.version), min = ver_num(OTA_ROLLBACK_MIN_V13);
+    if (b && b->level != 0 && (v < 0 || v < min)) {
+        snprintf(why, n, "%.32s does not know this board (needs %s or newer)", d.version, OTA_ROLLBACK_MIN_V13);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    ota_svc_confirm_boot();   // 這一版跑得好好的；不確認的話 set_boot 之後狀態會亂
+    esp_err_t err = esp_ota_set_boot_partition(p);   // 會先驗證映像
+    if (err != ESP_OK) { snprintf(why, n, "previous image is damaged (%s)", esp_err_to_name(err)); return err; }
+    if ((err = mark_boot_entry_valid()) != ESP_OK)
+        ESP_LOGW(TAG, "could not mark the previous version valid (%s): it may bounce back after its first restart",
+                 esp_err_to_name(err));
+    ESP_LOGW(TAG, "rolling back to %.32s", d.version);
+    restart_svc_request(1500, "rollback");
     return ESP_OK;
 }
 
@@ -207,6 +318,7 @@ bool ota_svc_busy(void)
 esp_err_t ota_svc_upload_begin(size_t total_size)
 {
     if (ota_svc_busy()) return ESP_ERR_INVALID_STATE;
+    ota_svc_confirm_boot();   // 同 ota_svc_start
 
     s_ota_part = esp_ota_get_next_update_partition(NULL);
     if (!s_ota_part) {
