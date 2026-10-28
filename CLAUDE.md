@@ -1988,6 +1988,17 @@ PSU-Link's README). Same rules as its own OTA: refused while charging, no chargi
 OLED / web / app show one shared progress and result. **Never send OFF to a LianMing for its update** — the
 TES may be running from it; the node keeps its output on and adopts it again after its reboot. A UART
 sensor node keeps a resident bootloader, so a failed transfer is retried, never bricks it.
+Added 2026-10-28 (the user):
+- **Manual upload for every node update**: the user uploads a node image to the TES (web and app, like
+  `POST /ota/upload`, CSRF header required) and the TES relays it to the node. Fetching a published release
+  is optional on top; a node whose images are not published is updated only by upload. Before relaying, the
+  TES checks the image header (node type, hardware-revision range, version, size, SHA-256) against the
+  connected node and refuses a mismatch — the same way its own upload already refuses a LianMing `.bin`.
+- **Show what is connected**: from `CAP` plus the new `INF` (PSU-Link README) — node type, link (UART /
+  ESP-NOW), hardware revision, firmware version string, bootloader version, unique id. A node without `INF`
+  shows "version unknown". Shown on the web (`/hw`, a "connected devices" block with the update button), in the
+  app (same, per the web/app parity rule) and as one OLED settings row (e.g. `PSU: LianMing v1.4.0`).
+  `/hw.json` already carries `fw` from `CAP`; nothing displays it yet.
 
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
 - Web UI pull: "更新至最新韌體" → `POST /ota`
