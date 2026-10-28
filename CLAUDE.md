@@ -2017,6 +2017,19 @@ Added 2026-10-28 (the user):
   shows "version unknown". Shown on the web (`/hw`, a "connected devices" block with the update button), in the
   app (same, per the web/app parity rule) and as one OLED settings row (e.g. `PSU: LianMing v1.4.0`).
   `/hw.json` already carries `fw` from `CAP`; nothing displays it yet.
+- **Where it goes (decided 2026-10-28, the user):**
+  - **Web main page: a new "🔌 周邊裝置" card right below "🔄 韌體更新".** One row per node — kind and link
+    (e.g. 電源 LianMing, ESP-NOW), hardware revision, firmware version, link state — each with "線上更新" (only
+    when the node's images are published) and "上傳 .bin". One update at a time, so it can share the progress
+    bar with the TES's own; the card title marks "有新版". No node: "沒有連線的周邊裝置".
+  - **`/hw` page:** the "PSU 連線" card becomes "周邊裝置連線" and carries the debugging details — unique id,
+    bootloader version, protocol version, caps bits, RSSI / UART error counts.
+  - **App:** the same block on the system page (where firmware update is) and the details on the hw page.
+  - **OLED: a seventh top-level category "周邊裝置 ›"** (Settings Menu table above). One row per node
+    (`電源 LianMing v1.4.0`); selecting one opens its detail page (hardware, firmware, link, id). The PSU link
+    row moves here from 裝置資訊, which keeps only the TES's own facts. **Read-only — no update from the OLED**
+    (it needs a file and a confirmation; the TES's own update is not on the OLED either). During a node update
+    the existing update screen shows the node's name (e.g. 更新電源韌體). No node: one row "沒有連線".
 
 - First flash: GitHub Pages tool at `https://a950523a.github.io/TES-Taiwan-Electric-Scooter-Charging-Controller/`
 - Web UI pull: "更新至最新韌體" → `POST /ota`
