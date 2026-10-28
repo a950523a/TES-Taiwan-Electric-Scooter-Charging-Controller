@@ -1128,7 +1128,8 @@ static bool render_ota(uint32_t now)
         text(0, lang_zh() ? 44 : 41, EN_SMALL, "Old firmware kept", ZH("原本的韌體照常運作"));
         text(0, lang_zh() ? 60 : 54, EN_SMALL, "Try again from web/app", ZH("請從網頁或App重試"));
     } else {
-        header(upload ? "FW UPLOAD" : "FW UPDATE", upload ? ZH("上傳韌體") : ZH("線上更新韌體"));
+        if (ota_svc_source() == OTA_SRC_NODE) header("PSU FW UPDATE", ZH("更新電源韌體"));   // 控制器轉傳給節點
+        else header(upload ? "FW UPLOAD" : "FW UPDATE", upload ? ZH("上傳韌體") : ZH("線上更新韌體"));
         int pct = st == OTA_STATE_REBOOTING ? 100 : ota_svc_progress_pct();
         display_driver_draw_frame(0, 22, 128, 10);
         display_driver_draw_box(2, 24, (124 * pct) / 100, 6);

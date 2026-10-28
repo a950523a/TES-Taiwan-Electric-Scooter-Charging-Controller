@@ -300,6 +300,18 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
 <div class="card">
   <section-title>🔌 周邊裝置</section-title>
   <div id="nodes-box" style="font-size:.9em;line-height:1.7;color:#ccc">沒有連線的周邊裝置</div>
+  <!-- 上傳節點的 .bin，控制器收下後轉傳（2026-10-28）。放在 nodes-box 外面：那塊每秒重畫，選好的檔案會不見 -->
+  <div id="node-up" style="display:none;margin-top:10px;border-top:1px solid #333;padding-top:10px">
+    <label class="lbl2">上傳電源節點韌體 (.bin)，由控制器轉傳</label>
+    <input type="file" id="node-file" accept=".bin" style="color:#ccc;font-size:.85em;width:100%;padding:4px 0;box-sizing:border-box">
+    <button class="b-ota" id="node-up-btn" onclick="uploadNode()" style="margin-top:6px">📤&nbsp;上傳並更新電源節點</button>
+    <div class="ota-prog-wrap" id="node-pw">
+      <div class="prog-label"><span id="node-step">進度</span><span id="node-pct">0%</span></div>
+      <progress class="ota-prog-bar" id="node-pb" value="0" max="100"></progress>
+    </div>
+    <div id="node-msg"></div>
+  </div>
+  <div id="node-old" style="display:none;margin-top:8px;font-size:.85em;color:#999">這個節點的韌體還不能從控制器更新：先用 USB 更新一次，之後就能從這裡更新</div>
 </div>
 
 <!-- 設定 -->
@@ -1012,6 +1024,7 @@ async function poll(){
 
     // 周邊裝置
     renderNodes(d.nodes);
+    renderNodeUpdate(d);
 
     // 回到上一版：另一個分區裡還有上一版才顯示（2026-10-28）
     {
@@ -1036,7 +1049,12 @@ async function poll(){
     const startBtn=document.querySelector('.b-start');
     const otaBusy=d.ota_state==='running'||d.ota_state==='rebooting'||(!d.ota_state&&d.ota_running);
     if(startBtn)startBtn.disabled=otaBusy;
-    if(d.ota_state==='rebooting'){
+    if(d.ota_source==='node'){
+      // 轉傳給節點：進度與結果顯示在「周邊裝置」卡片（renderNodeUpdate），這裡只把按鈕鎖住
+      pw.style.display='none';
+      om.className='';om.textContent=otaBusy?'電源節點更新中，完成前不能更新控制器':'';
+      btn.disabled=otaBusy;upBtn.disabled=otaBusy;
+    } else if(d.ota_state==='rebooting'){
       otaShowRebooting();
     } else if(otaBusy){
       pw.style.display='block';
@@ -1727,6 +1745,67 @@ async function rebootDevice(){
     setTimeout(poll,2000);
   };
   setTimeout(poll,1500);
+}
+
+// 周邊裝置卡片裡的節點更新：上傳到控制器（XHR 進度），之後控制器轉傳（/status 的 ota_*，ota_source = node）
+let nodeUploading=false;
+function renderNodeUpdate(d){
+  const up=document.getElementById('node-up'),old=document.getElementById('node-old');
+  if(!up)return;
+  const list=d.nodes||[];
+  const canUp=list.some(n=>n.updatable);
+  up.style.display=canUp?'':'none';
+  old.style.display=!canUp&&list.length?'':'none';
+  if(nodeUploading)return;                       // 上傳中：進度由 XHR 顯示
+  const pw=document.getElementById('node-pw'),m=document.getElementById('node-msg'),b=document.getElementById('node-up-btn');
+  const mine=d.ota_source==='node';
+  const busy=d.ota_state==='running'||d.ota_state==='rebooting';
+  b.disabled=busy;
+  if(mine&&d.ota_state==='running'){
+    pw.style.display='block';
+    document.getElementById('node-step').textContent='轉傳到電源節點';
+    document.getElementById('node-pb').value=d.ota_progress||0;
+    document.getElementById('node-pct').textContent=(d.ota_progress||0)+'%';
+    m.className='';m.textContent='轉傳中，不要斷電、不要拔線。電源輸出照常';
+  }else if(mine&&d.ota_error){
+    pw.style.display='none';
+    m.className='err';m.textContent='✗ 更新失敗：'+d.ota_error+'（電源節點照跑原本的韌體）';
+  }else if(d.ota_node){
+    pw.style.display='none';
+    if(d.ota_node.result==='ok'){m.className='ok';m.textContent='✓ 電源節點已更新到 '+d.ota_node.ver;}
+    else{m.className='';m.textContent='傳完了，但還沒看到節點回報新版本（'+d.ota_node.ver+'）。等它重新連上後看上面的版本';}
+  }else if(busy){
+    m.className='';m.textContent='控制器正在更新，完成後才能更新電源節點';
+  }
+}
+
+async function uploadNode(){
+  const file=document.getElementById('node-file').files[0];
+  if(!file){alert('請先選擇 .bin 檔案');return;}
+  if(!confirm('上傳 '+file.name+' 並更新電源節點？\n\n更新期間電源輸出照常、不能開始充電。第一次請不要接車，控制器也先用別的電源供電。'))return;
+  const pw=document.getElementById('node-pw'),m=document.getElementById('node-msg'),b=document.getElementById('node-up-btn');
+  b.disabled=true;pw.style.display='block';nodeUploading=true;
+  document.getElementById('node-step').textContent='上傳到控制器';
+  document.getElementById('node-pb').value=0;document.getElementById('node-pct').textContent='0%';
+  m.className='';m.textContent='上傳中…';
+  const xhr=new XMLHttpRequest();
+  xhr.open('POST','/node/upload');
+  xhr.setRequestHeader('Content-Type','application/octet-stream');
+  xhr.setRequestHeader('X-TES-Request','1');
+  xhr.upload.onprogress=e=>{
+    if(!e.lengthComputable)return;
+    const p=Math.floor(e.loaded*100/e.total);
+    document.getElementById('node-pb').value=p;document.getElementById('node-pct').textContent=p+'%';
+  };
+  const failed=why=>{nodeUploading=false;b.disabled=false;pw.style.display='none';m.className='err';m.textContent='✗ 更新失敗'+(why?'：'+why:'')+'（電源節點照跑原本的韌體）';};
+  xhr.onload=()=>{
+    nodeUploading=false;
+    if(xhr.status===200){m.className='';m.textContent='控制器收下了，開始轉傳…';return;}
+    let why='';try{why=JSON.parse(xhr.responseText).error||'';}catch(e){why=(xhr.responseText||'').trim();}
+    failed(why||('HTTP '+xhr.status));
+  };
+  xhr.onerror=()=>failed('連線中斷');
+  xhr.send(file);
 }
 
 async function uploadFirmware(){

@@ -100,6 +100,15 @@ static uint16_t s_set_seq        = 0;
 
 static const uint8_t BCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+// ── 節點韌體更新的送出端（psu_fw_tx）：只在 psu_driver_poll() 的任務裡動 ─────────────
+static psu_fw_tx_t       s_fw;
+static volatile bool     s_fw_req, s_fw_cancel;
+static const uint8_t    *s_fw_img;
+static uint32_t          s_fw_size;
+static uint8_t           s_fw_sha[32];
+static char              s_fw_name[PSU_VER_STR_MAX + 1], s_fw_ver[PSU_VER_STR_MAX + 1];
+static volatile psu_fw_progress_t s_fw_prog;
+
 // ── Link state ────────────────────────────────────────────────────────────────
 
 // 斷線時連節點身分一起清掉：下一個連上的可能是另一個節點（或同一個重開機、換過韌體）
@@ -111,6 +120,11 @@ static void link_down(void)
     s_status.current    = 0.f;
     s_status.caps_known = false;
     s_status.info_known = false;
+    if (psu_fw_tx_running(&s_fw)) {              // 傳到一半斷線：失敗（節點 30 s 沒收到東西自己會放棄）
+        psu_msg_t dummy;
+        psu_fw_tx_abort(&s_fw, PSU_FW_ABORTED, &dummy);
+        ESP_LOGW(TAG, "node update: link lost");
+    }
     s_status.pwr_known  = false;
     s_status.pmax_w     = 0;
     s_status.mode       = PSU_MODE_UNKNOWN;
@@ -341,6 +355,13 @@ static void handle_line(const char *line, size_t len)
     case PSU_MSG_ACK:    link_alive(); on_ack(&m.u.ack);       break;
     case PSU_MSG_POWER:  link_alive(); on_power(&m.u.power);   break;
     case PSU_MSG_INFO:   link_alive(); on_info(&m.u.info);     break;
+    case PSU_MSG_FW_ACK:
+    case PSU_MSG_FW_ABORT: {
+        link_alive();
+        psu_msg_t out;
+        if (psu_fw_tx_on_msg(&s_fw, &m, now_ms(), &out)) send_msg(&out);
+        break;
+    }
     default:             break;   // HELO / SET 是控制板送出的方向，收到就忽略
     }
 }
@@ -726,6 +747,58 @@ bool psu_driver_has_peer(void)
     return s_transport == PSU_TRANSPORT_ESPNOW && s_has_peer;
 }
 
+// 節點更新：開始、取消、逾時重送，並更新給其他任務讀的進度
+static void fw_poll(void)
+{
+    psu_msg_t out;
+    if (s_fw_cancel) {
+        s_fw_cancel = false;
+        s_fw_req    = false;
+        if (psu_fw_tx_running(&s_fw)) { psu_fw_tx_abort(&s_fw, PSU_FW_ABORTED, &out); send_msg(&out); }
+    }
+    if (s_fw_req) {
+        s_fw_req = false;
+        if (!s_status.connected || !s_status.caps_known || !(s_status.caps & PSU_CAP_FW_UPDATE)) {
+            memset(&s_fw, 0, sizeof s_fw);
+            s_fw.state  = PSU_FW_TX_FAILED;
+            s_fw.result = PSU_FW_REFUSED;
+        } else {
+            psu_fw_tx_start(&s_fw, s_fw_img, s_fw_size, s_fw_sha, s_fw_name, s_fw_ver, now_ms(), &out);
+            send_msg(&out);
+            ESP_LOGI(TAG, "node update: %s %s, %lu bytes", s_fw_name, s_fw_ver, (unsigned long)s_fw_size);
+        }
+    }
+    if (psu_fw_tx_tick(&s_fw, now_ms(), &out)) send_msg(&out);
+    s_fw_prog.state   = s_fw.state;
+    s_fw_prog.result  = s_fw.result;
+    s_fw_prog.pct     = psu_fw_tx_percent(&s_fw);
+    s_fw_prog.pending = s_fw_req;
+}
+
+esp_err_t psu_driver_fw_start(const uint8_t *img, uint32_t size, const uint8_t sha256[32],
+                              const char *name, const char *ver)
+{
+    if (s_fw_req || psu_fw_tx_running(&s_fw)) return ESP_ERR_INVALID_STATE;
+    s_fw_img  = img;
+    s_fw_size = size;
+    memcpy(s_fw_sha, sha256, 32);
+    strlcpy(s_fw_name, name, sizeof s_fw_name);
+    strlcpy(s_fw_ver, ver, sizeof s_fw_ver);
+    s_fw_prog.pending = true;
+    s_fw_prog.state   = PSU_FW_TX_IDLE;
+    s_fw_req = true;
+    return ESP_OK;
+}
+
+void psu_driver_fw_cancel(void) { s_fw_cancel = true; }
+
+psu_fw_progress_t psu_driver_fw_get(void)
+{
+    psu_fw_progress_t p;
+    p.state = s_fw_prog.state; p.result = s_fw_prog.result; p.pct = s_fw_prog.pct; p.pending = s_fw_prog.pending;
+    return p;
+}
+
 void psu_driver_poll(void)
 {
     s_poll_ticks++;
@@ -747,6 +820,8 @@ void psu_driver_poll(void)
                  s_transport == PSU_TRANSPORT_ESPNOW ? "ESP-NOW" : "UART",
                  (unsigned long)(timeout * 10));
     }
+
+    fw_poll();
 
     // ESP-NOW：告訴節點我們在哪個頻道（$CHN，2026-10-18）。節點停在隔壁頻道時，漏過來的封包讓握手
     // 照樣成功、之後時通時斷，它自己的「連續送不出去才重找」又被偶爾的成功歸零 —— 實機卡過。

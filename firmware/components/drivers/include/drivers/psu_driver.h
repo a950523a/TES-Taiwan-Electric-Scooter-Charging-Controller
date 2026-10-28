@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "psu_link/psu_link.h"
+#include "psu_link/psu_fw.h"
 
 // 電源節點連線（UART 或 ESP-NOW）。線上格式由 PSU-Link 子模組（psu_link/psu_link.h）定義：
 //   節點 → 控制板   $CAP / $ST / $ACK
@@ -137,3 +138,17 @@ psu_pair_info_t psu_driver_pair_info(void);
 
 // ESP-NOW 專用：是否已有已配對的 peer（transport=UART 時永遠回傳 false）
 bool psu_driver_has_peer(void);
+
+// ── 轉傳節點韌體更新（PSU-Link psu_fw，2026-10-28）──────────────────────────────
+// img 由呼叫端配置（PSRAM），整個傳輸期間都要有效；結束（psu_driver_fw_get 不再 running）才能釋放。
+// 送出、重送、收 FWA 都在 psu_driver_poll() 裡（task_hal_poll），這裡只是排進去。連線斷了就失敗
+esp_err_t psu_driver_fw_start(const uint8_t *img, uint32_t size, const uint8_t sha256[32],
+                              const char *name, const char *ver);
+void      psu_driver_fw_cancel(void);
+typedef struct {
+    psu_fw_tx_state_t state;
+    uint8_t           result;    // psu_fw_result_t（FAILED 的原因；DONE 時 NOT_BEGUN = 成功但沒收到確認）
+    int               pct;
+    bool              pending;   // 已排入、還沒開始
+} psu_fw_progress_t;
+psu_fw_progress_t psu_driver_fw_get(void);

@@ -341,6 +341,7 @@ static esp_err_t handle_get_status(httpd_req_t *req)
                 cJSON_AddNumberToObject(n, "type", psu_st.node_type);
                 cJSON_AddNumberToObject(n, "fw_code", psu_st.fw_ver);
                 cJSON_AddBoolToObject  (n, "info_known", psu_st.info_known);
+                cJSON_AddBoolToObject  (n, "updatable", (psu_st.caps & PSU_CAP_FW_UPDATE) != 0);   // 收 /node/upload
                 if (psu_st.info_known) {
                     cJSON_AddNumberToObject(n, "hw", psu_st.hw_rev);
                     cJSON_AddStringToObject(n, "fw", psu_st.fw_str);
@@ -379,6 +380,15 @@ static esp_err_t handle_get_status(httpd_req_t *req)
     // 2026-10-27：線上、上傳同一套狀態，網頁、App、OLED 看到的一樣。rebooting = 寫完了、正在重開
     cJSON_AddStringToObject(root, "ota_state",    ota_svc_state_name(ota_st));
     cJSON_AddStringToObject(root, "ota_source",   ota_svc_source_name(ota_svc_source()));
+    {   // 節點更新剛結束（60 s 內）："ok" = 節點回報了新版本、"unconfirmed" = 傳完了但沒看到新版本
+        const char *ver;
+        const char *res = ota_svc_node_result(&ver);
+        if (res[0]) {
+            cJSON *o = cJSON_AddObjectToObject(root, "ota_node");
+            cJSON_AddStringToObject(o, "result", res);
+            cJSON_AddStringToObject(o, "ver", ver);
+        }
+    }
     if (ota_st == OTA_STATE_ERROR)
         cJSON_AddStringToObject(root, "ota_error", ota_svc_get_error());
 
@@ -1011,6 +1021,46 @@ static const httpd_uri_t s_uri_post_ota = {
 #define OTA_UPLOAD_BUF 4096
 #define OTA_RECV_TIMEOUTS 3   // 連續幾次 30 s 收不到資料才放棄
 
+// 把上傳的內容一塊一塊交給 write()（控制器自己的韌體、節點的韌體共用）。失敗時呼叫 abort()、
+// 已經回了錯誤給上傳的人，回傳 false
+static bool recv_upload(httpd_req_t *req, esp_err_t (*write)(const void *, size_t), void (*abort)(const char *))
+{
+    static char buf[OTA_UPLOAD_BUF];
+    int remaining = (int)req->content_len;
+    int timeouts = 0;
+    int last_tenth = -1;
+    while (remaining > 0) {
+        int to_recv = remaining < OTA_UPLOAD_BUF ? remaining : OTA_UPLOAD_BUF;
+        int64_t t0 = esp_timer_get_time();
+        int received = httpd_req_recv(req, buf, (size_t)to_recv);
+        int32_t waited_ms = (int32_t)((esp_timer_get_time() - t0) / 1000);
+        int32_t done_kb = (int32_t)((req->content_len - remaining) / 1024);
+        if (waited_ms > 2000) netlog_add(NETLOG_OTA_STALL, waited_ms, done_kb);
+        // 逾時（recv_wait_timeout 30 s 沒資料）不代表連線斷了：再等，最多 OTA_RECV_TIMEOUTS 次。
+        // 以前一次逾時就放棄，到了 9x % 卡一下就前功盡棄（2026-10-20）
+        if (received == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= OTA_RECV_TIMEOUTS) continue;
+        if (received <= 0) {
+            abort(received == HTTPD_SOCK_ERR_TIMEOUT ? "no data for 90 s" : "connection lost");
+            netlog_add(NETLOG_OTA_END, 1, done_kb);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
+            return false;
+        }
+        if (write(buf, (size_t)received) != ESP_OK) {
+            netlog_add(NETLOG_OTA_END, 2, done_kb);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
+            return false;
+        }
+        remaining -= received;
+        int tenth = (int)((int64_t)(req->content_len - remaining) * 10 / req->content_len);
+        if (tenth != last_tenth) {
+            last_tenth = tenth;
+            netlog_add(NETLOG_OTA, tenth * 10, (int32_t)((req->content_len - remaining) / 1024));
+        }
+    }
+    netlog_add(NETLOG_OTA_END, 0, (int32_t)(req->content_len / 1024));
+    return true;
+}
+
 static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 {
     if (!csrf_ok(req)) return ESP_FAIL;
@@ -1039,40 +1089,7 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    static char buf[OTA_UPLOAD_BUF];
-    int remaining = (int)req->content_len;
-    int timeouts = 0;
-    int last_tenth = -1;
-    while (remaining > 0) {
-        int to_recv = remaining < OTA_UPLOAD_BUF ? remaining : OTA_UPLOAD_BUF;
-        int64_t t0 = esp_timer_get_time();
-        int received = httpd_req_recv(req, buf, (size_t)to_recv);
-        int32_t waited_ms = (int32_t)((esp_timer_get_time() - t0) / 1000);
-        int32_t done_kb = (int32_t)((req->content_len - remaining) / 1024);
-        if (waited_ms > 2000) netlog_add(NETLOG_OTA_STALL, waited_ms, done_kb);
-        // 逾時（recv_wait_timeout 30 s 沒資料）不代表連線斷了：再等，最多 OTA_RECV_TIMEOUTS 次。
-        // 以前一次逾時就放棄，到了 9x % 卡一下就前功盡棄（2026-10-20）
-        if (received == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= OTA_RECV_TIMEOUTS) continue;
-        if (received <= 0) {
-            ota_svc_upload_abort(received == HTTPD_SOCK_ERR_TIMEOUT ? "no data for 90 s" : "connection lost");
-            netlog_add(NETLOG_OTA_END, 1, done_kb);
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "receive failed");
-            return ESP_FAIL;
-        }
-        err = ota_svc_upload_write(buf, (size_t)received);
-        if (err != ESP_OK) {
-            netlog_add(NETLOG_OTA_END, 2, done_kb);
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ota_svc_get_error());
-            return ESP_FAIL;
-        }
-        remaining -= received;
-        int tenth = (int)((int64_t)(req->content_len - remaining) * 10 / req->content_len);
-        if (tenth != last_tenth) {
-            last_tenth = tenth;
-            netlog_add(NETLOG_OTA, tenth * 10, (int32_t)((req->content_len - remaining) / 1024));
-        }
-    }
-    netlog_add(NETLOG_OTA_END, 0, (int32_t)(req->content_len / 1024));
+    if (!recv_upload(req, ota_svc_upload_write, ota_svc_upload_abort)) return ESP_FAIL;
 
     // 先驗證、設好開機分區，再回應：以前先回 ok 才驗證，驗證失敗時上傳的人以為成功了
     set_cors(req);
@@ -1088,6 +1105,38 @@ static esp_err_t handle_post_ota_upload(httpd_req_t *req)
 
 static const httpd_uri_t s_uri_post_ota_upload = {
     .uri = "/ota/upload", .method = HTTP_POST, .handler = handle_post_ota_upload
+};
+
+// ── POST /node/upload ─────────────────────────────────────────────────────────
+// 上傳節點（目前是 LianMing 電源）的 .bin，控制器收進 PSRAM、檢查後轉傳（2026-10-28，見 ota_svc.h）。
+// 回 ok 時只代表「收下了、開始轉傳」；進度與結果看 /status 的 ota_*（ota_source = node）與 ota_node
+
+static esp_err_t send_json(httpd_req_t *req, cJSON *root, const char *status);
+
+static esp_err_t node_upload_err(httpd_req_t *req, const char *status, const char *why)
+{
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", false);
+    cJSON_AddStringToObject(o, "error", why);
+    return send_json(req, o, status);
+}
+
+static esp_err_t handle_post_node_upload(httpd_req_t *req)
+{
+    if (!csrf_ok(req)) return ESP_FAIL;
+    char why[112] = "";
+    if (ota_svc_node_begin((size_t)req->content_len, why, sizeof why) != ESP_OK)
+        return node_upload_err(req, "409 Conflict", why);
+    if (!recv_upload(req, ota_svc_node_write, ota_svc_node_abort)) return ESP_FAIL;
+    if (ota_svc_node_end(why, sizeof why) != ESP_OK) return node_upload_err(req, "400 Bad Request", why);
+    httpd_resp_set_type(req, "application/json");
+    set_cors(req);
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static const httpd_uri_t s_uri_post_node_upload = {
+    .uri = "/node/upload", .method = HTTP_POST, .handler = handle_post_node_upload
 };
 
 // ── GET /manifest.json ────────────────────────────────────────────────────────
@@ -2727,7 +2776,7 @@ static void start_http_server(void)
 {
     httpd_config_t cfg  = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size        = 8192;
-    cfg.max_uri_handlers  = 36;   // 目前註冊 31 個，留餘裕（節點更新還要一個）
+    cfg.max_uri_handlers  = 36;   // 目前註冊 32 個，留餘裕
     cfg.recv_wait_timeout = 30;   // allow slow WiFi during firmware upload
     cfg.open_fn           = http_sock_open;
     // 名額滿了就關掉最久沒用的那條，而不是拒絕新的。沒開時（2026-10-14 前）幾支手機進出家門
@@ -2765,6 +2814,7 @@ static void start_http_server(void)
     httpd_register_uri_handler(s_server, &s_uri_get_push);
     httpd_register_uri_handler(s_server, &s_uri_post_reboot);
     httpd_register_uri_handler(s_server, &s_uri_post_ota_rollback);
+    httpd_register_uri_handler(s_server, &s_uri_post_node_upload);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair);
     httpd_register_uri_handler(s_server, &s_uri_post_psu_pair_confirm);
     httpd_register_uri_handler(s_server, &s_uri_get_mqtt_link);

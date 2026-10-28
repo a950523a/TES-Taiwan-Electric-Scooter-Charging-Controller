@@ -2023,7 +2023,19 @@ Added 2026-10-28 (the user):
   array (`kind`, `link`, `type`, `fw_code`, `info_known`, and `hw` / `fw` / `boot` when known — an array so a
   current-sensor node can join it); `/hw.json` `psu` adds `proto`, `info_known`, `hw`, `fw_str`, `boot`, `uid`;
   the web card, the `/hw` card and the OLED category below exist (read-only). LianMing sends `INF` since its
-  0aea095. **Phase 2 (not started): the update relay** — `FWB`/`FWD`/`FWA`/`FWE`/`FWX`, upload endpoint, buttons.
+  0aea095.
+- **Phase 2 done (2026-10-28, not tested on hardware): the update relay.** `POST /node/upload` (CSRF) →
+  `ota_svc_node_begin/write/end`: refused while charging or updating, or when the node does not declare
+  `PSU_CAP_FW_UPDATE`; the file goes to **PSRAM** (≤ 2 MB); `node_end` reads the ESP-IDF app descriptor (refuses a
+  non-ESP image and the TES's own firmware), takes `project_name` + version, computes the SHA-256 and hands it to
+  `psu_driver_fw_start()`. `psu_driver` runs PSU-Link's `psu_fw_tx` in `psu_driver_poll()` (sends, resends, `FWA`),
+  failing on link loss. A `node_fw` task follows the progress, frees the buffer, then waits up to 30 s for the node
+  to reconnect with the new version in `INF` → `/status` `ota_node` `{result: ok|unconfirmed, ver}` for 60 s.
+  Shares the OTA state as `OTA_SRC_NODE` (`ota_source: "node"`), so `ota_svc_busy()` blocks charging and the OLED
+  update screen shows 更新電源韌體. `/status` `nodes[].updatable`. Web: upload box and relay progress in the
+  connected-devices card (the firmware card only locks its buttons); app: the same on the system page. The upload
+  loop is shared with `/ota/upload` (`recv_upload`). `PSU_LINK_MAX_LINE` is 224 since this (was 96): check the
+  `hal_poll` stack headroom on hardware. **First hardware test: no vehicle, TES on its own supply.**
 - **Where it goes (decided 2026-10-28, the user):**
   - **Web main page: a new "🔌 周邊裝置" card right below "🔄 韌體更新".** One row per node — kind and link
     (e.g. 電源 LianMing, ESP-NOW), hardware revision, firmware version, link state — each with "線上更新" (only

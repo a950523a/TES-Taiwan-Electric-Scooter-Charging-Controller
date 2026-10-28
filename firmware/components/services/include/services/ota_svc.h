@@ -21,6 +21,7 @@ typedef enum {
     OTA_SRC_NONE   = 0,
     OTA_SRC_ONLINE = 1,   // POST /ota：從 GitHub（或指定網址）下載
     OTA_SRC_UPLOAD = 2,   // POST /ota/upload：網頁或 App 上傳 .bin
+    OTA_SRC_NODE   = 3,   // POST /node/upload：上傳節點的 .bin，由控制器轉傳（2026-10-28）
 } ota_source_t;
 
 // url: NULL 或 "" → 使用 OTA_DEFAULT_URL
@@ -51,3 +52,16 @@ void        ota_svc_confirm_boot(void);              // 立刻標成正常（使
 bool        ota_svc_previous(char *ver, size_t n);   // 另一個分區有可用的上一版：寫版本字串、回傳 true
 // 切回上一版並重新啟動。充電流程中、更新中、沒有上一版、上一版太舊不認得這塊板子 → 回傳錯誤並寫原因
 esp_err_t   ota_svc_rollback(char *why, size_t n);
+
+// ── 轉傳節點更新（2026-10-28）────────────────────────────────────────────────
+// 跟控制器自己的更新共用同一個狀態（OTA_SRC_NODE）：OLED／網頁／App 一樣顯示，ota_svc_busy() 一樣擋充電。
+// 收檔放 PSRAM（不寫控制器的 flash，上一版還在另一個分區）。node_end() 檢查映像（ESP-IDF app 描述：
+// 不能是控制器自己的韌體）、算 SHA-256，交給 psu_driver 轉傳，背景任務跟進度；節點驗證、重開、
+// 重新連上後用它的 INF 版本確認。失敗時節點照跑原本的韌體
+esp_err_t   ota_svc_node_begin(size_t total, char *why, size_t n);   // 充電中、更新中、節點不能更新 → 錯誤
+esp_err_t   ota_svc_node_write(const void *data, size_t len);
+void        ota_svc_node_abort(const char *why);
+esp_err_t   ota_svc_node_end(char *why, size_t n);
+// 最近一次節點更新的結果，結束後 60 s 內有效："ok"（節點回報新版本）、"unconfirmed"（傳完了但沒看到新
+// 版本）；其他時候 ""。ver = 送出的版本
+const char *ota_svc_node_result(const char **ver);

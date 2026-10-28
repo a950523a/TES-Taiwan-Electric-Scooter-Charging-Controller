@@ -95,6 +95,21 @@
     '版本未知（節點韌體太舊，不會回報版本）': 'Version unknown (the device firmware is too old to report it)',
     '周邊裝置連線': 'Connected devices', '能力旗標': 'Capability bits', '版本未知（節點不送 INF）': 'Version unknown (the node does not send INF)', '韌體版本': 'Firmware version',
     '開機程式版本': 'Bootloader version', '識別碼': 'Unique id', '協定版本': 'Protocol version',
+    // ── 周邊裝置更新（2026-10-28）──
+    '上傳電源節點韌體 (.bin)，由控制器轉傳': 'Upload power-supply node firmware (.bin); the controller relays it',
+    '📤 上傳並更新電源節點': '📤 Upload and update the power-supply node',
+    '這個節點的韌體還不能從控制器更新：先用 USB 更新一次，之後就能從這裡更新': 'This node\'s firmware cannot be updated through the controller yet: update it over USB once, then it can be updated from here',
+    '轉傳到電源節點': 'Relaying to the node', '上傳到控制器': 'Uploading to the controller', '上傳中…': 'Uploading…',
+    '轉傳中，不要斷電、不要拔線。電源輸出照常': 'Relaying — do not power off or unplug. The power output stays on',
+    '✗ 更新失敗：{}（電源節點照跑原本的韌體）': '✗ Update failed: {} (the node keeps running its old firmware)',
+    '✗ 更新失敗（電源節點照跑原本的韌體）': '✗ Update failed (the node keeps running its old firmware)',
+    '✓ 電源節點已更新到 {}': '✓ The node now runs {}',
+    '傳完了，但還沒看到節點回報新版本（{}）。等它重新連上後看上面的版本': 'Sent, but the node has not reported the new version ({}) yet. Check the version above once it reconnects',
+    '控制器正在更新，完成後才能更新電源節點': 'The controller is updating; the node can be updated afterwards',
+    '電源節點更新中，完成前不能更新控制器': 'The node is updating; the controller can be updated afterwards',
+    '控制器收下了，開始轉傳…': 'The controller has the file; relaying…',
+    '上傳 {} 並更新電源節點？\n\n更新期間電源輸出照常、不能開始充電。第一次請不要接車，控制器也先用別的電源供電。':
+      'Upload {} and update the power-supply node?\n\nThe power output stays on and charging cannot start during the update. The first time, do not connect a vehicle and power the controller from another supply.',
     // ── 回到上一版（2026-10-28）──
     '↩ 回到上一版（{}）': '↩ Back to the previous version ({})', '↩ 回到上一版（': '↩ Back to the previous version (',
     '確定要回到上一版 {} 嗎？\n控制器會重新啟動。充電中無法執行。\n\n比較舊的版本可能不認得新版加的資料（例如充電紀錄的 Ah），回去之後下一次充電會用舊格式重新記錄。':
