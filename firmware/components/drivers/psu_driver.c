@@ -110,6 +110,7 @@ static void link_down(void)
     s_status.voltage    = 0.f;
     s_status.current    = 0.f;
     s_status.caps_known = false;
+    s_status.info_known = false;
     s_status.pwr_known  = false;
     s_status.pmax_w     = 0;
     s_status.mode       = PSU_MODE_UNKNOWN;
@@ -178,6 +179,23 @@ static void on_status(const psu_msg_status_t *st)
     taskEXIT_CRITICAL(&s_status_mux);
     s_last_st_ticks = s_poll_ticks;
     s_have_st       = true;
+}
+
+static void on_info(const psu_msg_info_t *inf)
+{
+    bool first = !s_status.info_known;
+    taskENTER_CRITICAL(&s_status_mux);
+    s_status.info_known = true;
+    s_status.hw_rev     = inf->hw_rev;
+    memcpy(s_status.fw_str,   inf->fw,   sizeof s_status.fw_str);
+    memcpy(s_status.boot_str, inf->boot, sizeof s_status.boot_str);
+    s_status.uid_len    = inf->uid_len;
+    memcpy(s_status.uid, inf->uid, sizeof s_status.uid);
+    taskEXIT_CRITICAL(&s_status_mux);
+    if (first) {
+        ESP_LOGI(TAG, "PSU node info: hw=%u fw=%s boot=%s", inf->hw_rev, inf->fw,
+                 inf->boot[0] ? inf->boot : "-");
+    }
 }
 
 static void on_cap(const psu_msg_cap_t *cap)
@@ -322,6 +340,7 @@ static void handle_line(const char *line, size_t len)
     case PSU_MSG_CAP:    link_alive(); on_cap(&m.u.cap);       break;
     case PSU_MSG_ACK:    link_alive(); on_ack(&m.u.ack);       break;
     case PSU_MSG_POWER:  link_alive(); on_power(&m.u.power);   break;
+    case PSU_MSG_INFO:   link_alive(); on_info(&m.u.info);     break;
     default:             break;   // HELO / SET 是控制板送出的方向，收到就忽略
     }
 }

@@ -26,6 +26,14 @@ typedef struct {
     uint16_t i_max_ca;    // 0.01 A，0 = 節點沒說
     uint16_t fw_ver;
 
+    // ── 節點身分 INF（2026-10-28；節點在 CAP 後面送，舊節點不送 → info_known 一直是 false；斷線時清除）
+    bool     info_known;
+    uint16_t hw_rev;                          // 硬體版本，各節點類型自己編號
+    char     fw_str[PSU_VER_STR_MAX + 1];     // 完整韌體版本
+    char     boot_str[PSU_BOOT_STR_MAX + 1];  // 開機程式版本；空 = 沒有獨立開機程式
+    uint8_t  uid_len;
+    uint8_t  uid[PSU_UID_MAX];                // MAC 或晶片 ID
+
     // ── 最新一筆 ST ──────────────────────────────────────────────────────────
     uint8_t  mode;        // psu_mode_t
     uint8_t  flags;       // PSU_ST_*

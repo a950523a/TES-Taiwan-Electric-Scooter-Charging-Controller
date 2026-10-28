@@ -330,6 +330,25 @@ static esp_err_t handle_get_status(httpd_req_t *req)
         psu_status_t psu_st = psu_driver_get_status();
         cJSON_AddNumberToObject(root, "psu_rssi",        (int)psu_st.rssi);
         cJSON_AddNumberToObject(root, "psu_fail_streak",  (int)psu_st.fail_streak);
+        // 周邊裝置（2026-10-28）：網頁「周邊裝置」卡片、App 系統頁用。陣列：之後的電流節點等其他節點也放這裡。
+        // 版本只在節點送了 INF 時才有（info_known），舊節點只有 CAP 的數字版本 fw_code
+        {
+            cJSON *nodes = cJSON_AddArrayToObject(root, "nodes");
+            if (psu_st.connected && psu_st.caps_known) {
+                cJSON *n = cJSON_CreateObject();
+                cJSON_AddStringToObject(n, "kind", "psu");
+                cJSON_AddStringToObject(n, "link", cfg_snap->psu_transport ? "espnow" : "uart");
+                cJSON_AddNumberToObject(n, "type", psu_st.node_type);
+                cJSON_AddNumberToObject(n, "fw_code", psu_st.fw_ver);
+                cJSON_AddBoolToObject  (n, "info_known", psu_st.info_known);
+                if (psu_st.info_known) {
+                    cJSON_AddNumberToObject(n, "hw", psu_st.hw_rev);
+                    cJSON_AddStringToObject(n, "fw", psu_st.fw_str);
+                    cJSON_AddStringToObject(n, "boot", psu_st.boot_str);
+                }
+                cJSON_AddItemToArray(nodes, n);
+            }
+        }
         // 電流是不是實測的（節點宣告會報電流且有效）、實測讀值是否被判定不可信（2026-10-17；畫面還沒用）
         {
             extern volatile bool g_isense_suspect;
@@ -2179,6 +2198,17 @@ static esp_err_t handle_get_hw_json(httpd_req_t *req)
         cJSON_AddNumberToObject(o, "node_type", p.node_type);
         cJSON_AddNumberToObject(o, "caps",      p.caps);
         cJSON_AddNumberToObject(o, "fw",        p.fw_ver);
+        cJSON_AddNumberToObject(o, "proto",     p.proto_ver);
+        cJSON_AddBoolToObject  (o, "info_known", p.info_known);
+        if (p.info_known) {                       // INF（2026-10-28）：硬體、完整版本、開機程式、識別碼
+            char uid[2 * PSU_UID_MAX + 1];
+            for (int k = 0; k < p.uid_len; k++) snprintf(uid + 2 * k, 3, "%02X", p.uid[k]);
+            uid[2 * p.uid_len] = '\0';
+            cJSON_AddNumberToObject(o, "hw",     p.hw_rev);
+            cJSON_AddStringToObject(o, "fw_str", p.fw_str);
+            cJSON_AddStringToObject(o, "boot",   p.boot_str);
+            cJSON_AddStringToObject(o, "uid",    uid);
+        }
         cJSON_AddNumberToObject(o, "st_age_ms", p.status_age_ms);
         cJSON_AddNumberToObject(o, "rx",        p.rx_frames);
         cJSON_AddNumberToObject(o, "crc_err",   p.rx_crc_errors);

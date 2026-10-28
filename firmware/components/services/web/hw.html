@@ -120,7 +120,7 @@ button.act{background:#1d3a26;border-color:#4dd97a;color:#bfe}
     <div class="card"><h2>輸出（腳位實際電位）</h2><div id="c-out"></div></div>
     <div class="card"><h2>按鈕</h2><div id="c-btn"></div></div>
     <div class="card"><h2>類比量測（ADS1115）</h2><div id="c-adc"></div></div>
-    <div class="card"><h2>PSU 連線</h2><div id="c-psu"></div></div>
+    <div class="card"><h2>周邊裝置連線</h2><div id="c-psu"></div></div>
     <div class="card"><h2>CAN 控制器</h2><div id="c-can"></div></div>
     <div class="card"><h2>系統</h2><div id="c-sys"></div></div>
     <div class="card"><h2>任務堆疊餘裕（歷史最低）</h2><div class="tk" id="c-tk"></div></div>
@@ -325,6 +325,9 @@ function render(d){
   setTag('psu',p.connected?(uart?'PSU UART ●':'PSU ESP-NOW ●'):'');
   $('c-psu').innerHTML=row('傳輸',uart?'UART（H2 排針）':'ESP-NOW')+row('連線',p.connected?'已連線':'未連線',p.connected?'g':'m')
     +(p.connected?row('節點',p.caps_known?(NODE[p.node_type]||p.node_type)+' fw '+p.fw:'尚未收到 CAP')
+      +(p.caps_known?row('協定版本',p.proto)+row('能力旗標','0x'+(p.caps||0).toString(16).toUpperCase().padStart(4,'0')):'')
+      +(p.info_known?row('硬體版本',p.hw)+row('韌體版本',p.fw_str||'—')+(p.boot?row('開機程式版本',p.boot):'')+row('識別碼',p.uid)
+        :(p.caps_known?row('韌體版本','版本未知（節點不送 INF）','m'):''))
       +row('電壓 / 電流',p.v.toFixed(2)+' V / '+p.i.toFixed(2)+' A')+row('最後 ST',age(p.st_age_ms)):'')
     +row('收到訊框',p.rx)+row('CRC 錯誤',p.crc_err,p.crc_err?'e':'')+row('無法辨識',p.bad,p.bad?'y':'')
     +(uart?'':row('RSSI',p.rssi+' dBm',p.rssi<-80?'y':''));

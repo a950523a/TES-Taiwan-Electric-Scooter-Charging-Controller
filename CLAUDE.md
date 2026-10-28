@@ -767,7 +767,8 @@ categories plus Save & Exit / Cancel; every setting lives in a category:
 | 自動化 / Automation | Scheduler, [Beta] Auto |
 | 螢幕與燈 / Screen & light | Language, Charge anim, Screensaver, Saver style, LuxBeacon |
 | 網路 / Network | WiFi Info, AP pass, `tes-<id>` |
-| 裝置資訊 / Device info | Board, firmware version (About), PSU link status — the planned "connected devices" rows go here |
+| 裝置資訊 / Device info | Board, firmware version (About) — the TES's own facts only |
+| 周邊裝置 / Connected (2026-10-28) | PSU link status, node hardware revision, node firmware version string, node id (the last three from PSU-Link `INF`; an old node without `INF` shows 節點版本未知; nothing connected → only the link row). One node today; turn it into a list → one page per node when there are more |
 | 維護 / Maintenance | Reset Fault, Restart |
 
 Each page starts with `< 返回 / < Back`; **long-press SETTING inside a page also goes back**. Entering a page puts
@@ -2017,6 +2018,12 @@ Added 2026-10-28 (the user):
   shows "version unknown". Shown on the web (`/hw`, a "connected devices" block with the update button), in the
   app (same, per the web/app parity rule) and as one OLED settings row (e.g. `PSU: LianMing v1.4.0`).
   `/hw.json` already carries `fw` from `CAP`; nothing displays it yet.
+- **Phase 1 done (2026-10-28, not tested on hardware): identity and display.** `psu_driver` stores `INF`
+  (`psu_status_t.info_known / hw_rev / fw_str / boot_str / uid`, cleared on link loss); `/status` has a `nodes`
+  array (`kind`, `link`, `type`, `fw_code`, `info_known`, and `hw` / `fw` / `boot` when known — an array so a
+  current-sensor node can join it); `/hw.json` `psu` adds `proto`, `info_known`, `hw`, `fw_str`, `boot`, `uid`;
+  the web card, the `/hw` card and the OLED category below exist (read-only). LianMing sends `INF` since its
+  0aea095. **Phase 2 (not started): the update relay** — `FWB`/`FWD`/`FWA`/`FWE`/`FWX`, upload endpoint, buttons.
 - **Where it goes (decided 2026-10-28, the user):**
   - **Web main page: a new "🔌 周邊裝置" card right below "🔄 韌體更新".** One row per node — kind and link
     (e.g. 電源 LianMing, ESP-NOW), hardware revision, firmware version, link state — each with "線上更新" (only

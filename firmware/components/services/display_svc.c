@@ -83,6 +83,7 @@ typedef enum {
     MENU_PAGE_DISPLAY,
     MENU_PAGE_NETWORK,
     MENU_PAGE_INFO,
+    MENU_PAGE_NODES,
     MENU_PAGE_MAINT,
 } menu_page_t;
 
@@ -94,6 +95,7 @@ typedef enum {
     MENU_ITEM_GO_DISPLAY,
     MENU_ITEM_GO_NETWORK,
     MENU_ITEM_GO_INFO,
+    MENU_ITEM_GO_NODES,
     MENU_ITEM_GO_MAINT,
     // 充電
     MENU_ITEM_AUTO_VOLTAGE,
@@ -117,10 +119,14 @@ typedef enum {
     MENU_ITEM_WIFI_INFO,
     MENU_ITEM_AP_PASS,       // 自動熱點的密碼（唯讀；連不上 WiFi 時手機用它連進來）
     MENU_ITEM_DEVICE_ID,     // 本機 mDNS 主機名 tes-<id>（唯讀，多台辨識用）
-    // 裝置資訊
+    // 裝置資訊（只放 TES 自己的）
     MENU_ITEM_BOARD,         // 硬體版本（唯讀，開機時由 AIN3 辨識）
     MENU_ITEM_ABOUT,         // 韌體版本（唯讀）
+    // 周邊裝置（2026-10-28）：現在只有電源節點一個。之後節點變多時改成「列表 → 每個節點一頁」
     MENU_ITEM_PSU_STATUS,    // PSU 連線狀態（唯讀）
+    MENU_ITEM_NODE_HW,       // 節點硬體版本（INF；沒送 INF 顯示版本未知）
+    MENU_ITEM_NODE_FW,       // 節點完整韌體版本（INF）
+    MENU_ITEM_NODE_UID,      // 節點識別碼（INF）
     // 維護
     MENU_ITEM_RESET_FAULT,   // 手動復歸緊急停止（設定選單確認才有效）
     MENU_ITEM_RESTART,       // 重新啟動：按兩次確認；充電流程中不可用（restart_svc）
@@ -243,6 +249,7 @@ static void item_label(int item, char *buf, size_t bufsz)
     case MENU_ITEM_GO_DISPLAY: snprintf(buf, bufsz, "%s", L("Screen & light >", ZH("螢幕與燈 >"))); break;
     case MENU_ITEM_GO_NETWORK: snprintf(buf, bufsz, "%s", L("Network >", ZH("網路 >")));       break;
     case MENU_ITEM_GO_INFO:    snprintf(buf, bufsz, "%s", L("Device info >", ZH("裝置資訊 >"))); break;
+    case MENU_ITEM_GO_NODES:   snprintf(buf, bufsz, "%s", L("Connected >", ZH("周邊裝置 >")));  break;
     case MENU_ITEM_GO_MAINT:   snprintf(buf, bufsz, "%s", L("Maintenance >", ZH("維護 >")));   break;
     case MENU_ITEM_AUTO_VOLTAGE:
         snprintf(buf, bufsz, "%s%s", L("Auto Volt: ", ZH("自動電壓: ")),
@@ -335,6 +342,23 @@ static void item_label(int item, char *buf, size_t bufsz)
         }
         break;
     }
+    case MENU_ITEM_NODE_HW: {
+        psu_status_t pst = psu_driver_get_status();
+        if (pst.info_known) snprintf(buf, bufsz, "%s%u", L("HW rev: ", ZH("節點硬體: ")), pst.hw_rev);
+        else                snprintf(buf, bufsz, "%s", L("Version unknown", ZH("節點版本未知")));
+        break;
+    }
+    case MENU_ITEM_NODE_FW: {     // 版本字串最長 31 字，比一行長：不加標籤
+        psu_status_t pst = psu_driver_get_status();
+        snprintf(buf, bufsz, "%s", pst.fw_str);
+        break;
+    }
+    case MENU_ITEM_NODE_UID: {
+        psu_status_t pst = psu_driver_get_status();
+        int n = snprintf(buf, bufsz, "ID:");
+        for (int k = 0; k < pst.uid_len && n + 2 < (int)bufsz; k++) n += snprintf(buf + n, bufsz - n, "%02X", pst.uid[k]);
+        break;
+    }
     case MENU_ITEM_SCHEDULER:
         snprintf(buf, bufsz, "%s%s", L("Scheduler: ", ZH("定時充電: ")),
                  s_edit_sched_enabled ? L("ON", ZH("開")) : L("OFF", ZH("關")));
@@ -422,7 +446,8 @@ static menu_page_t item_page(int item)
     if (item >= MENU_ITEM_SCHEDULER    && item <= MENU_ITEM_AUTO_START)  return MENU_PAGE_AUTO;
     if (item >= MENU_ITEM_LANG         && item <= MENU_ITEM_BEACON)      return MENU_PAGE_DISPLAY;
     if (item >= MENU_ITEM_WIFI_INFO    && item <= MENU_ITEM_DEVICE_ID)   return MENU_PAGE_NETWORK;
-    if (item >= MENU_ITEM_BOARD        && item <= MENU_ITEM_PSU_STATUS)  return MENU_PAGE_INFO;
+    if (item >= MENU_ITEM_BOARD        && item <= MENU_ITEM_ABOUT)       return MENU_PAGE_INFO;
+    if (item >= MENU_ITEM_PSU_STATUS   && item <= MENU_ITEM_NODE_UID)    return MENU_PAGE_NODES;
     if (item >= MENU_ITEM_RESET_FAULT  && item <= MENU_ITEM_RESTART)     return MENU_PAGE_MAINT;
     return MENU_PAGE_TOP;   // GO_*、SAVE、CANCEL（BACK 另外處理）
 }
@@ -443,6 +468,11 @@ static bool item_is_visible(int item)
         return s_edit_stop_mode == STOP_MODE_ENERGY;
     if (item == MENU_ITEM_SAVER_STYLE)
         return s_edit_ss_min != 0;
+    if (item >= MENU_ITEM_NODE_HW && item <= MENU_ITEM_NODE_UID) {   // 節點連著才有；版本只有送了 INF 才有
+        psu_status_t pst = psu_driver_get_status();
+        if (!pst.connected || !pst.caps_known) return false;
+        return item == MENU_ITEM_NODE_HW || pst.info_known;
+    }
     return true;
 }
 
@@ -1200,6 +1230,7 @@ static void render_menu(void)
     case MENU_PAGE_DISPLAY: header("SCREEN & LIGHT",     ZH("設定 > 螢幕與燈")); break;
     case MENU_PAGE_NETWORK: header("NETWORK",    ZH("設定 > 網路"));     break;
     case MENU_PAGE_INFO:    header("DEVICE INFO",     ZH("設定 > 裝置資訊")); break;
+    case MENU_PAGE_NODES:   header("CONNECTED",       ZH("設定 > 周邊裝置")); break;
     case MENU_PAGE_MAINT:   header("MAINTENANCE",   ZH("設定 > 維護"));     break;
     default:                header("SETTINGS",              ZH("設定"));           break;
     }
@@ -1320,7 +1351,7 @@ void display_svc_button(uint8_t evt)
                 int actual = s_visible_items[s_cursor];
                 if (actual == MENU_ITEM_BACK) {
                     go_page(MENU_PAGE_TOP);
-                } else if (actual >= MENU_ITEM_GO_CHARGE && actual <= MENU_ITEM_GO_MAINT) {
+                } else if (actual >= MENU_ITEM_GO_CHARGE && actual <= MENU_ITEM_GO_MAINT) {   // GO_* 與頁面同順序
                     go_page((menu_page_t)(MENU_PAGE_CHARGE + (actual - MENU_ITEM_GO_CHARGE)));
                 } else if (actual == MENU_ITEM_SAVE) {
                     menu_save();

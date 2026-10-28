@@ -292,6 +292,12 @@ tr.hrow.open .cr i{transform:rotate(90deg)}
   <div class="ver" style="margin-top:2px">作者：Chris Huang　授權：CC BY-NC-SA 4.0</div>
 </div>
 
+<!-- 周邊裝置（2026-10-28）：/status 的 nodes。之後的節點更新（上傳 .bin 由控制器轉傳）也放這裡 -->
+<div class="card">
+  <section-title>🔌 周邊裝置</section-title>
+  <div id="nodes-box" style="font-size:.9em;line-height:1.7;color:#ccc">沒有連線的周邊裝置</div>
+</div>
+
 <!-- 設定 -->
 <div class="card" id="cfg-card">
   <section-title>⚙ 設定</section-title>
@@ -801,6 +807,23 @@ const FAULTS={
     act:'旋鈕電源的電流開得太大：把電源的電流旋鈕調低到最大電流以下（接電流量測節點時最多 15 A），再重新開始充電。'}
 };
 
+// 周邊裝置卡片：一個節點一塊。舊韌體沒有 nodes 欄位 → 照舊顯示「沒有連線」
+function renderNodes(list){
+  const el=document.getElementById('nodes-box');
+  if(!el)return;
+  if(!list||!list.length){el.textContent='沒有連線的周邊裝置';return;}
+  const kind={psu:'電源節點'},type={1:'可控整流模組',2:'量測模組'};
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  el.innerHTML=list.map(n=>{
+    const ver=n.info_known
+      ?`硬體 ${esc(n.hw)}　韌體 ${esc(n.fw||'—')}`+(n.boot?`　開機程式 ${esc(n.boot)}`:'')
+      :'版本未知（節點韌體太舊，不會回報版本）';
+    return `<div style="padding:4px 0"><b>${kind[n.kind]||esc(n.kind)}</b>`
+      +`<span style="color:#888">　${type[n.type]||''}　${n.link==='espnow'?'ESP-NOW':'UART'}</span>`
+      +`<br><span style="color:#aaa">${ver}</span></div>`;
+  }).join('');
+}
+
 function renderFault(d){
   const fr=document.getElementById('fr');
   const src=d.fault_source|0;
@@ -982,6 +1005,9 @@ async function poll(){
         ntpEl.style.color='#555';
       }
     }
+
+    // 周邊裝置
+    renderNodes(d.nodes);
 
     // 韌體版本
     if(d.firmware_version)
