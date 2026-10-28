@@ -93,7 +93,7 @@
     '可控整流模組': 'controllable rectifier', '量測模組': 'meter',
     '硬體 {}　韌體 {}': 'Hardware {}  Firmware {}', '硬體 {}　韌體 {}　開機程式 {}': 'Hardware {}  Firmware {}  Bootloader {}',
     '版本未知（節點韌體太舊，不會回報版本）': 'Version unknown (the device firmware is too old to report it)',
-    '周邊裝置連線': 'Connected devices', '能力旗標': 'Capability bits', '版本未知（節點不送 INF）': 'Version unknown (the node does not send INF)', '硬體版本': 'Hardware revision', '韌體版本': 'Firmware version',
+    '周邊裝置連線': 'Connected devices', '能力旗標': 'Capability bits', '版本未知（節點不送 INF）': 'Version unknown (the node does not send INF)', '韌體版本': 'Firmware version',
     '開機程式版本': 'Bootloader version', '識別碼': 'Unique id', '協定版本': 'Protocol version',
     // ── 韌體更新、重新啟動 ──
     '🔄 韌體更新': '🔄 Firmware update', '進度': 'Progress', '⬆ 更新至最新韌體': '⬆ Update to latest firmware',
